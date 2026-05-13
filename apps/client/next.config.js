@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   transpilePackages: ['@restaurant/types', '@restaurant/utils'],
   images: {
     remotePatterns: [
