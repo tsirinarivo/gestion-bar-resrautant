@@ -38,7 +38,7 @@ $DC up -d --no-deps web pos kds client
 log "Frontends redémarrés"
 
 header "4. Migrations"
-$DC run --rm migrate sh -c "npx prisma migrate deploy" || true
+$DC run --rm migrate sh -c "npx prisma db push" || true
 log "Migrations exécutées"
 
 header "5. Statut final"
