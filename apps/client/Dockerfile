@@ -3,7 +3,7 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json package-lock.json* turbo.json ./
+COPY package.json package-lock.json turbo.json ./
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY packages/ui/package.json ./packages/ui/
@@ -17,20 +17,19 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-
 COPY packages/ ./packages/
 COPY apps/client/ ./apps/client/
 COPY turbo.json package.json tsconfig.json ./
 
 WORKDIR /app/apps/client
 
-# Build args for Next.js public env vars
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_SOCKET_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
-
 ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN mkdir -p public
 RUN npm run build
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
@@ -41,9 +40,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs &&     adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/apps/client/public ./public 2>/dev/null || true
+COPY --from=builder /app/apps/client/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/client/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/client/.next/static ./.next/static
 
