@@ -7,8 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, UtensilsCrossed, ShoppingCart, Table2,
   Package, Users, Calendar, BarChart3, Settings, ChefHat,
-  Monitor, LogOut, ChevronLeft, ChevronRight, Bell,
-  CreditCard, Tag, UserCog
+  Monitor, LogOut, ChevronLeft, ChevronRight,
+  CreditCard, Tag, UserCog, X
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/lib/api'
@@ -32,16 +32,19 @@ const navItems = [
   { href: '/settings', label: 'Paramètres', icon: Settings, roles: ['manager', 'superadmin'] },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  mobileOpen: boolean
+  onClose: () => void
+}
+
+export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
   const { user, logout } = useAuthStore()
   const router = useRouter()
 
   async function handleLogout() {
-    try {
-      await api.post('/auth/logout')
-    } catch {}
+    try { await api.post('/auth/logout') } catch {}
     logout()
     router.push('/login')
     toast.success('Déconnexion réussie')
@@ -52,12 +55,8 @@ export function Sidebar() {
     item.roles.includes('*') || item.roles.includes(userRole)
   )
 
-  return (
-    <motion.aside
-      animate={{ width: collapsed ? 72 : 240 }}
-      transition={{ duration: 0.2, ease: 'easeInOut' }}
-      className="h-full bg-brand-card border-r border-brand-border flex flex-col relative z-10 overflow-hidden"
-    >
+  const sidebarContent = (
+    <>
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-brand-border">
         <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
@@ -67,15 +66,17 @@ export function Sidebar() {
         <AnimatePresence>
           {!collapsed && (
             <motion.span
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
+              initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
               className="font-bold text-sm"
             >
               Restaurant<span className="text-brand-orange">OS</span>
             </motion.span>
           )}
         </AnimatePresence>
+        {/* Mobile close */}
+        <button onClick={onClose} className="md:hidden ml-auto text-brand-muted hover:text-white p-1">
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Navigation */}
@@ -83,7 +84,7 @@ export function Sidebar() {
         {filteredItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
           return (
-            <Link key={item.href} href={item.href}>
+            <Link key={item.href} href={item.href} onClick={onClose}>
               <motion.div
                 whileHover={{ x: collapsed ? 0 : 4 }}
                 className={`sidebar-item ${isActive ? 'active' : ''} ${item.highlight ? 'border border-brand-orange/30 bg-brand-orange/5' : ''}`}
@@ -92,9 +93,7 @@ export function Sidebar() {
                 <AnimatePresence>
                   {!collapsed && (
                     <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                       className="text-sm font-medium"
                     >
                       {item.label}
@@ -110,7 +109,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User section */}
+      {/* User */}
       <div className="p-2 border-t border-brand-border">
         <div className={`flex items-center gap-3 px-3 py-2 rounded-xl ${collapsed ? 'justify-center' : ''}`}>
           <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold"
@@ -119,12 +118,7 @@ export function Sidebar() {
           </div>
           <AnimatePresence>
             {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-1 min-w-0"
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-w-0">
                 <p className="text-xs font-semibold truncate">{user?.firstName} {user?.lastName}</p>
                 <p className="text-xs text-brand-muted capitalize">{userRole}</p>
               </motion.div>
@@ -133,12 +127,9 @@ export function Sidebar() {
           <AnimatePresence>
             {!collapsed && (
               <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 onClick={handleLogout}
                 className="text-brand-muted hover:text-red-400 transition-colors p-1"
-                title="Déconnexion"
               >
                 <LogOut className="w-4 h-4" />
               </motion.button>
@@ -147,13 +138,41 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — desktop only */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute top-1/2 -right-3 w-6 h-6 rounded-full bg-brand-border border border-brand-card flex items-center justify-center text-brand-muted hover:text-white transition-colors z-20"
+        className="hidden md:flex absolute top-1/2 -right-3 w-6 h-6 rounded-full bg-brand-border border border-brand-card items-center justify-center text-brand-muted hover:text-white transition-colors z-20"
       >
         {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
       </button>
-    </motion.aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <motion.aside
+        animate={{ width: collapsed ? 72 : 240 }}
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+        className="hidden md:flex h-full bg-brand-card border-r border-brand-border flex-col relative z-10 overflow-hidden"
+      >
+        {sidebarContent}
+      </motion.aside>
+
+      {/* Mobile sidebar — slide-in drawer */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.aside
+            initial={{ x: -280 }}
+            animate={{ x: 0 }}
+            exit={{ x: -280 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="md:hidden fixed left-0 top-0 h-full w-[280px] bg-brand-card border-r border-brand-border flex flex-col z-30 overflow-hidden"
+          >
+            {sidebarContent}
+          </motion.aside>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

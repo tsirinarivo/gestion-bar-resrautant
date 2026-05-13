@@ -23,7 +23,11 @@ const pageTitles: Record<string, string> = {
   '/coupons': 'Promotions & Coupons',
 }
 
-export function Header() {
+interface HeaderProps {
+  onMenuToggle: () => void
+}
+
+export function Header({ onMenuToggle }: HeaderProps) {
   const pathname = usePathname()
   const { user } = useAuthStore()
   const [notifications] = useState(3)
@@ -37,12 +41,20 @@ export function Header() {
   const title = Object.entries(pageTitles).find(([path]) => pathname.startsWith(path))?.[1] || 'Dashboard'
 
   return (
-    <header className="h-16 bg-brand-card/50 border-b border-brand-border flex items-center justify-between px-6 backdrop-blur-sm">
-      <div>
-        <h1 className="font-semibold text-lg">{title}</h1>
-        <p className="text-xs text-brand-muted">
-          {formatDate(time, 'EEEE d MMMM yyyy')} — {time.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-        </p>
+    <header className="h-16 bg-brand-card/50 border-b border-brand-border flex items-center justify-between px-4 md:px-6 backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onMenuToggle}
+          className="md:hidden p-2 hover:bg-white/5 rounded-xl transition-colors"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="font-semibold text-lg leading-tight">{title}</h1>
+          <p className="text-xs text-brand-muted hidden sm:block">
+            {formatDate(time, 'EEEE d MMMM yyyy')} — {time.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

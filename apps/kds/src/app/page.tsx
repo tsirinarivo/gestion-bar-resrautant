@@ -176,16 +176,16 @@ function KDSPageInner() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-3 bg-gray-900/80 border-b border-gray-800">
-        <div className="flex items-center gap-4">
-          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-          <h1 className="text-xl font-bold">Cuisine — Kitchen Display</h1>
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-900/80 border-b border-gray-800">
+        <div className="flex items-center gap-3">
+          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
+          <h1 className="text-base md:text-xl font-bold">Cuisine — KDS</h1>
         </div>
-        <div className="flex items-center gap-6">
-          <p className="text-xs text-gray-500">
-            {pendingOrders.length} en attente · {preparingOrders.length} en préparation
+        <div className="flex items-center gap-3 md:gap-6">
+          <p className="text-xs text-gray-500 hidden sm:block">
+            {pendingOrders.length} attente · {preparingOrders.length} en cours
           </p>
-          <p className="text-2xl font-mono font-bold text-amber-400">
+          <p className="text-lg md:text-2xl font-mono font-bold text-amber-400">
             {now.toLocaleTimeString('fr-FR')}
           </p>
           <button onClick={() => setToken(null)} className="text-xs text-gray-600 hover:text-gray-400">
@@ -202,7 +202,7 @@ function KDSPageInner() {
             <p className="text-sm mt-2">En attente de nouvelles commandes</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {orders.map(order => {
               const waitMinutes = getWaitTime(order.createdAt);
               const timerClass = getTimerClass(waitMinutes);

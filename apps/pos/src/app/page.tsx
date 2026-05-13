@@ -57,7 +57,6 @@ async function createOrder(token: string, cart: CartItem[], note: string, method
 
   const order = orderData.data!;
 
-  // Confirm then pay
   await fetch(`${API_URL}/api/orders/${order.id}/status`, {
     method: 'PATCH',
     headers: authHeaders(token),
@@ -96,7 +95,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900">
+    <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
       <form onSubmit={handleSubmit} className="bg-gray-800 rounded-2xl p-8 w-full max-w-sm space-y-4 shadow-xl">
         <h1 className="text-2xl font-bold text-center mb-6">Caisse POS</h1>
         {error && <p className="bg-red-900/50 text-red-300 text-sm rounded-xl px-4 py-2">{error}</p>}
@@ -125,6 +124,100 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
   );
 }
 
+function CartPanel({
+  cart, total, orderNote, status, statusMsg,
+  onAdd, onRemove, onNoteChange, onPay, onClear, onClose, isMobile,
+}: {
+  cart: CartItem[]; total: number; orderNote: string; status: string; statusMsg: string;
+  onAdd: (p: Product) => void; onRemove: (id: string) => void;
+  onNoteChange: (v: string) => void; onPay: (m: 'CASH' | 'CARD') => void;
+  onClear: () => void; onClose?: () => void; isMobile?: boolean;
+}) {
+  return (
+    <div className={`flex flex-col ${isMobile ? 'h-full' : 'w-96 border-l border-gray-700'} bg-gray-800`}>
+      <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold">Commande en cours</h2>
+          <p className="text-sm text-gray-400">{cart.reduce((s, i) => s + i.quantity, 0)} article(s)</p>
+        </div>
+        {onClose && (
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        {cart.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+            <p className="text-4xl mb-3">🛒</p>
+            <p className="text-sm">Panier vide</p>
+          </div>
+        ) : cart.map(item => (
+          <div key={item.product.id} className="flex items-center gap-2 bg-gray-700/50 rounded-xl p-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">{item.product.name}</p>
+              <p className="text-xs text-gray-400">{formatCurrency(item.product.price)} × {item.quantity}</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={() => onRemove(item.product.id)} className="w-7 h-7 rounded-full bg-gray-600 hover:bg-red-600 flex items-center justify-center text-sm">−</button>
+              <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
+              <button onClick={() => onAdd(item.product)} className="w-7 h-7 rounded-full bg-gray-600 hover:bg-green-600 flex items-center justify-center text-sm">+</button>
+            </div>
+            <span className="text-orange-400 font-bold text-sm w-24 text-right">{formatCurrency(item.product.price * item.quantity)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="px-4 pb-2">
+        <input
+          type="text" placeholder="Note..." value={orderNote}
+          onChange={e => onNoteChange(e.target.value)}
+          className="w-full bg-gray-700 rounded-xl px-3 py-2 text-sm placeholder-gray-500 outline-none focus:ring-1 focus:ring-orange-500"
+        />
+      </div>
+
+      <div className="px-4 pt-2 border-t border-gray-700">
+        <div className="flex justify-between font-bold text-xl py-3">
+          <span>Total TTC</span>
+          <span className="text-orange-400">{formatCurrency(total)}</span>
+        </div>
+      </div>
+
+      {status === 'success' && (
+        <div className="mx-4 mb-2 bg-green-900/60 text-green-300 text-sm rounded-xl px-4 py-3">{statusMsg}</div>
+      )}
+      {status === 'error' && (
+        <div className="mx-4 mb-2 bg-red-900/60 text-red-300 text-sm rounded-xl px-4 py-3">{statusMsg}</div>
+      )}
+
+      <div className="p-4 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => onPay('CASH')}
+            disabled={cart.length === 0 || status === 'processing'}
+            className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white py-4 rounded-xl font-bold transition-colors"
+          >
+            {status === 'processing' ? '...' : '💵 Espèces'}
+          </button>
+          <button
+            onClick={() => onPay('CARD')}
+            disabled={cart.length === 0 || status === 'processing'}
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-4 rounded-xl font-bold transition-colors"
+          >
+            {status === 'processing' ? '...' : '💳 Carte'}
+          </button>
+        </div>
+        <button
+          onClick={onClear}
+          disabled={cart.length === 0}
+          className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 py-3 rounded-xl text-sm"
+        >
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function POSPage() {
   const [token, setToken] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
@@ -132,6 +225,7 @@ export default function POSPage() {
   const [orderNote, setOrderNote] = useState('');
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [statusMsg, setStatusMsg] = useState('');
+  const [cartOpen, setCartOpen] = useState(false);
 
   const { data: categories = [] } = useQuery({
     queryKey: ['pos-categories', token],
@@ -158,6 +252,7 @@ export default function POSPage() {
   }, []);
 
   const total = cart.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+  const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   const handlePay = async (method: 'CASH' | 'CARD') => {
     if (cart.length === 0 || !token) return;
@@ -169,6 +264,7 @@ export default function POSPage() {
       setStatusMsg(`Commande ${order.id.slice(-6).toUpperCase()} encaissée — ${formatCurrency(order.totalAmount)}`);
       setCart([]);
       setOrderNote('');
+      setCartOpen(false);
       setTimeout(() => setStatus('idle'), 4000);
     } catch (err) {
       setStatus('error');
@@ -179,27 +275,33 @@ export default function POSPage() {
 
   if (!token) return <LoginScreen onLogin={setToken} />;
 
+  const cartProps = {
+    cart, total, orderNote, status, statusMsg,
+    onAdd: addToCart, onRemove: removeFromCart,
+    onNoteChange: setOrderNote, onPay: handlePay, onClear: () => setCart([]),
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Left: Products */}
+    <div className="flex h-screen overflow-hidden bg-gray-900 text-white">
+      {/* Products panel */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
-          <h1 className="text-xl font-bold">Caisse POS</h1>
+        <div className="p-3 md:p-4 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
+          <h1 className="text-lg md:text-xl font-bold">Caisse POS</h1>
           <button onClick={() => setToken(null)} className="text-xs text-gray-500 hover:text-gray-300">Déconnexion</button>
         </div>
 
         {/* Categories */}
-        <div className="flex gap-2 p-4 overflow-x-auto border-b border-gray-700 bg-gray-800/50">
+        <div className="flex gap-2 p-3 overflow-x-auto border-b border-gray-700 bg-gray-800/50 flex-shrink-0">
           <button
             onClick={() => setSelectedCategory(undefined)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${!selectedCategory ? 'bg-orange-500 text-white' : 'bg-gray-700 text-gray-300'}`}
+            className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap ${!selectedCategory ? 'bg-orange-500 text-white' : 'bg-gray-700 text-gray-300'}`}
           >
             Tous
           </button>
           {categories.map(cat => (
             <button
               key={cat.id} onClick={() => setSelectedCategory(cat.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${selectedCategory === cat.id ? 'bg-orange-500 text-white' : 'bg-gray-700 text-gray-300'}`}
+              className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap ${selectedCategory === cat.id ? 'bg-orange-500 text-white' : 'bg-gray-700 text-gray-300'}`}
             >
               {cat.icon} {cat.name}
             </button>
@@ -207,99 +309,55 @@ export default function POSPage() {
         </div>
 
         {/* Products Grid */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {products.map(product => (
-              <button
-                key={product.id} onClick={() => addToCart(product)}
-                className="bg-gray-800 hover:bg-gray-700 rounded-xl p-4 text-left transition-all active:scale-95"
-              >
-                <div className="aspect-square bg-gray-700 rounded-lg mb-3 flex items-center justify-center text-3xl">🍽️</div>
-                <p className="font-medium text-sm leading-tight line-clamp-2">{product.name}</p>
-                <p className="text-orange-400 font-bold mt-1">{formatCurrency(product.price)}</p>
-              </button>
-            ))}
+        <div className="flex-1 overflow-y-auto p-3 md:p-4 pb-24 md:pb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3">
+            {products.map(product => {
+              const inCart = cart.find(i => i.product.id === product.id);
+              return (
+                <button
+                  key={product.id} onClick={() => addToCart(product)}
+                  className="bg-gray-800 hover:bg-gray-700 rounded-xl p-3 md:p-4 text-left transition-all active:scale-95 relative"
+                >
+                  {inCart && (
+                    <span className="absolute top-2 right-2 w-5 h-5 bg-orange-500 rounded-full text-xs font-bold flex items-center justify-center">
+                      {inCart.quantity}
+                    </span>
+                  )}
+                  <div className="aspect-square bg-gray-700 rounded-lg mb-2 md:mb-3 flex items-center justify-center text-2xl md:text-3xl">🍽️</div>
+                  <p className="font-medium text-xs md:text-sm leading-tight line-clamp-2">{product.name}</p>
+                  <p className="text-orange-400 font-bold mt-1 text-xs md:text-sm">{formatCurrency(product.price)}</p>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Right: Cart */}
-      <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col">
-        <div className="p-4 border-b border-gray-700">
-          <h2 className="text-lg font-bold">Commande en cours</h2>
-          <p className="text-sm text-gray-400">{cart.reduce((s, i) => s + i.quantity, 0)} article(s)</p>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500">
-              <p className="text-4xl mb-3">🛒</p>
-              <p className="text-sm">Panier vide</p>
-            </div>
-          ) : cart.map(item => (
-            <div key={item.product.id} className="flex items-center gap-2 bg-gray-700/50 rounded-xl p-3">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{item.product.name}</p>
-                <p className="text-xs text-gray-400">{formatCurrency(item.product.price)} × {item.quantity}</p>
-              </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => removeFromCart(item.product.id)} className="w-7 h-7 rounded-full bg-gray-600 hover:bg-red-600 flex items-center justify-center text-sm">−</button>
-                <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
-                <button onClick={() => addToCart(item.product)} className="w-7 h-7 rounded-full bg-gray-600 hover:bg-green-600 flex items-center justify-center text-sm">+</button>
-              </div>
-              <span className="text-orange-400 font-bold text-sm w-20 text-right">{formatCurrency(item.product.price * item.quantity)}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="px-4 pb-2">
-          <input
-            type="text" placeholder="Note..." value={orderNote}
-            onChange={e => setOrderNote(e.target.value)}
-            className="w-full bg-gray-700 rounded-xl px-3 py-2 text-sm placeholder-gray-500 outline-none focus:ring-1 focus:ring-orange-500"
-          />
-        </div>
-
-        <div className="p-4 border-t border-gray-700 space-y-2">
-          <div className="flex justify-between font-bold text-xl pt-1">
-            <span>Total TTC</span>
-            <span className="text-orange-400">{formatCurrency(total)}</span>
-          </div>
-        </div>
-
-        {status === 'success' && (
-          <div className="mx-4 mb-2 bg-green-900/60 text-green-300 text-sm rounded-xl px-4 py-3">{statusMsg}</div>
-        )}
-        {status === 'error' && (
-          <div className="mx-4 mb-2 bg-red-900/60 text-red-300 text-sm rounded-xl px-4 py-3">{statusMsg}</div>
-        )}
-
-        <div className="p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => handlePay('CASH')}
-              disabled={cart.length === 0 || status === 'processing'}
-              className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white py-4 rounded-xl font-bold transition-colors"
-            >
-              {status === 'processing' ? '...' : '💵 Espèces'}
-            </button>
-            <button
-              onClick={() => handlePay('CARD')}
-              disabled={cart.length === 0 || status === 'processing'}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-4 rounded-xl font-bold transition-colors"
-            >
-              {status === 'processing' ? '...' : '💳 Carte'}
-            </button>
-          </div>
-          <button
-            onClick={() => setCart([])}
-            disabled={cart.length === 0}
-            className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 py-3 rounded-xl text-sm"
-          >
-            Annuler
-          </button>
-        </div>
+      {/* Desktop: static cart panel */}
+      <div className="hidden md:flex">
+        <CartPanel {...cartProps} />
       </div>
+
+      {/* Mobile: floating cart bar */}
+      {!cartOpen && (
+        <button
+          onClick={() => setCartOpen(true)}
+          className="md:hidden fixed bottom-4 left-4 right-4 bg-orange-500 hover:bg-orange-400 text-white py-4 rounded-2xl font-bold shadow-2xl flex items-center justify-between px-6 z-20"
+        >
+          <span>🛒 {cartCount} article{cartCount !== 1 ? 's' : ''}</span>
+          <span>{formatCurrency(total)}</span>
+        </button>
+      )}
+
+      {/* Mobile: cart drawer */}
+      {cartOpen && (
+        <div className="md:hidden fixed inset-0 z-30 flex flex-col">
+          <div className="flex-1 bg-black/60" onClick={() => setCartOpen(false)} />
+          <div className="bg-gray-800 rounded-t-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            <CartPanel {...cartProps} isMobile onClose={() => setCartOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
