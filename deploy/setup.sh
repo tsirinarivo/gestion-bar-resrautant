@@ -49,7 +49,6 @@ source .env.prod
 [ -z "$POSTGRES_PASSWORD" ] && error "POSTGRES_PASSWORD manquant dans .env.prod"
 [ -z "$REDIS_PASSWORD" ]    && error "REDIS_PASSWORD manquant dans .env.prod"
 [ -z "$JWT_SECRET" ]        && error "JWT_SECRET manquant dans .env.prod"
-[ -z "$CERTBOT_EMAIL" ]     && error "CERTBOT_EMAIL manquant dans .env.prod"
 
 log ".env.prod valide"
 
@@ -111,8 +110,6 @@ certbot --nginx \
   -d pos.restaurant.dago-it.com \
   -d kds.restaurant.dago-it.com \
   -d api.restaurant.dago-it.com \
-  --email "$CERTBOT_EMAIL" \
-  --agree-tos \
   --non-interactive \
   --redirect
 
