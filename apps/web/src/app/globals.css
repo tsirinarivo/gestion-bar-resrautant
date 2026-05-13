@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 10 10 15;
+    --foreground: 255 255 255;
+    --brand-orange: 255 77 0;
+    --brand-gold: 255 184 0;
+  }
+
+  * {
+    @apply border-brand-border;
+  }
+
+  body {
+    @apply bg-brand-dark text-white;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-brand-darker;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-brand-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-brand-muted;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-brand-card border border-brand-border rounded-2xl;
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(10px);
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300;
+    &:hover {
+      @apply border-brand-orange/30 shadow-glow-orange;
+      transform: translateY(-2px);
+    }
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #FF4D00 0%, #FFB800 100%);
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 rounded-xl font-semibold text-sm transition-all duration-200;
+    background: linear-gradient(135deg, #FF4D00 0%, #FF6B00 100%);
+    &:hover {
+      @apply shadow-glow-orange;
+      transform: translateY(-1px);
+    }
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 rounded-xl font-semibold text-sm border border-brand-border bg-brand-card transition-all duration-200;
+    &:hover {
+      @apply border-brand-orange/50 text-brand-orange;
+    }
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2.5 bg-brand-darker border border-brand-border rounded-xl text-sm text-white placeholder-brand-muted;
+    @apply focus:outline-none focus:border-brand-orange/50 focus:ring-1 focus:ring-brand-orange/30 transition-all duration-200;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .kpi-card {
+    @apply glass-card p-6 relative overflow-hidden;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-brand-muted;
+    &:hover {
+      @apply bg-white/5 text-white;
+    }
+    &.active {
+      @apply bg-brand-orange/10 text-brand-orange border border-brand-orange/20;
+    }
+  }
+
+  .skeleton {
+    @apply bg-brand-card animate-pulse rounded-xl;
+    background: linear-gradient(90deg, #111118 25%, #1a1a25 50%, #111118 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

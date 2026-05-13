@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-inter: 'Inter', sans-serif;
+    --font-playfair: 'Playfair Display', serif;
+  }
+
+  body {
+    @apply antialiased;
+  }
+}
+
+@layer components {
+  .container-narrow {
+    @apply max-w-5xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 bg-amber-500 hover:bg-amber-600
+           text-white font-semibold rounded-xl transition-all duration-200 active:scale-95;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center px-6 py-3 border-2 border-amber-500
+           text-amber-600 font-semibold rounded-xl hover:bg-amber-50 transition-all duration-200;
+  }
+
+  .product-card {
+    @apply bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden;
+  }
+
+  .category-pill {
+    @apply px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 cursor-pointer;
+  }
+
+  .category-pill-active {
+    @apply bg-amber-500 text-white;
+  }
+
+  .category-pill-inactive {
+    @apply bg-gray-100 text-gray-600 hover:bg-gray-200;
+  }
+}

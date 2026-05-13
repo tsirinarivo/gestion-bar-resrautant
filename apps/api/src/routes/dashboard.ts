@@ -1,0 +1,303 @@
+import { Router } from 'express'
+import { prisma } from '../lib/prisma'
+import { authenticate, AuthRequest } from '../middleware/auth'
+import { startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
+
+export const dashboardRouter = Router()
+dashboardRouter.use(authenticate)
+
+// GET /api/dashboard/kpis
+dashboardRouter.get('/kpis', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const now = new Date()
+    const todayStart = startOfDay(now)
+    const todayEnd = endOfDay(now)
+    const yesterdayStart = startOfDay(subDays(now, 1))
+    const yesterdayEnd = endOfDay(subDays(now, 1))
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 })
+    const monthStart = startOfMonth(now)
+
+    const [
+      todayOrders,
+      yesterdayOrders,
+      weekOrders,
+      monthOrders,
+      pendingOrders,
+      tables,
+      topProducts,
+    ] = await Promise.all([
+      prisma.order.aggregate({
+        where: { restaurantId, createdAt: { gte: todayStart, lte: todayEnd }, status: { notIn: ['CANCELLED'] } },
+        _sum: { totalAmount: true, guestCount: true },
+        _count: true,
+        _avg: { totalAmount: true },
+      }),
+      prisma.order.aggregate({
+        where: { restaurantId, createdAt: { gte: yesterdayStart, lte: yesterdayEnd }, status: { notIn: ['CANCELLED'] } },
+        _sum: { totalAmount: true },
+        _count: true,
+      }),
+      prisma.order.aggregate({
+        where: { restaurantId, createdAt: { gte: weekStart }, status: { notIn: ['CANCELLED'] } },
+        _sum: { totalAmount: true },
+        _count: true,
+      }),
+      prisma.order.aggregate({
+        where: { restaurantId, createdAt: { gte: monthStart }, status: { notIn: ['CANCELLED'] } },
+        _sum: { totalAmount: true },
+        _count: true,
+      }),
+      prisma.order.findMany({
+        where: { restaurantId, status: { in: ['PENDING', 'CONFIRMED', 'PREPARING'] } },
+        select: { id: true, status: true },
+      }),
+      prisma.diningTable.groupBy({
+        by: ['status'],
+        where: { restaurantId, isActive: true },
+        _count: true,
+      }),
+      prisma.orderItem.groupBy({
+        by: ['productId'],
+        where: {
+          order: {
+            restaurantId,
+            createdAt: { gte: todayStart },
+            status: { notIn: ['CANCELLED'] },
+          },
+        },
+        _sum: { quantity: true, totalPrice: true },
+        orderBy: { _sum: { totalPrice: 'desc' } },
+        take: 10,
+      }),
+    ])
+
+    const todayRevenue = todayOrders._sum.totalAmount || 0
+    const yesterdayRevenue = yesterdayOrders._sum.totalAmount || 0
+    const revenueTrend = yesterdayRevenue > 0
+      ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100
+      : 0
+
+    const tableStats = tables.reduce((acc, t) => {
+      acc[t.status] = t._count
+      return acc
+    }, {} as Record<string, number>)
+
+    const totalTables = Object.values(tableStats).reduce((s, c) => s + c, 0)
+    const occupiedTables = tableStats['OCCUPIED'] || 0
+
+    const topProductIds = topProducts.map(p => p.productId)
+    const topProductData = await prisma.product.findMany({
+      where: { id: { in: topProductIds } },
+      select: { id: true, name: true },
+    })
+    const productMap = Object.fromEntries(topProductData.map(p => [p.id, p.name]))
+
+    res.json({
+      success: true,
+      data: {
+        revenue: {
+          today: todayRevenue,
+          yesterday: yesterdayRevenue,
+          thisWeek: weekOrders._sum.totalAmount || 0,
+          thisMonth: monthOrders._sum.totalAmount || 0,
+          trend: Math.round(revenueTrend * 10) / 10,
+        },
+        orders: {
+          today: todayOrders._count,
+          pending: pendingOrders.filter(o => o.status === 'PENDING').length,
+          inProgress: pendingOrders.filter(o => ['CONFIRMED', 'PREPARING'].includes(o.status)).length,
+          completed: (weekOrders._count || 0),
+        },
+        tables: {
+          total: totalTables,
+          occupied: occupiedTables,
+          available: tableStats['AVAILABLE'] || 0,
+          reserved: tableStats['RESERVED'] || 0,
+          occupancyRate: totalTables > 0 ? Math.round((occupiedTables / totalTables) * 100) : 0,
+        },
+        averageTicket: Math.round((todayOrders._avg.totalAmount || 0) * 100) / 100,
+        totalCovers: todayOrders._sum.guestCount || 0,
+        topProducts: topProducts.map(p => ({
+          productId: p.productId,
+          name: productMap[p.productId] || 'Inconnu',
+          quantity: p._sum.quantity || 0,
+          revenue: p._sum.totalPrice || 0,
+        })),
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/dashboard/revenue-chart
+dashboardRouter.get('/revenue-chart', async (req: AuthRequest, res, next) => {
+  try {
+    const { period = 'week' } = req.query
+    const restaurantId = req.user!.restaurantId
+    const now = new Date()
+
+    let from: Date
+    const to = endOfDay(now)
+    const days = period === 'year' ? 365 : period === 'month' ? 30 : 7
+    from = startOfDay(subDays(now, days - 1))
+
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        createdAt: { gte: from, lte: to },
+        status: { notIn: ['CANCELLED'] },
+      },
+      select: {
+        createdAt: true,
+        totalAmount: true,
+        guestCount: true,
+      },
+    })
+
+    const dataMap = new Map<string, { revenue: number; orders: number; covers: number }>()
+    for (let i = 0; i < days; i++) {
+      const d = subDays(now, days - 1 - i)
+      const key = d.toISOString().split('T')[0]
+      dataMap.set(key, { revenue: 0, orders: 0, covers: 0 })
+    }
+
+    orders.forEach(order => {
+      const key = order.createdAt.toISOString().split('T')[0]
+      const existing = dataMap.get(key)
+      if (existing) {
+        existing.revenue += order.totalAmount
+        existing.orders += 1
+        existing.covers += order.guestCount
+      }
+    })
+
+    const data = Array.from(dataMap.entries()).map(([date, values]) => ({ date, ...values }))
+
+    res.json({ success: true, data })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/dashboard/hourly-stats
+dashboardRouter.get('/hourly-stats', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const { date } = req.query
+    const targetDate = date ? new Date(date as string) : new Date()
+
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        createdAt: { gte: startOfDay(targetDate), lte: endOfDay(targetDate) },
+        status: { notIn: ['CANCELLED'] },
+      },
+      select: { createdAt: true, totalAmount: true },
+    })
+
+    const hourlyData = Array.from({ length: 24 }, (_, i) => ({ hour: i, orders: 0, revenue: 0 }))
+
+    orders.forEach(order => {
+      const hour = order.createdAt.getHours()
+      hourlyData[hour].orders += 1
+      hourlyData[hour].revenue += order.totalAmount
+    })
+
+    res.json({ success: true, data: hourlyData })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/dashboard/category-stats
+dashboardRouter.get('/category-stats', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const { period = 'month' } = req.query
+    const days = period === 'year' ? 365 : period === 'week' ? 7 : 30
+    const from = startOfDay(subDays(new Date(), days))
+
+    const data = await prisma.orderItem.groupBy({
+      by: ['productId'],
+      where: {
+        order: {
+          restaurantId,
+          createdAt: { gte: from },
+          status: { notIn: ['CANCELLED'] },
+        },
+      },
+      _sum: { quantity: true, totalPrice: true },
+    })
+
+    const productIds = data.map(d => d.productId)
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      include: { category: true },
+    })
+    const productMap = Object.fromEntries(products.map(p => [p.id, p]))
+
+    const categoryMap = new Map<string, { name: string; revenue: number; quantity: number }>()
+
+    data.forEach(item => {
+      const product = productMap[item.productId]
+      if (!product?.category) return
+      const catId = product.category.id
+      const existing = categoryMap.get(catId) || { name: product.category.name, revenue: 0, quantity: 0 }
+      existing.revenue += item._sum.totalPrice || 0
+      existing.quantity += item._sum.quantity || 0
+      categoryMap.set(catId, existing)
+    })
+
+    const result = Array.from(categoryMap.entries()).map(([id, values]) => ({ id, ...values }))
+      .sort((a, b) => b.revenue - a.revenue)
+
+    res.json({ success: true, data: result })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/dashboard/live
+dashboardRouter.get('/live', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+
+    const [activeOrders, tables, stockAlerts, notifications] = await Promise.all([
+      prisma.order.findMany({
+        where: { restaurantId, status: { in: ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'] } },
+        include: { items: { include: { product: true } }, table: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.diningTable.findMany({
+        where: { restaurantId, isActive: true },
+        include: {
+          orders: {
+            where: { status: { in: ['CONFIRMED', 'PREPARING', 'READY'] } },
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      }),
+      prisma.stockAlert.findMany({
+        where: { stockItem: { restaurantId }, isRead: false },
+        include: { stockItem: true },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.notification.findMany({
+        where: { restaurantId, isRead: false },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
+
+    res.json({
+      success: true,
+      data: { activeOrders, tables, stockAlerts, notifications },
+    })
+  } catch (error) {
+    next(error)
+  }
+})

@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #111827;
+  color: white;
+  user-select: none; /* POS interface - prevent text selection */
+}
+
+/* Touch-friendly targets */
+button, [role="button"] {
+  min-height: 44px;
+}
+
+/* Order ticket style */
+.ticket-item {
+  @apply flex items-center justify-between py-2 border-b border-gray-700/50 text-sm;
+}
+
+/* Product grid */
+.product-grid {
+  @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3;
+}
+
+/* POS button */
+.pos-btn {
+  @apply rounded-xl font-semibold transition-all active:scale-95 cursor-pointer;
+}
+
+/* Numpad */
+.numpad-btn {
+  @apply flex items-center justify-center text-xl font-bold rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 transition-all cursor-pointer;
+  height: 70px;
+}

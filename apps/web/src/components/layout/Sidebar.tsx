@@ -1,0 +1,159 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  LayoutDashboard, UtensilsCrossed, ShoppingCart, Table2,
+  Package, Users, Calendar, BarChart3, Settings, ChefHat,
+  Monitor, LogOut, ChevronLeft, ChevronRight, Bell,
+  CreditCard, Tag, UserCog
+} from 'lucide-react'
+import { useAuthStore } from '@/store/auth'
+import { api } from '@/lib/api'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { initials } from '@restaurant/utils'
+
+const navItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['*'] },
+  { href: '/orders', label: 'Commandes', icon: ShoppingCart, roles: ['*'] },
+  { href: '/menu', label: 'Menu', icon: UtensilsCrossed, roles: ['manager', 'superadmin'] },
+  { href: '/tables', label: 'Plan de salle', icon: Table2, roles: ['*'] },
+  { href: '/reservations', label: 'Réservations', icon: Calendar, roles: ['manager', 'superadmin', 'serveur'] },
+  { href: '/pos', label: 'Caisse', icon: CreditCard, roles: ['*'], highlight: true },
+  { href: '/kds', label: 'Cuisine (KDS)', icon: Monitor, roles: ['cuisinier', 'manager', 'superadmin'] },
+  { href: '/stock', label: 'Stock', icon: Package, roles: ['manager', 'superadmin'] },
+  { href: '/customers', label: 'Clients', icon: Users, roles: ['manager', 'superadmin', 'caissier'] },
+  { href: '/employees', label: 'Employés', icon: UserCog, roles: ['manager', 'superadmin'] },
+  { href: '/coupons', label: 'Promotions', icon: Tag, roles: ['manager', 'superadmin'] },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3, roles: ['manager', 'superadmin'] },
+  { href: '/settings', label: 'Paramètres', icon: Settings, roles: ['manager', 'superadmin'] },
+]
+
+export function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false)
+  const pathname = usePathname()
+  const { user, logout } = useAuthStore()
+  const router = useRouter()
+
+  async function handleLogout() {
+    try {
+      await api.post('/auth/logout')
+    } catch {}
+    logout()
+    router.push('/login')
+    toast.success('Déconnexion réussie')
+  }
+
+  const userRole = (user as any)?.role?.name || 'caissier'
+  const filteredItems = navItems.filter(item =>
+    item.roles.includes('*') || item.roles.includes(userRole)
+  )
+
+  return (
+    <motion.aside
+      animate={{ width: collapsed ? 72 : 240 }}
+      transition={{ duration: 0.2, ease: 'easeInOut' }}
+      className="h-full bg-brand-card border-r border-brand-border flex flex-col relative z-10 overflow-hidden"
+    >
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-brand-border">
+        <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg, #FF4D00 0%, #FF6B00 100%)' }}>
+          <ChefHat className="w-4 h-4 text-white" />
+        </div>
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.span
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              className="font-bold text-sm"
+            >
+              Restaurant<span className="text-brand-orange">OS</span>
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+        {filteredItems.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          return (
+            <Link key={item.href} href={item.href}>
+              <motion.div
+                whileHover={{ x: collapsed ? 0 : 4 }}
+                className={`sidebar-item ${isActive ? 'active' : ''} ${item.highlight ? 'border border-brand-orange/30 bg-brand-orange/5' : ''}`}
+              >
+                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-orange' : ''} ${item.highlight ? 'text-brand-orange' : ''}`} />
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="text-sm font-medium"
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+                {item.highlight && !collapsed && (
+                  <span className="ml-auto text-xs px-1.5 py-0.5 rounded bg-brand-orange text-white">POS</span>
+                )}
+              </motion.div>
+            </Link>
+          )
+        })}
+      </nav>
+
+      {/* User section */}
+      <div className="p-2 border-t border-brand-border">
+        <div className={`flex items-center gap-3 px-3 py-2 rounded-xl ${collapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold"
+            style={{ background: 'linear-gradient(135deg, #FF4D00 0%, #FFB800 100%)' }}>
+            {user ? initials(user.firstName, user.lastName) : '??'}
+          </div>
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex-1 min-w-0"
+              >
+                <p className="text-xs font-semibold truncate">{user?.firstName} {user?.lastName}</p>
+                <p className="text-xs text-brand-muted capitalize">{userRole}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={handleLogout}
+                className="text-brand-muted hover:text-red-400 transition-colors p-1"
+                title="Déconnexion"
+              >
+                <LogOut className="w-4 h-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Collapse toggle */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="absolute top-1/2 -right-3 w-6 h-6 rounded-full bg-brand-border border border-brand-card flex items-center justify-center text-brand-muted hover:text-white transition-colors z-20"
+      >
+        {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+      </button>
+    </motion.aside>
+  )
+}

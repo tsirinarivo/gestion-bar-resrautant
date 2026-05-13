@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #030712;
+  color: white;
+  overflow: hidden;
+}
+
+/* KDS Card */
+.kds-card {
+  @apply rounded-2xl border-2 p-4 relative overflow-hidden transition-all duration-300;
+}
+
+.kds-card-pending {
+  @apply border-amber-500/50 bg-amber-500/5;
+}
+
+.kds-card-preparing {
+  @apply border-blue-500/50 bg-blue-500/5;
+}
+
+.kds-card-ready {
+  @apply border-green-500/50 bg-green-500/5;
+}
+
+/* Timer colors */
+.timer-ok { @apply text-green-400; }
+.timer-warn { @apply text-amber-400; }
+.timer-danger { @apply text-red-400 animate-pulse; }
