@@ -106,16 +106,19 @@ log "Nginx rechargé"
 # ── 7. Certbot — un seul certificat pour tous les domaines ──────────────────
 header "7. Certificat SSL (Let's Encrypt)"
 
-certbot --nginx \
+if certbot --nginx \
   -d restaurant.dago-it.com \
   -d admin.restaurant.dago-it.com \
   -d pos.restaurant.dago-it.com \
   -d kds.restaurant.dago-it.com \
   -d api.restaurant.dago-it.com \
   --non-interactive \
-  --redirect
-
-log "Certificat SSL obtenu et Nginx mis à jour automatiquement"
+  --redirect; then
+  log "Certificat SSL obtenu et Nginx mis à jour automatiquement"
+else
+  warn "Certbot échoué — les DNS ne sont pas encore propagés."
+  warn "Une fois vos DNS créés, relancez : certbot --nginx -d restaurant.dago-it.com -d admin.restaurant.dago-it.com -d pos.restaurant.dago-it.com -d kds.restaurant.dago-it.com -d api.restaurant.dago-it.com --non-interactive --redirect"
+fi
 
 # ── 8. Vérification ──────────────────────────────────────────────────────────
 header "8. Statut final"

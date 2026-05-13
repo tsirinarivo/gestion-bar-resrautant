@@ -24,8 +24,7 @@ COPY turbo.json package.json tsconfig.json ./
 # Generate Prisma client
 RUN cd packages/database && npx prisma generate
 
-# Bundle API + all local packages into a single JS file
-# esbuild handles TypeScript natively and resolves workspace imports
+# Bundle API + seed (esbuild handles TS + workspace imports natively)
 RUN node_modules/.bin/esbuild apps/api/src/index.ts \
   --bundle \
   --platform=node \
@@ -35,6 +34,14 @@ RUN node_modules/.bin/esbuild apps/api/src/index.ts \
   --external:@prisma/client \
   --external:bcryptjs \
   --external:bcrypt
+
+RUN node_modules/.bin/esbuild packages/database/prisma/seed.ts \
+  --bundle \
+  --platform=node \
+  --target=node20 \
+  --outfile=apps/api/dist/seed.js \
+  --format=cjs \
+  --external:@prisma/client
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
