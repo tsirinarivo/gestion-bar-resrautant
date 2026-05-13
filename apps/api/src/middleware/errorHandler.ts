@@ -46,12 +46,13 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
 }
 
 export class AppError extends Error {
-  constructor(
-    public message: string,
-    public statusCode = 500,
-    public code?: string
-  ) {
+  statusCode: number
+  code?: string
+
+  constructor(message: string, statusCode = 500, code?: string) {
     super(message)
     this.name = 'AppError'
+    this.statusCode = statusCode
+    this.code = code
   }
 }
