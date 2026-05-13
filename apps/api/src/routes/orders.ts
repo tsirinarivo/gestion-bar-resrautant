@@ -194,6 +194,13 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
       })
     }
 
+    if (data.couponId) {
+      await prisma.coupon.update({
+        where: { id: data.couponId },
+        data: { usageCount: { increment: 1 } },
+      })
+    }
+
     const io = req.app.get('io')
     io?.to(restaurantId).emit('order:created', order)
     io?.to(`kds-${restaurantId}`).emit('kds:new_order', order)

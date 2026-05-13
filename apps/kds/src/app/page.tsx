@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { formatDistance } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { io } from 'socket.io-client';
 
 const queryClient = new QueryClient();
 
@@ -72,6 +73,13 @@ function KDSPageInner() {
     const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const socket = io(API_URL, { withCredentials: true, transports: ['websocket', 'polling'] });
+    socket.on('kds:new_order', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
+    socket.on('order:status_updated', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
+    return () => { socket.disconnect(); };
+  }, [qc]);
 
   const preparingMutation = useMutation({
     mutationFn: markOrderPreparing,

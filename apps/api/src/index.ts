@@ -22,6 +22,7 @@ import { employeeRouter } from './routes/employees'
 import { dashboardRouter } from './routes/dashboard'
 import { paymentRouter } from './routes/payments'
 import { couponRouter } from './routes/coupons'
+import { publicRouter } from './routes/public'
 import { errorHandler } from './middleware/errorHandler'
 import { setupSocketHandlers } from './socket/handlers'
 import { prisma } from './lib/prisma'
@@ -67,6 +68,7 @@ const authLimiter = rateLimit({
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
+app.use('/api/public', publicRouter)
 app.use('/api/auth', authLimiter, authRouter)
 app.use('/api/restaurants', restaurantRouter)
 app.use('/api/categories', categoryRouter)

@@ -1,0 +1,225 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { formatCurrency } from '@restaurant/utils';
+import Link from 'next/link';
+
+const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
+const RESTAURANT_SLUG = process.env['NEXT_PUBLIC_RESTAURANT_SLUG'] ?? 'restaurant-demo';
+
+interface CartItem { productId: string; name: string; price: number; quantity: number }
+
+function getCart(): CartItem[] {
+  if (typeof window === 'undefined') return [];
+  try { return JSON.parse(localStorage.getItem('cart') ?? '[]') as CartItem[]; } catch { return []; }
+}
+
+type OrderType = 'TAKEAWAY' | 'DELIVERY';
+type Step = 'form' | 'confirm' | 'done';
+
+export default function CheckoutPage() {
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [type, setType] = useState<OrderType>('TAKEAWAY');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [notes, setNotes] = useState('');
+  const [step, setStep] = useState<Step>('form');
+  const [orderNumber, setOrderNumber] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [deliveryFee, setDeliveryFee] = useState(0);
+
+  useEffect(() => {
+    setCart(getCart());
+    // Fetch delivery fee from restaurant info
+    fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/info`)
+      .then(r => r.json())
+      .then((d: { data: { deliveryFee?: number } }) => { if (d.data?.deliveryFee) setDeliveryFee(d.data.deliveryFee); })
+      .catch(() => null);
+  }, []);
+
+  const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const fee = type === 'DELIVERY' ? deliveryFee : 0;
+  const total = subtotal + fee;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) { setError('Votre nom est requis'); return; }
+    if (!phone.trim()) { setError('Votre numéro de téléphone est requis'); return; }
+    if (type === 'DELIVERY' && !address.trim()) { setError('L\'adresse de livraison est requise'); return; }
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type,
+          items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.price })),
+          customerName: name,
+          customerPhone: phone,
+          deliveryAddress: type === 'DELIVERY' ? address : undefined,
+          deliveryCity: type === 'DELIVERY' ? city : undefined,
+          notes: notes || undefined,
+        }),
+      });
+      const data = (await res.json()) as { success: boolean; data?: { orderNumber: string }; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Erreur lors de la commande');
+      setOrderNumber(data.data!.orderNumber);
+      localStorage.removeItem('cart');
+      window.dispatchEvent(new Event('cart-updated'));
+      setStep('done');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (cart.length === 0 && step !== 'done') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-5xl mb-4">🛒</p>
+          <p className="text-xl text-gray-600 mb-6">Panier vide</p>
+          <Link href="/menu" className="btn-primary">Voir le menu</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'done') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-sm p-10 max-w-md w-full text-center">
+          <div className="text-6xl mb-4">✅</div>
+          <h1 className="text-2xl font-serif font-bold mb-2">Commande reçue !</h1>
+          <p className="text-gray-600 mb-2">Numéro de commande :</p>
+          <p className="text-3xl font-mono font-bold text-amber-600 mb-6">{orderNumber}</p>
+          <p className="text-gray-500 text-sm mb-8">
+            {type === 'DELIVERY'
+              ? 'Votre commande sera livrée dès qu\'elle est prête. Merci de rester joignable.'
+              : 'Votre commande est en préparation. Venez la récupérer au comptoir.'}
+          </p>
+          <Link href="/menu" className="btn-primary block w-full py-3 rounded-xl">Nouvelle commande</Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="container-narrow py-4 flex items-center gap-4">
+          <Link href="/cart" className="text-amber-600 hover:text-amber-700 font-medium">← Panier</Link>
+          <h1 className="text-2xl font-serif font-bold">Commande</h1>
+        </div>
+      </header>
+
+      <form onSubmit={handleSubmit} className="container-narrow py-8 max-w-2xl mx-auto space-y-6">
+
+        {/* Order type */}
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <h2 className="font-bold text-lg mb-4">Type de commande</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {(['TAKEAWAY', 'DELIVERY'] as const).map(t => (
+              <button
+                key={t} type="button" onClick={() => setType(t)}
+                className={`py-4 rounded-xl font-semibold border-2 transition-colors ${type === t ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-500 hover:border-amber-200'}`}
+              >
+                {t === 'TAKEAWAY' ? '🥡 À emporter' : '🛵 Livraison'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Contact */}
+        <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+          <h2 className="font-bold text-lg">Vos coordonnées</h2>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nom *</label>
+            <input
+              value={name} onChange={e => setName(e.target.value)} required
+              placeholder="Votre nom"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone *</label>
+            <input
+              value={phone} onChange={e => setPhone(e.target.value)} required
+              placeholder="+261 34 00 000 00"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+          {type === 'DELIVERY' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Adresse de livraison *</label>
+                <input
+                  value={address} onChange={e => setAddress(e.target.value)}
+                  placeholder="Rue, quartier..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ville</label>
+                <input
+                  value={city} onChange={e => setCity(e.target.value)}
+                  placeholder="Antananarivo"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+            </>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
+            <textarea
+              value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+              placeholder="Allergies, demandes spéciales..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+            />
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <h2 className="font-bold text-lg mb-4">Récapitulatif</h2>
+          <div className="divide-y divide-gray-100">
+            {cart.map(item => (
+              <div key={item.productId} className="flex justify-between py-2 text-sm">
+                <span className="text-gray-700">{item.name} × {item.quantity}</span>
+                <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-gray-200 mt-3 pt-3 space-y-1">
+            <div className="flex justify-between text-gray-600 text-sm">
+              <span>Sous-total</span><span>{formatCurrency(subtotal)}</span>
+            </div>
+            {type === 'DELIVERY' && (
+              <div className="flex justify-between text-gray-600 text-sm">
+                <span>Livraison</span><span>{formatCurrency(fee)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-lg pt-2">
+              <span>Total</span><span className="text-amber-600">{formatCurrency(total)}</span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">💵 Paiement à la réception</p>
+        </div>
+
+        {error && <p className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3 border border-red-200">{error}</p>}
+
+        <button
+          type="submit" disabled={loading}
+          className="w-full btn-primary py-4 rounded-2xl text-lg font-bold disabled:opacity-50"
+        >
+          {loading ? 'Envoi en cours...' : `Confirmer la commande — ${formatCurrency(total)}`}
+        </button>
+      </form>
+    </div>
+  );
+}
