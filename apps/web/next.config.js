@@ -1,6 +1,9 @@
+const path = require('path')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  outputFileTracingRoot: path.join(__dirname, '../../'),
   transpilePackages: ['@restaurant/ui', '@restaurant/types', '@restaurant/utils'],
   images: {
     remotePatterns: [
@@ -9,9 +12,6 @@ const nextConfig = {
       { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: 'via.placeholder.com' },
     ],
-  },
-  experimental: {
-    serverComponentsExternalPackages: [],
   },
 }
 
