@@ -20,29 +20,29 @@ header "1. Récupération du code"
 git pull origin claude/restaurant-management-app-cFnVm
 log "Code mis à jour"
 
-source .env.prod
+set -a; source .env.prod; set +a
+
+DC="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 
 header "2. Build des images"
-docker compose -f docker-compose.prod.yml build \
+$DC build \
   --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
   --build-arg NEXT_PUBLIC_SOCKET_URL="$NEXT_PUBLIC_SOCKET_URL"
 
 header "3. Redémarrage (API d'abord, puis frontends)"
-docker compose -f docker-compose.prod.yml up -d --no-deps api
+$DC up -d --no-deps api
 sleep 15
 log "API redémarrée"
 
-docker compose -f docker-compose.prod.yml up -d --no-deps web pos kds client
+$DC up -d --no-deps web pos kds client
 log "Frontends redémarrés"
 
 header "4. Migrations"
-docker compose -f docker-compose.prod.yml run --rm \
-  -e DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}" \
-  migrate sh -c "npx prisma migrate deploy" || true
+$DC run --rm migrate sh -c "npx prisma migrate deploy" || true
 log "Migrations exécutées"
 
 header "5. Statut final"
-docker compose -f docker-compose.prod.yml ps
+$DC ps
 
 echo ""
 log "Mise à jour terminée !"

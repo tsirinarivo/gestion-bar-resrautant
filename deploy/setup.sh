@@ -25,6 +25,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
+DC="docker compose -f docker-compose.prod.yml --env-file .env.prod"
+
 # ── 1. Vérifications ────────────────────────────────────────────────────────
 header "1. Vérifications"
 
@@ -44,7 +46,7 @@ header "2. Variables d'environnement"
 [ ! -f ".env.prod" ] && error ".env.prod introuvable"
 grep -q "CHANGEZ_CE_MOT_DE_PASSE" .env.prod && error ".env.prod contient encore les valeurs d'exemple !"
 
-source .env.prod
+set -a; source .env.prod; set +a
 
 [ -z "$POSTGRES_PASSWORD" ] && error "POSTGRES_PASSWORD manquant dans .env.prod"
 [ -z "$REDIS_PASSWORD" ]    && error "REDIS_PASSWORD manquant dans .env.prod"
@@ -55,7 +57,7 @@ log ".env.prod valide"
 # ── 3. Build images ──────────────────────────────────────────────────────────
 header "3. Build des images Docker (~10 min)"
 
-docker compose -f docker-compose.prod.yml build \
+$DC build \
   --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
   --build-arg NEXT_PUBLIC_SOCKET_URL="$NEXT_PUBLIC_SOCKET_URL"
 
@@ -64,21 +66,21 @@ log "Images buildées"
 # ── 4. Démarrage services ────────────────────────────────────────────────────
 header "4. Démarrage des services"
 
-docker compose -f docker-compose.prod.yml up -d postgres redis
+$DC up -d postgres redis
 info "Attente PostgreSQL (15s)..."
 sleep 15
 
-docker compose -f docker-compose.prod.yml up -d api
+$DC up -d api
 info "Attente API (20s)..."
 sleep 20
 
-docker compose -f docker-compose.prod.yml up -d web pos kds client
+$DC up -d web pos kds client
 log "Tous les services démarrés"
 
 # ── 5. Migrations ────────────────────────────────────────────────────────────
 header "5. Migrations + Seed"
 
-docker compose -f docker-compose.prod.yml run --rm migrate || warn "Seed ignoré (déjà fait ?)"
+$DC run --rm migrate || warn "Seed ignoré (déjà fait ?)"
 log "Base de données initialisée"
 
 # ── 6. Nginx — configs (HTTP) ────────────────────────────────────────────────
@@ -118,7 +120,7 @@ log "Certificat SSL obtenu et Nginx mis à jour automatiquement"
 # ── 8. Vérification ──────────────────────────────────────────────────────────
 header "8. Statut final"
 
-docker compose -f docker-compose.prod.yml ps
+$DC ps
 
 echo ""
 if curl -sk "https://api.restaurant.dago-it.com/api/health" 2>/dev/null | grep -q '"status":"ok"'; then
