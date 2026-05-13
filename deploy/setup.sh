@@ -41,7 +41,7 @@ log "Certbot $(certbot --version 2>&1 | awk '{print $2}')"
 header "2. Variables d'environnement"
 
 [ ! -f ".env.prod" ] && [ -f ".env.prod.example" ] && cp .env.prod.example .env.prod
-[ ! -f ".env.prod" ] && error ".env.prod introuvable — créez-le depuis .env.prod.example"
+[ ! -f ".env.prod" ] && error ".env.prod introuvable"
 grep -q "CHANGEZ_CE_MOT_DE_PASSE" .env.prod && error ".env.prod contient encore les valeurs d'exemple !"
 
 source .env.prod
@@ -82,8 +82,8 @@ header "5. Migrations + Seed"
 docker compose -f docker-compose.prod.yml run --rm migrate || warn "Seed ignoré (déjà fait ?)"
 log "Base de données initialisée"
 
-# ── 6. Nginx — configs HTTP provisoires pour certbot ────────────────────────
-header "6. Nginx — configuration HTTP"
+# ── 6. Nginx — configs (HTTP) ────────────────────────────────────────────────
+header "6. Nginx — configs proxy"
 
 DOMAINS=(
   "restaurant.dago-it.com"
@@ -94,54 +94,32 @@ DOMAINS=(
 )
 
 for DOMAIN in "${DOMAINS[@]}"; do
-  cat > "/etc/nginx/sites-available/${DOMAIN}" << NGINXEOF
-server {
-    listen 80;
-    listen [::]:80;
-    server_name ${DOMAIN};
-    root /var/www/html;
-    location /.well-known/acme-challenge/ { root /var/www/html; }
-    location / { return 301 https://\$host\$request_uri; }
-}
-NGINXEOF
+  cp "$SCRIPT_DIR/nginx/${DOMAIN}.conf" "/etc/nginx/sites-available/${DOMAIN}"
   ln -sf "/etc/nginx/sites-available/${DOMAIN}" "/etc/nginx/sites-enabled/${DOMAIN}" 2>/dev/null || true
-  log "Nginx HTTP : $DOMAIN"
-done
-
-nginx -t && nginx -s reload
-
-# ── 7. Certbot SSL ──────────────────────────────────────────────────────────
-header "7. Certificats SSL (Let's Encrypt)"
-
-for DOMAIN in "${DOMAINS[@]}"; do
-  if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-    log "Certificat déjà existant : $DOMAIN"
-  else
-    certbot certonly --nginx \
-      -d "$DOMAIN" \
-      --email "$CERTBOT_EMAIL" \
-      --agree-tos \
-      --non-interactive \
-      --redirect && log "Certificat obtenu : $DOMAIN" || warn "Échec certbot : $DOMAIN (DNS propagé ?)"
-  fi
-done
-
-# ── 8. Nginx — configs HTTPS finales ────────────────────────────────────────
-header "8. Nginx — configuration HTTPS"
-
-for DOMAIN in "${DOMAINS[@]}"; do
-  CONF="$SCRIPT_DIR/nginx/${DOMAIN}.conf"
-  [ ! -f "$CONF" ] && warn "Config manquante : $CONF" && continue
-  cp "$CONF" "/etc/nginx/sites-available/${DOMAIN}"
-  ln -sf "/etc/nginx/sites-available/${DOMAIN}" "/etc/nginx/sites-enabled/${DOMAIN}" 2>/dev/null || true
-  log "HTTPS activé : $DOMAIN"
+  log "Nginx : $DOMAIN"
 done
 
 nginx -t && nginx -s reload
 log "Nginx rechargé"
 
-# ── 9. Vérification ──────────────────────────────────────────────────────────
-header "9. Statut final"
+# ── 7. Certbot — un seul certificat pour tous les domaines ──────────────────
+header "7. Certificat SSL (Let's Encrypt)"
+
+certbot --nginx \
+  -d restaurant.dago-it.com \
+  -d admin.restaurant.dago-it.com \
+  -d pos.restaurant.dago-it.com \
+  -d kds.restaurant.dago-it.com \
+  -d api.restaurant.dago-it.com \
+  --email "$CERTBOT_EMAIL" \
+  --agree-tos \
+  --non-interactive \
+  --redirect
+
+log "Certificat SSL obtenu et Nginx mis à jour automatiquement"
+
+# ── 8. Vérification ──────────────────────────────────────────────────────────
+header "8. Statut final"
 
 docker compose -f docker-compose.prod.yml ps
 
@@ -149,10 +127,8 @@ echo ""
 if curl -sk "https://api.restaurant.dago-it.com/api/health" 2>/dev/null | grep -q '"status":"ok"'; then
   log "API opérationnelle !"
 else
-  info "API pas encore accessible via HTTPS (normal si DNS en propagation)"
-  curl -s "http://127.0.0.1:4001/api/health" 2>/dev/null | grep -q '"status":"ok"' \
-    && log "API opérationnelle en local (127.0.0.1:4001)" \
-    || warn "API ne répond pas encore — vérifiez : docker logs restaurant_api"
+  info "Test local : $(curl -s http://127.0.0.1:4001/api/health 2>/dev/null || echo 'API pas encore prête')"
+  warn "Vérifiez les logs : docker logs restaurant_api --tail 30"
 fi
 
 echo ""
