@@ -61,6 +61,9 @@ model Restaurant {
   suppliers     Supplier[]
   notifications Notification[]
   auditLogs     AuditLog[]
+  waitingLists  WaitingList[]
+  coupons       Coupon[]
+  reviews       Review[]
 
   @@map("restaurants")
 }
