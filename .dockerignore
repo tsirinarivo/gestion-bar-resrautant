@@ -34,4 +34,3 @@ __tests__/
 # Dev tools
 .eslintrc*
 .prettierrc*
-turbo.json
