@@ -38,6 +38,7 @@ const io = new Server(httpServer, {
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
+app.set('trust proxy', 1)
 app.use(helmet())
 app.use(compression())
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'))
