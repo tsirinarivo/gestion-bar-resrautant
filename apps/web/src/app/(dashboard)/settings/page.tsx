@@ -100,11 +100,11 @@ export default function SettingsPage() {
               </label>
             ))}
             <div>
-              <label className="block text-sm font-medium mb-2">Frais de livraison (€)</label>
+              <label className="block text-sm font-medium mb-2">Frais de livraison (Ar)</label>
               <input {...register('deliveryFee', { valueAsNumber: true })} type="number" step="0.5" className="input-field" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Commande min. (€)</label>
+              <label className="block text-sm font-medium mb-2">Commande min. (Ar)</label>
               <input {...register('minOrderAmount', { valueAsNumber: true })} type="number" step="1" className="input-field" />
             </div>
             <div>

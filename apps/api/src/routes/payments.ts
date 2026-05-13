@@ -23,7 +23,7 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
     if (!order) throw new AppError('Commande introuvable', 404)
 
     const payment = await prisma.payment.create({
-      data: { ...data, currency: 'EUR', status: 'COMPLETED' },
+      data: { ...data, currency: 'MGA', status: 'COMPLETED' },
     })
 
     const totalPaid = await prisma.payment.aggregate({

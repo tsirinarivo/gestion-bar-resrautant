@@ -230,10 +230,10 @@ export default function DashboardPage() {
                 <XAxis dataKey="date" stroke="#6B7280" tick={{ fontSize: 11 }}
                   tickFormatter={(v) => v.slice(5)} />
                 <YAxis stroke="#6B7280" tick={{ fontSize: 11 }}
-                  tickFormatter={(v) => `${v}€`} />
+                  tickFormatter={(v) => `Ar ${v}`} />
                 <Tooltip
                   contentStyle={{ background: '#111118', border: '1px solid #1E1E2E', borderRadius: 12 }}
-                  formatter={(v: any) => [`${v.toFixed(2)}€`, 'CA']}
+                  formatter={(v: any) => [`Ar ${Math.round(v).toLocaleString('fr-FR')}`, 'CA']}
                 />
                 <Line
                   type="monotone"
@@ -274,7 +274,7 @@ export default function DashboardPage() {
               </Pie>
               <Tooltip
                 contentStyle={{ background: '#111118', border: '1px solid #1E1E2E', borderRadius: 12 }}
-                formatter={(v: any) => [`${v.toFixed(2)}€`]}
+                formatter={(v: any) => [`Ar ${Math.round(v).toLocaleString('fr-FR')}`]}
               />
             </PieChart>
           </ResponsiveContainer>

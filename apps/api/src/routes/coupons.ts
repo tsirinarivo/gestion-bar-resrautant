@@ -71,7 +71,7 @@ couponRouter.post('/validate', async (req: AuthRequest, res, next) => {
     if (coupon.startDate && coupon.startDate > new Date()) throw new AppError('Code promo pas encore valide', 400)
     if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) throw new AppError('Code promo épuisé', 400)
     if (coupon.minOrderAmount && orderAmount < coupon.minOrderAmount) {
-      throw new AppError(`Montant minimum de commande requis : ${coupon.minOrderAmount}€`, 400)
+      throw new AppError(`Montant minimum de commande requis : Ar ${coupon.minOrderAmount}`, 400)
     }
 
     let discount = 0

@@ -3,18 +3,17 @@ import { fr } from 'date-fns/locale'
 
 // ─── Currency ─────────────────────────────────────────────────────────────────
 
-export function formatCurrency(amount: number, currency = 'EUR', locale = 'fr-FR'): string {
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+export function formatCurrency(amount: number, _currency = 'MGA', _locale = 'fr-FR'): string {
+  const formatted = new Intl.NumberFormat('fr-FR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(amount)
+  return `Ar ${formatted}`
 }
 
 export function formatCurrencyCompact(amount: number): string {
-  if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M€`
-  if (amount >= 1000) return `${(amount / 1000).toFixed(1)}k€`
+  if (amount >= 1_000_000) return `Ar ${(amount / 1_000_000).toFixed(1)}M`
+  if (amount >= 1_000) return `Ar ${(amount / 1_000).toFixed(0)}k`
   return formatCurrency(amount)
 }
 

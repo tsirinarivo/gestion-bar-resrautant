@@ -24,8 +24,8 @@ model Restaurant {
   email       String
   siret       String?
   website     String?
-  timezone    String   @default("Europe/Paris")
-  currency    String   @default("EUR")
+  timezone    String   @default("Indian/Antananarivo")
+  currency    String   @default("MGA")
   vatNumber   String?
 
   // Opening hours stored as JSON
@@ -736,7 +736,7 @@ model OrderStatusHistory {
 model Payment {
   id              String   @id @default(cuid())
   amount          Float
-  currency        String   @default("EUR")
+  currency        String   @default("MGA")
   method          String   // CASH, CARD, STRIPE, PAYPAL, VOUCHER, WALLET
   status          String   @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED, PARTIAL_REFUND
   reference       String?  // Stripe payment intent ID
