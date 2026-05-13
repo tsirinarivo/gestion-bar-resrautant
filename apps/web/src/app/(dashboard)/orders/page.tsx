@@ -63,7 +63,7 @@ export default function OrdersPage() {
     : orders
 
   function getStatusConfig(status: string) {
-    return ORDER_STATUSES.find(s => s.value === status) || ORDER_STATUSES[0]
+    return ORDER_STATUSES.find(s => s.value === status) ?? { value: status, label: status, color: '#6b7280', icon: '📋' }
   }
 
   return (
