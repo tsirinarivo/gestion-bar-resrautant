@@ -17,15 +17,24 @@ RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 COPY turbo.json package.json tsconfig.json ./
 
+# Generate Prisma client
 RUN cd packages/database && npx prisma generate
 
-WORKDIR /app/apps/api
-RUN npx tsc -p tsconfig.json
+# Bundle API + all local packages into a single JS file
+# esbuild handles TypeScript natively and resolves workspace imports
+RUN node_modules/.bin/esbuild apps/api/src/index.ts \
+  --bundle \
+  --platform=node \
+  --target=node20 \
+  --outfile=apps/api/dist/index.js \
+  --format=cjs \
+  --external:@prisma/client \
+  --external:bcryptjs \
+  --external:bcrypt
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
@@ -36,7 +45,6 @@ ENV NODE_ENV=production
 
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/packages/database/prisma ./prisma
 
 EXPOSE 4000
