@@ -43,8 +43,14 @@ orderRouter.get('/', async (req: AuthRequest, res, next) => {
     const { status, type, tableId, page = '1', limit = '20', date } = req.query
 
     const where: any = { restaurantId: req.user!.restaurantId }
-    if (status) where.status = status
-    if (type) where.type = type
+    if (status) {
+      const statuses = (status as string).split(',').map(s => s.trim()).filter(Boolean)
+      where.status = statuses.length === 1 ? statuses[0] : { in: statuses }
+    }
+    if (type) {
+      const types = (type as string).split(',').map(s => s.trim()).filter(Boolean)
+      where.type = types.length === 1 ? types[0] : { in: types }
+    }
     if (tableId) where.tableId = tableId
     if (date) {
       const d = new Date(date as string)
