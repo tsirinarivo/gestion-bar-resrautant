@@ -1,15 +1,15 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# docker-compose.prod.yml — Production (VPS + Nginx Proxy Manager)
+# docker-compose.prod.yml — Production (VPS avec Nginx système)
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# Sous-domaines configurés dans Nginx Proxy Manager :
-#   restaurant.dago-it.com        → client:3003
-#   admin.restaurant.dago-it.com  → web:3000
-#   pos.restaurant.dago-it.com    → pos:3001
-#   kds.restaurant.dago-it.com    → kds:3002
+# Pattern VPS : chaque service expose sur 127.0.0.1 uniquement.
+# Nginx système + Certbot gèrent le SSL et le reverse proxy.
 #
-# Réseau externe 'npm_proxy' = réseau de Nginx Proxy Manager
-# (voir deploy/setup.sh pour la création)
+#   restaurant.dago-it.com        → 127.0.0.1:4005  (client)
+#   admin.restaurant.dago-it.com  → 127.0.0.1:4002  (web)
+#   pos.restaurant.dago-it.com    → 127.0.0.1:4003  (pos)
+#   kds.restaurant.dago-it.com    → 127.0.0.1:4004  (kds)
+#   api.restaurant.dago-it.com    → 127.0.0.1:4001  (api)
 # ═══════════════════════════════════════════════════════════════════════════
 
 version: '3.9'
@@ -29,7 +29,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - internal
+      - restaurant_internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-restaurant_user} -d ${POSTGRES_DB:-restaurant_db}"]
       interval: 10s
@@ -46,7 +46,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - internal
+      - restaurant_internal
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -67,14 +67,15 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-restaurant_db}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    ports:
+      - "127.0.0.1:4001:4000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - internal
-      - npm_proxy
+      - restaurant_internal
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
       interval: 30s
@@ -82,7 +83,7 @@ services:
       retries: 3
       start_period: 40s
 
-  # ── Web (Back-office) ──────────────────────────────────────────────────────
+  # ── Web (Back-office manager) ──────────────────────────────────────────────
   web:
     build:
       context: .
@@ -97,12 +98,13 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: "0.0.0.0"
+    ports:
+      - "127.0.0.1:4002:3000"
     depends_on:
       api:
         condition: service_healthy
     networks:
-      - internal
-      - npm_proxy
+      - restaurant_internal
 
   # ── POS ────────────────────────────────────────────────────────────────────
   pos:
@@ -119,12 +121,13 @@ services:
       NODE_ENV: production
       PORT: 3001
       HOSTNAME: "0.0.0.0"
+    ports:
+      - "127.0.0.1:4003:3001"
     depends_on:
       api:
         condition: service_healthy
     networks:
-      - internal
-      - npm_proxy
+      - restaurant_internal
 
   # ── KDS ────────────────────────────────────────────────────────────────────
   kds:
@@ -141,12 +144,13 @@ services:
       NODE_ENV: production
       PORT: 3002
       HOSTNAME: "0.0.0.0"
+    ports:
+      - "127.0.0.1:4004:3002"
     depends_on:
       api:
         condition: service_healthy
     networks:
-      - internal
-      - npm_proxy
+      - restaurant_internal
 
   # ── Client (commande en ligne) ─────────────────────────────────────────────
   client:
@@ -163,12 +167,13 @@ services:
       NODE_ENV: production
       PORT: 3003
       HOSTNAME: "0.0.0.0"
+    ports:
+      - "127.0.0.1:4005:3003"
     depends_on:
       api:
         condition: service_healthy
     networks:
-      - internal
-      - npm_proxy
+      - restaurant_internal
 
   # ── Migration runner (one-shot) ────────────────────────────────────────────
   migrate:
@@ -186,7 +191,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - internal
+      - restaurant_internal
     profiles:
       - migrate
 
@@ -197,9 +202,5 @@ volumes:
     driver: local
 
 networks:
-  internal:
+  restaurant_internal:
     driver: bridge
-    internal: true
-  npm_proxy:
-    external: true
-    name: npm_proxy
