@@ -290,7 +290,7 @@ export default function StockPage() {
                   <label className="block text-sm font-medium mb-2">Type</label>
                   <div className="grid grid-cols-4 gap-2">
                     {[['IN','Entrée'],['OUT','Sortie'],['ADJUSTMENT','Ajust.'],['LOSS','Perte']].map(([t, l]) => (
-                      <button key={t} onClick={() => setMovementForm(f => ({ ...f, type: t }))}
+                      <button key={t} onClick={() => setMovementForm(f => ({ ...f, type: t ?? 'IN' }))}
                         className={`py-2 rounded-xl text-xs font-medium border transition-all ${movementForm.type === t ? 'bg-brand-orange border-brand-orange text-white' : 'border-brand-border text-brand-muted'}`}>
                         {l}
                       </button>
