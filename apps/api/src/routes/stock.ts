@@ -7,6 +7,13 @@ import { AppError } from '../middleware/errorHandler'
 export const stockRouter = Router()
 stockRouter.use(authenticate)
 
+const supplierPriceSchema = z.object({
+  supplierId: z.string(),
+  unitCost: z.number().min(0),
+  referenceCode: z.string().optional(),
+  isPreferred: z.boolean().default(false),
+})
+
 const stockItemSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -22,6 +29,7 @@ const stockItemSchema = z.object({
   isPerishable: z.boolean().default(false),
   expiryDate: z.string().optional(),
   supplierId: z.string().optional(),
+  supplierPrices: z.array(supplierPriceSchema).optional(),
 })
 
 const movementSchema = z.object({
@@ -47,6 +55,10 @@ stockRouter.get('/', async (req: AuthRequest, res, next) => {
         supplier: true,
         alerts: { where: { isRead: false }, take: 3 },
         _count: { select: { movements: true } },
+        supplierPrices: {
+          include: { supplier: { select: { id: true, name: true } } },
+          orderBy: { isPreferred: 'desc' },
+        },
       },
       orderBy: { name: 'asc' },
       take: 200,
@@ -86,12 +98,18 @@ stockRouter.get('/:id', async (req: AuthRequest, res, next) => {
 
 stockRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
-    const data = stockItemSchema.parse(req.body)
+    const { supplierPrices, ...rest } = stockItemSchema.parse(req.body)
     const item = await prisma.stockItem.create({
       data: {
-        ...data,
+        ...rest,
         restaurantId: req.user!.restaurantId,
-        expiryDate: data.expiryDate ? new Date(data.expiryDate) : undefined,
+        expiryDate: rest.expiryDate ? new Date(rest.expiryDate) : undefined,
+        supplierPrices: supplierPrices?.length
+          ? { create: supplierPrices }
+          : undefined,
+      },
+      include: {
+        supplierPrices: { include: { supplier: { select: { id: true, name: true } } } },
       },
     })
     res.status(201).json({ success: true, data: item })
@@ -102,13 +120,31 @@ stockRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthReques
 
 stockRouter.put('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
-    const data = stockItemSchema.partial().parse(req.body)
+    const { supplierPrices, ...rest } = stockItemSchema.partial().parse(req.body)
     const item = await prisma.stockItem.findFirst({
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },
     })
     if (!item) throw new AppError('Article introuvable', 404)
-    const updated = await prisma.stockItem.update({ where: { id: item.id }, data })
-    res.json({ success: true, data: updated })
+
+    const updated = await prisma.stockItem.update({
+      where: { id: item.id },
+      data: rest,
+    })
+
+    if (supplierPrices !== undefined) {
+      await prisma.stockItemSupplier.deleteMany({ where: { stockItemId: item.id } })
+      if (supplierPrices.length > 0) {
+        await prisma.stockItemSupplier.createMany({
+          data: supplierPrices.map(sp => ({ ...sp, stockItemId: item.id })),
+        })
+      }
+    }
+
+    const withPrices = await prisma.stockItem.findUnique({
+      where: { id: item.id },
+      include: { supplierPrices: { include: { supplier: { select: { id: true, name: true } } } } },
+    })
+    res.json({ success: true, data: withPrices })
   } catch (error) {
     next(error)
   }

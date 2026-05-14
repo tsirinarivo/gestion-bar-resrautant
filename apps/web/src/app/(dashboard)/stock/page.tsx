@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Package, Plus, Search, AlertTriangle, RefreshCw, ArrowDown, ArrowUp,
-  X, Edit2, ClipboardList, ArrowRightLeft, ShoppingCart, Truck, CheckSquare, Square,
+  X, Edit2, ClipboardList, ArrowRightLeft, ShoppingCart, Truck, CheckSquare, Square, Star,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatQuantity, formatCurrency } from '@restaurant/utils'
@@ -31,10 +31,18 @@ const NEEDS_REORDER = ['REORDER_NEEDED', 'LOW_STOCK', 'OUT_OF_STOCK']
 
 const UNITS = ['kg', 'g', 'L', 'cl', 'unité', 'bouteille', 'boîte', 'sachet', 'portion']
 
+interface SupplierPriceLine {
+  supplierId: string
+  unitCost: number
+  referenceCode: string
+  isPreferred: boolean
+}
+
 const emptyItem = {
   name: '', description: '', sku: '', unit: 'unité',
   currentQuantity: 0, minQuantity: 0, reorderQuantity: 0, maxQuantity: '',
   location: '', costPerUnit: 0, isPerishable: false,
+  supplierPrices: [] as SupplierPriceLine[],
 }
 
 interface ReorderLine {
@@ -44,6 +52,7 @@ interface ReorderLine {
   currentQty: number
   quantity: number
   unitCost: number
+  supplierPrices: { supplierId: string; unitCost: number }[]
 }
 
 function suggestedQty(item: any): number {
@@ -63,6 +72,15 @@ function ReorderModal({ lines: initLines, suppliers, onClose, onCreated }: {
   const [expectedAt, setExpectedAt]  = useState('')
   const [notes, setNotes]            = useState('')
   const [lines, setLines]            = useState<ReorderLine[]>(initLines)
+
+  function handleSupplierChange(newSupplierId: string) {
+    setSupplierId(newSupplierId)
+    // Auto-fill unit cost from supplier catalog for each line
+    setLines(prev => prev.map(line => {
+      const match = line.supplierPrices.find(sp => sp.supplierId === newSupplierId)
+      return match ? { ...line, unitCost: match.unitCost } : line
+    }))
+  }
 
   const createPO = useMutation({
     mutationFn: (data: any) => api.post('/suppliers/purchase-orders', data),
@@ -103,7 +121,7 @@ function ReorderModal({ lines: initLines, suppliers, onClose, onCreated }: {
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
             <label className="block text-sm font-medium mb-1">Fournisseur *</label>
-            <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className="input-field">
+            <select value={supplierId} onChange={e => handleSupplierChange(e.target.value)} className="input-field">
               <option value="">— Sélectionner —</option>
               {suppliers.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -300,6 +318,10 @@ export default function StockPage() {
       currentQty: item.currentQuantity,
       quantity: suggestedQty(item),
       unitCost: item.costPerUnit || 0,
+      supplierPrices: (item.supplierPrices || []).map((sp: any) => ({
+        supplierId: sp.supplierId,
+        unitCost: sp.unitCost,
+      })),
     }
   }
 
@@ -345,6 +367,12 @@ export default function StockPage() {
       minQuantity: item.minQuantity, reorderQuantity: item.reorderQuantity,
       maxQuantity: item.maxQuantity ?? '', location: item.location ?? '',
       costPerUnit: item.costPerUnit, isPerishable: item.isPerishable,
+      supplierPrices: (item.supplierPrices || []).map((sp: any) => ({
+        supplierId: sp.supplierId,
+        unitCost: sp.unitCost,
+        referenceCode: sp.referenceCode ?? '',
+        isPreferred: sp.isPreferred,
+      })),
     })
     setShowItemModal(true)
   }
@@ -357,12 +385,44 @@ export default function StockPage() {
       reorderQuantity: Number(itemForm.reorderQuantity),
       maxQuantity: itemForm.maxQuantity ? Number(itemForm.maxQuantity) : undefined,
       costPerUnit: Number(itemForm.costPerUnit),
+      supplierPrices: (itemForm.supplierPrices as SupplierPriceLine[])
+        .filter(sp => sp.supplierId && sp.unitCost >= 0)
+        .map(sp => ({ ...sp, unitCost: Number(sp.unitCost) })),
     }
     if (editItem) {
       updateItem.mutate({ id: editItem.id, data: payload })
     } else {
       createItem.mutate(payload)
     }
+  }
+
+  function addSupplierPrice() {
+    setItemForm((f: any) => ({
+      ...f,
+      supplierPrices: [...f.supplierPrices, { supplierId: '', unitCost: 0, referenceCode: '', isPreferred: false }],
+    }))
+  }
+
+  function updateSupplierPrice(idx: number, field: keyof SupplierPriceLine, value: any) {
+    setItemForm((f: any) => {
+      const prices = [...f.supplierPrices] as SupplierPriceLine[]
+      // If setting preferred, unset others
+      if (field === 'isPreferred' && value === true) {
+        prices.forEach((p, i) => { prices[i] = { ...p, isPreferred: i === idx } })
+      } else {
+        prices[idx] = { ...prices[idx], [field]: value } as SupplierPriceLine
+      }
+      // Auto-update costPerUnit to preferred supplier price
+      const preferred = prices.find(p => p.isPreferred)
+      return { ...f, supplierPrices: prices, costPerUnit: preferred ? preferred.unitCost : f.costPerUnit }
+    })
+  }
+
+  function removeSupplierPrice(idx: number) {
+    setItemForm((f: any) => ({
+      ...f,
+      supplierPrices: (f.supplierPrices as SupplierPriceLine[]).filter((_, i) => i !== idx),
+    }))
   }
 
   async function submitInventory() {
@@ -809,6 +869,75 @@ export default function StockPage() {
                     </label>
                   </div>
                 </div>
+
+                {/* ── Prix par fournisseur ── */}
+                <div className="pt-2 border-t border-brand-border">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-semibold">Prix par fournisseur</p>
+                      <p className="text-xs text-brand-muted">Le fournisseur préféré met à jour le prix d'achat</p>
+                    </div>
+                    <button type="button" onClick={addSupplierPrice}
+                      className="text-xs flex items-center gap-1 text-brand-orange hover:text-brand-orange/80 border border-brand-orange/40 px-2 py-1 rounded-lg">
+                      <Plus className="w-3 h-3" /> Ajouter
+                    </button>
+                  </div>
+
+                  {(itemForm.supplierPrices as SupplierPriceLine[]).length === 0 ? (
+                    <p className="text-xs text-brand-muted text-center py-3 border border-dashed border-brand-border rounded-xl">
+                      Aucun prix fournisseur configuré
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {/* Header */}
+                      <div className="grid grid-cols-[1fr_100px_90px_32px_32px] gap-2 text-xs text-brand-muted px-1">
+                        <span>Fournisseur</span>
+                        <span>Prix (Ar)</span>
+                        <span>Réf.</span>
+                        <Star className="w-3 h-3 mx-auto" />
+                        <span />
+                      </div>
+                      {(itemForm.supplierPrices as SupplierPriceLine[]).map((sp, idx) => (
+                        <div key={idx} className="grid grid-cols-[1fr_100px_90px_32px_32px] gap-2 items-center">
+                          <select
+                            value={sp.supplierId}
+                            onChange={e => updateSupplierPrice(idx, 'supplierId', e.target.value)}
+                            className="input-field py-1.5 text-sm">
+                            <option value="">— Fournisseur —</option>
+                            {(suppliers as any[]).map((s: any) => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number" min="0" step="1"
+                            value={sp.unitCost}
+                            onChange={e => updateSupplierPrice(idx, 'unitCost', Number(e.target.value))}
+                            className="input-field py-1.5 text-sm" />
+                          <input
+                            type="text"
+                            value={sp.referenceCode}
+                            onChange={e => updateSupplierPrice(idx, 'referenceCode', e.target.value)}
+                            placeholder="Réf."
+                            className="input-field py-1.5 text-sm" />
+                          <button
+                            type="button"
+                            onClick={() => updateSupplierPrice(idx, 'isPreferred', !sp.isPreferred)}
+                            title="Fournisseur préféré"
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${sp.isPreferred ? 'text-brand-orange bg-brand-orange/10' : 'text-brand-muted hover:text-brand-orange'}`}>
+                            <Star className="w-4 h-4" fill={sp.isPreferred ? 'currentColor' : 'none'} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeSupplierPrice(idx)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-brand-muted hover:text-red-400 hover:bg-red-400/10 transition-colors">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-2 pt-2">
                   <button onClick={() => setShowItemModal(false)} className="btn-secondary flex-1">Annuler</button>
                   <button onClick={submitItem}
