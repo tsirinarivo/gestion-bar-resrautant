@@ -54,6 +54,57 @@ couponRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthReque
   }
 })
 
+// PUT /api/coupons/:id — Update coupon
+couponRouter.put('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const data = z.object({
+      code: z.string().optional(),
+      description: z.string().optional(),
+      type: z.enum(['PERCENTAGE', 'FIXED_AMOUNT', 'FREE_DELIVERY']).optional(),
+      value: z.number().positive().optional(),
+      minOrderAmount: z.number().nullable().optional(),
+      maxDiscount: z.number().nullable().optional(),
+      startDate: z.string().nullable().optional(),
+      endDate: z.string().nullable().optional(),
+      usageLimit: z.number().int().nullable().optional(),
+      isActive: z.boolean().optional(),
+    }).parse(req.body)
+
+    const existing = await prisma.coupon.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!existing) throw new AppError('Coupon introuvable', 404)
+
+    const coupon = await prisma.coupon.update({
+      where: { id: req.params.id },
+      data: {
+        ...data,
+        startDate: data.startDate === null ? null : data.startDate ? new Date(data.startDate) : undefined,
+        endDate: data.endDate === null ? null : data.endDate ? new Date(data.endDate) : undefined,
+      },
+    })
+
+    res.json({ success: true, data: coupon })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/coupons/:id — Delete coupon
+couponRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const existing = await prisma.coupon.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!existing) throw new AppError('Coupon introuvable', 404)
+
+    await prisma.coupon.delete({ where: { id: req.params.id } })
+    res.json({ success: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // POST /api/coupons/validate — Validate coupon code
 couponRouter.post('/validate', async (req: AuthRequest, res, next) => {
   try {
