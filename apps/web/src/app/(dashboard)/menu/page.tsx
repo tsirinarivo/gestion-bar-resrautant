@@ -228,6 +228,84 @@ function ProductModal({
   )
 }
 
+// ─── Quick Stock Item Creator (inside recipe modal) ───────────────────────────
+
+function QuickIngredientForm({
+  defaultName,
+  onCreated,
+  onCancel,
+}: {
+  defaultName: string
+  onCreated: (item: StockItem) => void
+  onCancel: () => void
+}) {
+  const qc = useQueryClient()
+  const [name, setName] = useState(defaultName)
+  const [unit, setUnit] = useState('g')
+  const [costPerUnit, setCostPerUnit] = useState('')
+
+  const create = useMutation({
+    mutationFn: (data: any) => api.post('/stock', data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['ingredients-list'] })
+      toast.success(`"${res.data.data.name}" ajouté au stock`)
+      onCreated(res.data.data)
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Erreur création'),
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) { toast.error('Nom requis'); return }
+    create.mutate({
+      name: name.trim(),
+      unit,
+      costPerUnit: parseFloat(costPerUnit) || 0,
+      currentQuantity: 0,
+      minQuantity: 0,
+      reorderQuantity: 0,
+    })
+  }
+
+  return (
+    <motion.form
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      onSubmit={handleSubmit}
+      className="bg-brand-orange/10 border border-brand-orange/30 rounded-xl p-4 space-y-3"
+    >
+      <p className="text-sm font-semibold text-brand-orange flex items-center gap-2">
+        <Plus className="w-4 h-4" /> Nouvel ingrédient dans le stock
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="col-span-3 sm:col-span-1">
+          <label className="text-xs text-brand-muted mb-1 block">Nom *</label>
+          <input value={name} onChange={e => setName(e.target.value)}
+            className="input-field py-1.5 text-sm" placeholder="Ex: Viande zébu" required />
+        </div>
+        <div>
+          <label className="text-xs text-brand-muted mb-1 block">Unité *</label>
+          <select value={unit} onChange={e => setUnit(e.target.value)}
+            className="input-field py-1.5 text-sm">
+            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-brand-muted mb-1 block">Coût / unité (Ar)</label>
+          <input type="number" value={costPerUnit} onChange={e => setCostPerUnit(e.target.value)}
+            className="input-field py-1.5 text-sm" placeholder="0" min="0" />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button type="button" onClick={onCancel} className="flex-1 btn-secondary py-1.5 text-sm">Annuler</button>
+        <button type="submit" disabled={create.isPending} className="flex-1 btn-primary py-1.5 text-sm disabled:opacity-50">
+          {create.isPending ? 'Création...' : 'Créer et ajouter'}
+        </button>
+      </div>
+    </motion.form>
+  )
+}
+
 // ─── Recipe Builder Modal ─────────────────────────────────────────────────────
 
 function RecipeModal({
@@ -239,6 +317,7 @@ function RecipeModal({
   const qc = useQueryClient()
   const [lines, setLines] = useState<RecipeLine[]>([])
   const [search, setSearch] = useState('')
+  const [showQuickCreate, setShowQuickCreate] = useState(false)
 
   const { data: stockItems = [] } = useQuery<StockItem[]>({
     queryKey: ['ingredients-list'],
@@ -283,6 +362,7 @@ function RecipeModal({
   function addLine(item: StockItem) {
     setLines(l => [...l, { stockItemId: item.id, name: item.name, unit: item.unit, quantity: 1, yieldRate: 1, notes: '' }])
     setSearch('')
+    setShowQuickCreate(false)
   }
 
   function updateLine(idx: number, field: keyof RecipeLine, value: any) {
@@ -342,10 +422,20 @@ function RecipeModal({
             </div>
           )}
 
+          {/* Quick ingredient creator */}
+          {showQuickCreate && (
+            <QuickIngredientForm
+              defaultName={search}
+              onCreated={(item) => addLine(item)}
+              onCancel={() => setShowQuickCreate(false)}
+            />
+          )}
+
           {/* Search to add ingredient */}
+          {!showQuickCreate && (
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
+            <input value={search} onChange={e => { setSearch(e.target.value); setShowQuickCreate(false) }}
               className="input-field pl-10"
               placeholder="Rechercher un ingrédient du stock..." />
             {search && filtered.length > 0 && (
@@ -360,11 +450,20 @@ function RecipeModal({
               </div>
             )}
             {search && filtered.length === 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 glass-card border border-brand-border rounded-xl px-4 py-3 text-brand-muted text-sm">
-                Aucun ingrédient trouvé. Vérifiez le stock.
+              <div className="absolute top-full left-0 right-0 mt-1 glass-card border border-brand-border rounded-xl overflow-hidden z-10">
+                <div className="px-4 py-3 text-brand-muted text-sm border-b border-brand-border">
+                  Aucun ingrédient trouvé pour &quot;{search}&quot;
+                </div>
+                <button
+                  onClick={() => setShowQuickCreate(true)}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-brand-orange hover:bg-brand-orange/10 text-sm font-medium transition-colors">
+                  <Plus className="w-4 h-4" />
+                  Créer &quot;{search}&quot; dans le stock
+                </button>
               </div>
             )}
           </div>
+          )}
 
           {/* Recipe lines */}
           {lines.length === 0 ? (
