@@ -20,12 +20,13 @@ const ROLE_ALLOWED: Record<string, string[]> = {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated, user, _hasHydrated } = useAuthStore()
   const router = useRouter()
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
+    if (!_hasHydrated) return // attendre que Zustand lise le localStorage
     if (!isAuthenticated) { router.push('/login'); return }
     const role = user?.role?.name ?? ''
     const allowed = ROLE_ALLOWED[role]
@@ -33,7 +34,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const ok = allowed.some(p => pathname === p || pathname.startsWith(p + '/'))
       if (!ok) router.push(ROLE_HOME[role] ?? '/dashboard')
     }
-  }, [isAuthenticated, pathname, router, user])
+  }, [_hasHydrated, isAuthenticated, pathname, router, user])
+
+  // Afficher un écran de chargement pendant la réhydration
+  if (!_hasHydrated) {
+    return (
+      <div className="flex h-screen bg-brand-dark items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-2 border-brand-orange border-t-transparent rounded-full animate-spin" />
+          <p className="text-brand-muted text-sm">Chargement...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!isAuthenticated) return null
 
