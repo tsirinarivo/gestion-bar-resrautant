@@ -3,10 +3,19 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Plus, Search, AlertTriangle, RefreshCw, ArrowDown, ArrowUp, X, Edit2, ClipboardList } from 'lucide-react'
+import { Package, Plus, Search, AlertTriangle, RefreshCw, ArrowDown, ArrowUp, X, Edit2, ClipboardList, ArrowRightLeft } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatQuantity, formatCurrency } from '@restaurant/utils'
 import { toast } from 'sonner'
+
+const LOCATIONS = [
+  { value: 'Cuisine',        label: '👨‍🍳 Cuisine' },
+  { value: 'Bar',            label: '🍹 Bar' },
+  { value: 'Cave',           label: '🍷 Cave' },
+  { value: 'Chambre froide', label: '❄️ Chambre froide' },
+  { value: 'Réserve',        label: '📦 Réserve' },
+  { value: 'Bureau',         label: '🏢 Bureau' },
+]
 
 const STOCK_STATUS = {
   OK:             { label: 'OK',          color: '#10B981' },
@@ -36,6 +45,9 @@ export default function StockPage() {
   // Inventory modal
   const [showInventory, setShowInventory] = useState(false)
   const [inventoryCounts, setInventoryCounts] = useState<Record<string, string>>({})
+  // Transfer modal
+  const [transferItem, setTransferItem] = useState<any>(null)
+  const [transferForm, setTransferForm] = useState({ toLocation: '', quantity: '', notes: '' })
 
   const qc = useQueryClient()
 
@@ -76,6 +88,26 @@ export default function StockPage() {
       toast.success('Article mis à jour')
     },
     onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur modification'),
+  })
+
+  const recordTransfer = useMutation({
+    mutationFn: async ({ item, toLocation, quantity, notes }: any) => {
+      // OUT from current location
+      await api.post(`/stock/${item.id}/movements`, {
+        type: 'TRANSFER',
+        quantity: parseFloat(quantity),
+        notes: `Transfert vers ${toLocation}${notes ? ` — ${notes}` : ''}`,
+      })
+      // Update location of item (stock item location = destination)
+      await api.put(`/stock/${item.id}`, { ...item, location: toLocation })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stock'] })
+      setTransferItem(null)
+      setTransferForm({ toLocation: '', quantity: '', notes: '' })
+      toast.success('Transfert enregistré')
+    },
+    onError: () => toast.error('Erreur lors du transfert'),
   })
 
   const items = (data || []).filter((item: any) => !filter || item.stockStatus === filter)
@@ -258,6 +290,10 @@ export default function StockPage() {
                           className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg" title="Sortie">
                           <ArrowUp className="w-4 h-4" />
                         </button>
+                        <button onClick={() => { setTransferItem(item); setTransferForm({ toLocation: '', quantity: '', notes: '' }) }}
+                          className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded-lg" title="Transfert d'emplacement">
+                          <ArrowRightLeft className="w-4 h-4" />
+                        </button>
                         <button onClick={() => openEditItem(item)}
                           className="p-1.5 text-brand-muted hover:text-white hover:bg-white/10 rounded-lg" title="Modifier">
                           <Edit2 className="w-4 h-4" />
@@ -388,8 +424,11 @@ export default function StockPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Emplacement</label>
-                    <input value={itemForm.location} onChange={e => setItemForm((f: any) => ({ ...f, location: e.target.value }))}
-                      placeholder="Chambre froide, Cave..." className="input-field" />
+                    <select value={itemForm.location} onChange={e => setItemForm((f: any) => ({ ...f, location: e.target.value }))}
+                      className="input-field">
+                      <option value="">— Aucun emplacement —</option>
+                      {LOCATIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                    </select>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium mb-1">Description</label>
@@ -471,6 +510,67 @@ export default function StockPage() {
                   <RefreshCw className="w-4 h-4" />
                   Valider l'inventaire
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Transfer modal ──────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {transferItem && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setTransferItem(null)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              className="glass-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-lg flex items-center gap-2">
+                  <ArrowRightLeft className="w-5 h-5 text-blue-400" /> Transfert d&apos;emplacement
+                </h2>
+                <button onClick={() => setTransferItem(null)} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="space-y-4">
+                <div className="p-3 bg-white/3 rounded-xl text-sm">
+                  <p className="font-medium">{transferItem.name}</p>
+                  <p className="text-brand-muted mt-0.5">
+                    Emplacement actuel : <strong>{transferItem.location || '—'}</strong>
+                    {' · '}Stock : <strong>{formatQuantity(transferItem.currentQuantity, transferItem.unit)}</strong>
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Destination *</label>
+                  <select value={transferForm.toLocation}
+                    onChange={e => setTransferForm(f => ({ ...f, toLocation: e.target.value }))}
+                    className="input-field">
+                    <option value="">— Choisir un emplacement —</option>
+                    {LOCATIONS.filter(l => l.value !== transferItem.location).map(l => (
+                      <option key={l.value} value={l.value}>{l.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Quantité à transférer ({transferItem.unit})</label>
+                  <input type="number" value={transferForm.quantity}
+                    onChange={e => setTransferForm(f => ({ ...f, quantity: e.target.value }))}
+                    placeholder="0" min="0" max={transferItem.currentQuantity} className="input-field" />
+                  <p className="text-xs text-brand-muted mt-1">Max disponible : {formatQuantity(transferItem.currentQuantity, transferItem.unit)}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Note (optionnel)</label>
+                  <input value={transferForm.notes}
+                    onChange={e => setTransferForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="Raison du transfert..." className="input-field" />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setTransferItem(null)} className="btn-secondary flex-1">Annuler</button>
+                  <button
+                    onClick={() => recordTransfer.mutate({ item: transferItem, ...transferForm })}
+                    disabled={!transferForm.toLocation || !transferForm.quantity || recordTransfer.isPending}
+                    className="btn-primary flex-1 disabled:opacity-50">
+                    {recordTransfer.isPending ? 'Transfert...' : 'Confirmer le transfert'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
