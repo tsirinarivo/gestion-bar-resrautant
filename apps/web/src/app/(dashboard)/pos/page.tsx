@@ -181,7 +181,7 @@ export default function POSPage() {
 
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {(tables as any[]).map((table: any) => {
-            const s = TABLE_STATUS_STYLE[table.status] ?? TABLE_STATUS_STYLE.AVAILABLE
+            const s = TABLE_STATUS_STYLE[table.status] ?? TABLE_STATUS_STYLE['AVAILABLE']!
             return (
               <motion.button
                 key={table.id}
@@ -265,7 +265,7 @@ export default function POSPage() {
   }
 
   // VIEW 3: Table ticket view
-  const tableStyle = TABLE_STATUS_STYLE[activeTable?.status] ?? TABLE_STATUS_STYLE.AVAILABLE
+  const tableStyle = TABLE_STATUS_STYLE[activeTable?.status] ?? TABLE_STATUS_STYLE['AVAILABLE']!
 
   return (
     <div className="flex h-[calc(100vh-10rem)] gap-4">
