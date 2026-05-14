@@ -17,6 +17,7 @@ type Product = {
   id: string; name: string; shortDesc?: string; description?: string
   price: number; costPrice?: number; image?: string
   isAvailable: boolean; isFeatured: boolean; isNew: boolean
+  requiresPreparation: boolean
   prepTime?: number; allergens: string[]; tags: string[]
   categoryId: string; category?: { name: string; icon?: string }
   recipeItems?: RecipeItem[]
@@ -54,6 +55,7 @@ function ProductModal({
     isFeatured: product?.isFeatured ?? false,
     isNew: product?.isNew ?? false,
     hasRecipe: !(product?.tags?.includes('no-recipe') ?? false),
+    requiresPreparation: product?.requiresPreparation ?? true,
     allergens: product?.allergens ?? [] as string[],
     tags: product?.tags?.filter(t => t !== 'no-recipe').join(', ') ?? '',
   })
@@ -91,6 +93,7 @@ function ProductModal({
       isAvailable: form.isAvailable,
       isFeatured: form.isFeatured,
       isNew: form.isNew,
+      requiresPreparation: form.requiresPreparation,
       allergens: form.allergens,
       tags: [
         ...form.tags.split(',').map(t => t.trim()).filter(Boolean),
@@ -202,6 +205,16 @@ function ProductModal({
               }`}
               title={form.hasRecipe ? 'Désactiver pour les boissons/produits vendus tels quels' : 'Activer pour les plats préparés'}>
               🍳 {form.hasRecipe ? 'A une recette' : 'Vendu tel quel'}
+            </button>
+            <button type="button"
+              onClick={() => setForm(f => ({ ...f, requiresPreparation: !f.requiresPreparation }))}
+              className={`px-3 py-1.5 rounded-xl text-sm border transition-all ${
+                form.requiresPreparation
+                  ? 'bg-orange-500/20 border-orange-500/60 text-orange-300'
+                  : 'bg-green-500/20 border-green-500/60 text-green-300'
+              }`}
+              title={form.requiresPreparation ? 'Ce produit est préparé en cuisine' : 'Ce produit ne passe pas en cuisine (servi directement)'}>
+              {form.requiresPreparation ? '👨‍🍳 Passe en cuisine' : '⚡ Prêt à servir'}
             </button>
           </div>
 

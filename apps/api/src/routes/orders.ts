@@ -91,7 +91,7 @@ orderRouter.get('/', async (req: AuthRequest, res, next) => {
               notes: true,
               status: true,
               kdsStation: true,
-              product: { select: { id: true, name: true, image: true } },
+              product: { select: { id: true, name: true, image: true, requiresPreparation: true } },
               modifiers: { select: { id: true, name: true, price: true } },
             },
           },
@@ -277,6 +277,25 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
         customer: true,
       },
     })
+
+    // Auto-mark no-prep items as READY when order is confirmed
+    if (status === 'CONFIRMED') {
+      const noPrepItems = updatedOrder.items.filter((i: any) => i.product && !i.product.requiresPreparation)
+      if (noPrepItems.length > 0) {
+        await prisma.orderItem.updateMany({
+          where: { orderId: order.id, product: { requiresPreparation: false } },
+          data: { status: 'READY' },
+        })
+        // If ALL items need no preparation → order is ready immediately
+        const kitchenItemsCount = updatedOrder.items.filter((i: any) => i.product?.requiresPreparation !== false).length
+        if (kitchenItemsCount === 0) {
+          await prisma.order.update({
+            where: { id: order.id },
+            data: { status: 'READY', readyAt: new Date() },
+          })
+        }
+      }
+    }
 
     if ((status === 'COMPLETED' || status === 'CANCELLED') && order.tableId) {
       const activeOrders = await prisma.order.count({

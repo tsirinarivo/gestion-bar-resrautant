@@ -32,8 +32,9 @@ function OrderCard({ order, onItemReady }: { order: any; onItemReady: (orderId: 
   const isUrgent = elapsed > 900 // 15 min
   const isWarning = elapsed > 600 // 10 min
 
-  const allReady = order.items?.every((item: any) => item.status === 'READY')
-  const pendingItems = order.items?.filter((item: any) => item.status !== 'READY') || []
+  const kitchenItems = order.items?.filter((item: any) => item.product?.requiresPreparation !== false) || []
+  const allReady = kitchenItems.every((item: any) => item.status === 'READY')
+  const pendingItems = kitchenItems.filter((item: any) => item.status !== 'READY')
 
   return (
     <motion.div
@@ -70,7 +71,7 @@ function OrderCard({ order, onItemReady }: { order: any; onItemReady: (orderId: 
 
       {/* Items */}
       <div className="p-4 space-y-2">
-        {order.items?.map((item: any) => (
+        {kitchenItems.map((item: any) => (
           <motion.div
             key={item.id}
             className={`flex items-center justify-between p-2.5 rounded-xl transition-all ${

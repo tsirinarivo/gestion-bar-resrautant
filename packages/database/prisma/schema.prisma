@@ -227,6 +227,9 @@ model Product {
   // Prep time in minutes
   prepTime        Int     @default(10)
 
+  // No kitchen required (bottled drinks, packaged items)
+  requiresPreparation Boolean @default(true)
+
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
