@@ -60,13 +60,11 @@ export function getDateRange(period: 'today' | 'week' | 'month' | 'year'): {
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
-let orderCounter = 1000
-
 export function generateOrderNumber(prefix = 'CMD'): string {
   const now = new Date()
-  const dateStr = format(now, 'yyyyMMdd')
-  const counter = String(++orderCounter).padStart(4, '0')
-  return `${prefix}-${dateStr}-${counter}`
+  const dateStr = format(now, 'yyyyMMddHHmmss')
+  const rand = Math.random().toString(36).substring(2, 5).toUpperCase()
+  return `${prefix}-${dateStr}-${rand}`
 }
 
 export function generateReservationRef(): string {
