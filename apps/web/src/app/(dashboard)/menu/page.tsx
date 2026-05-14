@@ -5,7 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Search, Edit2, Trash2, Eye, EyeOff, X, ChefHat,
-  BookOpen, Tag, DollarSign, TrendingUp, Package, Star, Flame
+  BookOpen, Tag, DollarSign, TrendingUp, Package, Star, Flame,
+  TrendingDown, AlertCircle, Target, ArrowUpDown, Calculator, BarChart3,
+  ChevronUp, ChevronDown, Filter,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, calculateMargin, ALLERGENS } from '@restaurant/utils'
@@ -630,9 +632,353 @@ function CategoryModal({
   )
 }
 
+// ─── Marge View ───────────────────────────────────────────────────────────────
+
+type MargeLevel = 'excellente' | 'bonne' | 'correcte' | 'faible' | 'negative' | 'unknown'
+
+const MARGE_LEVELS: Record<MargeLevel, { label: string; color: string; min: number }> = {
+  excellente: { label: 'Excellente', color: '#10B981', min: 75 },
+  bonne:      { label: 'Bonne',      color: '#3B82F6', min: 60 },
+  correcte:   { label: 'Correcte',   color: '#F59E0B', min: 40 },
+  faible:     { label: 'Faible',     color: '#EF4444', min: 0  },
+  negative:   { label: 'Négative',   color: '#7F1D1D', min: -Infinity },
+  unknown:    { label: 'Sans coût',  color: '#6B7280', min: -Infinity },
+}
+
+function getMargeLevel(tauxMarque: number | null): MargeLevel {
+  if (tauxMarque === null) return 'unknown'
+  if (tauxMarque >= 75) return 'excellente'
+  if (tauxMarque >= 60) return 'bonne'
+  if (tauxMarque >= 40) return 'correcte'
+  if (tauxMarque >= 0)  return 'faible'
+  return 'negative'
+}
+
+function MargeView({ products, categories, onEdit }: {
+  products: Product[]
+  categories: Category[]
+  onEdit: (p: Product) => void
+}) {
+  const [targetMargin, setTargetMargin]   = useState(65)
+  const [sortBy, setSortBy]               = useState<'tauxMarque' | 'margeAr' | 'price' | 'name'>('tauxMarque')
+  const [sortDir, setSortDir]             = useState<'asc' | 'desc'>('desc')
+  const [filterLevel, setFilterLevel]     = useState<MargeLevel | ''>('')
+  const [filterCat, setFilterCat]         = useState('')
+  const [simProduct, setSimProduct]       = useState<Product | null>(null)
+  const [simPrice, setSimPrice]           = useState('')
+  const [simCost, setSimCost]             = useState('')
+
+  // Compute margin metrics for each product
+  const rows = products.map(p => {
+    const price = p.price
+    const cost  = p.costPrice ?? null
+    const margeAr     = cost !== null ? price - cost : null
+    const tauxMarque  = cost !== null && price > 0 ? ((price - cost) / price) * 100 : null
+    const tauxMarge   = cost !== null && cost > 0  ? ((price - cost) / cost)  * 100 : null
+    const prixCible   = cost !== null ? cost / (1 - targetMargin / 100) : null
+    const level       = getMargeLevel(tauxMarque)
+    return { ...p, margeAr, tauxMarque, tauxMarge, prixCible, level }
+  })
+
+  // KPIs
+  const withCost   = rows.filter(r => r.margeAr !== null)
+  const negatives  = withCost.filter(r => (r.tauxMarque ?? 0) < 0)
+  const belowTarget = withCost.filter(r => (r.tauxMarque ?? 0) < targetMargin)
+  const avgMargin  = withCost.length ? withCost.reduce((s, r) => s + (r.tauxMarque ?? 0), 0) / withCost.length : 0
+  const best       = withCost.length ? withCost.reduce((a, b) => (b.tauxMarque ?? -Infinity) > (a.tauxMarque ?? -Infinity) ? b : a) : undefined
+  const worst      = withCost.length ? withCost.reduce((a, b) => (b.tauxMarque ?? Infinity) < (a.tauxMarque ?? Infinity) ? b : a) : undefined
+
+  // Filter + sort
+  const filtered = rows
+    .filter(r => !filterLevel || r.level === filterLevel)
+    .filter(r => !filterCat || r.categoryId === filterCat)
+    .sort((a, b) => {
+      let va: number, vb: number
+      if (sortBy === 'tauxMarque') { va = a.tauxMarque ?? -9999; vb = b.tauxMarque ?? -9999 }
+      else if (sortBy === 'margeAr') { va = a.margeAr ?? -9999; vb = b.margeAr ?? -9999 }
+      else if (sortBy === 'price')  { va = a.price; vb = b.price }
+      else { return sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name) }
+      return sortDir === 'asc' ? va - vb : vb - va
+    })
+
+  function toggleSort(col: typeof sortBy) {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('desc') }
+  }
+
+  const SortIcon = ({ col }: { col: typeof sortBy }) =>
+    sortBy === col
+      ? (sortDir === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />)
+      : <ArrowUpDown className="w-3 h-3 opacity-30" />
+
+  // Simulation
+  const simP = simPrice ? parseFloat(simPrice) : (simProduct?.price ?? 0)
+  const simC = simCost  ? parseFloat(simCost)  : (simProduct?.costPrice ?? 0)
+  const simMargeAr   = simP - simC
+  const simTauxMarque = simP > 0 ? ((simP - simC) / simP) * 100 : 0
+  const simTauxMarge  = simC > 0 ? ((simP - simC) / simC) * 100 : 0
+  const simLevel      = getMargeLevel(simTauxMarque)
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Marge moyenne', value: `${avgMargin.toFixed(1)}%`, sub: `sur ${withCost.length} produits coûtés`, icon: TrendingUp, color: avgMargin >= targetMargin ? '#10B981' : '#EF4444' },
+          { label: 'Produits à marge négative', value: negatives.length, sub: 'à corriger en priorité', icon: AlertCircle, color: negatives.length > 0 ? '#EF4444' : '#10B981' },
+          { label: 'Sous l\'objectif', value: belowTarget.length, sub: `objectif ${targetMargin}%`, icon: Target, color: belowTarget.length > 0 ? '#F59E0B' : '#10B981' },
+          { label: 'Meilleure marge', value: best ? `${(best.tauxMarque ?? 0).toFixed(1)}%` : '—', sub: best?.name ?? '', icon: Star, color: '#FFB800' },
+        ].map(({ label, value, sub, icon: Icon, color }) => (
+          <div key={label} className="glass-card p-4">
+            <div className="flex items-start justify-between mb-2">
+              <p className="text-xs text-brand-muted uppercase tracking-wide">{label}</p>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: `${color}20` }}>
+                <Icon className="w-4 h-4" style={{ color }} />
+              </div>
+            </div>
+            <p className="text-2xl font-bold" style={{ color }}>{value}</p>
+            <p className="text-xs text-brand-muted mt-1 truncate">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Config + Filters ── */}
+      <div className="glass-card p-4 space-y-4">
+        {/* Target margin */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2 flex-1 min-w-48">
+            <Target className="w-4 h-4 text-brand-orange flex-shrink-0" />
+            <span className="text-sm font-medium whitespace-nowrap">Objectif de marge</span>
+            <input type="range" min={0} max={95} step={1} value={targetMargin}
+              onChange={e => setTargetMargin(Number(e.target.value))}
+              className="flex-1 accent-brand-orange" />
+            <span className="text-brand-orange font-bold text-sm w-10 text-right">{targetMargin}%</span>
+          </div>
+          <div className="text-xs text-brand-muted">
+            Prix minimum = <strong>coût ÷ (1 − {targetMargin}%)</strong>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <Filter className="w-4 h-4 text-brand-muted flex-shrink-0" />
+          <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="input-field py-1.5 text-sm w-auto">
+            <option value="">Toutes catégories</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+          </select>
+          {(['', 'negative', 'faible', 'correcte', 'bonne', 'excellente', 'unknown'] as const).map(l => (
+            <button key={l} onClick={() => setFilterLevel(l === filterLevel ? '' : l)}
+              className={`px-3 py-1.5 rounded-xl text-xs border transition-all ${filterLevel === l
+                ? 'bg-brand-orange text-white border-brand-orange'
+                : 'border-brand-border text-brand-muted'}`}>
+              {l === '' ? 'Tous' : MARGE_LEVELS[l as MargeLevel].label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Table ── */}
+      <div className="glass-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-brand-border text-left">
+                <th className="px-4 py-3 text-xs text-brand-muted uppercase">
+                  <button onClick={() => toggleSort('name')} className="flex items-center gap-1">
+                    Produit <SortIcon col="name" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-xs text-brand-muted uppercase">
+                  <button onClick={() => toggleSort('price')} className="flex items-center gap-1">
+                    Prix vente <SortIcon col="price" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-xs text-brand-muted uppercase">Coût de revient</th>
+                <th className="px-4 py-3 text-xs text-brand-muted uppercase">
+                  <button onClick={() => toggleSort('margeAr')} className="flex items-center gap-1">
+                    Marge brute <SortIcon col="margeAr" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-xs text-brand-muted uppercase">
+                  <button onClick={() => toggleSort('tauxMarque')} className="flex items-center gap-1">
+                    Taux de marque <SortIcon col="tauxMarque" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-xs text-brand-muted uppercase">Taux de marge</th>
+                <th className="px-4 py-3 text-xs text-brand-muted uppercase">Prix cible ({targetMargin}%)</th>
+                <th className="px-4 py-3 text-xs text-brand-muted uppercase">Statut</th>
+                <th className="px-4 py-3 text-xs text-brand-muted uppercase"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={9} className="px-4 py-10 text-center text-brand-muted">Aucun produit</td></tr>
+              ) : filtered.map(row => {
+                const lv = MARGE_LEVELS[row.level]
+                const belowTgt = row.tauxMarque !== null && row.tauxMarque < targetMargin
+                return (
+                  <tr key={row.id} className="border-b border-brand-border/30 hover:bg-white/2 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{row.name}</p>
+                      <p className="text-xs text-brand-muted">{row.category?.icon} {row.category?.name}</p>
+                    </td>
+                    <td className="px-4 py-3 font-medium">{formatCurrency(row.price)}</td>
+                    <td className="px-4 py-3 text-brand-muted">
+                      {row.costPrice ? formatCurrency(row.costPrice) : <span className="text-xs italic">Non défini</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.margeAr !== null
+                        ? <span className={row.margeAr >= 0 ? 'text-green-400' : 'text-red-400'} style={{ color: lv.color }}>
+                            {formatCurrency(row.margeAr)}
+                          </span>
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.tauxMarque !== null ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-brand-border rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all"
+                              style={{ width: `${Math.min(100, Math.max(0, row.tauxMarque))}%`, background: lv.color }} />
+                          </div>
+                          <span className="font-semibold" style={{ color: lv.color }}>
+                            {row.tauxMarque.toFixed(1)}%
+                          </span>
+                          {belowTgt && <span title="Sous l'objectif" className="text-yellow-400 text-xs">⚠️</span>}
+                        </div>
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-brand-muted">
+                      {row.tauxMarge !== null ? `${row.tauxMarge.toFixed(1)}%` : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.prixCible !== null ? (
+                        <span className={row.price >= row.prixCible ? 'text-green-400' : 'text-brand-orange font-semibold'}>
+                          {formatCurrency(row.prixCible)}
+                          {row.price < row.prixCible && (
+                            <span className="block text-xs opacity-70">
+                              +{formatCurrency(row.prixCible - row.price)}
+                            </span>
+                          )}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: `${lv.color}20`, color: lv.color }}>
+                        {lv.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <button onClick={() => {
+                          setSimProduct(row as unknown as Product)
+                          setSimPrice(row.price.toString())
+                          setSimCost(row.costPrice?.toString() ?? '')
+                        }}
+                          className="p-1.5 text-brand-muted hover:text-brand-orange hover:bg-brand-orange/10 rounded-lg"
+                          title="Simuler">
+                          <Calculator className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => onEdit(row as unknown as Product)}
+                          className="p-1.5 text-brand-muted hover:text-white hover:bg-white/10 rounded-lg"
+                          title="Modifier le produit">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Summary row */}
+        {filtered.length > 0 && (
+          <div className="px-4 py-3 border-t border-brand-border bg-white/2 flex items-center gap-6 text-xs text-brand-muted flex-wrap">
+            <span><strong>{filtered.length}</strong> produits</span>
+            <span>Marge moy. : <strong style={{ color: avgMargin >= targetMargin ? '#10B981' : '#EF4444' }}>{avgMargin.toFixed(1)}%</strong></span>
+            <span>Sous objectif : <strong className="text-brand-orange">{belowTarget.length}</strong></span>
+            <span>Sans coût : <strong>{rows.filter(r => r.margeAr === null).length}</strong></span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Simulation Modal ── */}
+      <AnimatePresence>
+        {simProduct && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setSimProduct(null)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              className="glass-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-lg flex items-center gap-2">
+                  <Calculator className="w-5 h-5 text-brand-orange" /> Simulation de marge
+                </h2>
+                <button onClick={() => setSimProduct(null)} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
+              </div>
+              <p className="text-sm text-brand-muted mb-4">{simProduct.name}</p>
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="text-xs text-brand-muted block mb-1">Prix de vente (Ar)</label>
+                  <input type="number" min="0" value={simPrice}
+                    onChange={e => setSimPrice(e.target.value)}
+                    className="input-field" />
+                  <p className="text-xs text-brand-muted mt-1">Actuel : {formatCurrency(simProduct.price)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-brand-muted block mb-1">Coût de revient (Ar)</label>
+                  <input type="number" min="0" value={simCost}
+                    onChange={e => setSimCost(e.target.value)}
+                    className="input-field" />
+                  <p className="text-xs text-brand-muted mt-1">Actuel : {simProduct.costPrice ? formatCurrency(simProduct.costPrice) : '—'}</p>
+                </div>
+              </div>
+
+              {/* Live results */}
+              <div className="space-y-3 p-4 rounded-xl bg-white/3 border border-brand-border mb-4">
+                {[
+                  { label: 'Marge brute', value: formatCurrency(simMargeAr), color: simMargeAr >= 0 ? '#10B981' : '#EF4444' },
+                  { label: 'Taux de marque', value: `${simTauxMarque.toFixed(2)}%`, color: MARGE_LEVELS[simLevel].color },
+                  { label: 'Taux de marge (markup)', value: `${simTauxMarge.toFixed(2)}%`, color: MARGE_LEVELS[simLevel].color },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-sm text-brand-muted">{label}</span>
+                    <span className="font-bold text-lg" style={{ color }}>{value}</span>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-brand-border flex items-center justify-between">
+                  <span className="text-sm text-brand-muted">Statut</span>
+                  <span className="text-sm px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: `${MARGE_LEVELS[simLevel].color}20`, color: MARGE_LEVELS[simLevel].color }}>
+                    {MARGE_LEVELS[simLevel].label}
+                  </span>
+                </div>
+              </div>
+
+              {/* Target price suggestion */}
+              <div className="p-3 rounded-xl bg-brand-orange/5 border border-brand-orange/20 text-sm">
+                <p className="text-brand-muted mb-1">Prix pour atteindre <strong>{targetMargin}%</strong> de marge</p>
+                <p className="text-xl font-bold text-brand-orange">
+                  {simCost ? formatCurrency(parseFloat(simCost) / (1 - targetMargin / 100)) : '—'}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MenuPage() {
+  const [activeView, setActiveView] = useState<'products' | 'marge'>('products')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [search, setSearch] = useState('')
   const [productModal, setProductModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
@@ -723,6 +1069,11 @@ export default function MenuPage() {
           <p className="text-brand-muted text-sm">{products.length} produit{products.length > 1 ? 's' : ''}</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setActiveView(v => v === 'marge' ? 'products' : 'marge')}
+            className={`btn-secondary flex items-center gap-2 text-sm ${activeView === 'marge' ? 'border-brand-orange text-brand-orange' : ''}`}>
+            <BarChart3 className="w-4 h-4" />
+            <span className="hidden sm:inline">Analyse des marges</span>
+          </button>
           <button onClick={() => setShowCategories(v => !v)}
             className={`btn-secondary flex items-center gap-2 text-sm ${showCategories ? 'border-brand-orange text-brand-orange' : ''}`}>
             <Tag className="w-4 h-4" />
@@ -766,8 +1117,16 @@ export default function MenuPage() {
         )}
       </AnimatePresence>
 
+      {activeView === 'marge' && (
+        <MargeView
+          products={products}
+          categories={categories}
+          onEdit={p => setProductModal({ open: true, product: p })}
+        />
+      )}
+
       {/* Category filter */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      {activeView === 'products' && <div className="flex gap-2 overflow-x-auto pb-1">
         <button onClick={() => setSelectedCategory('')}
           className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap border transition-all ${
             !selectedCategory ? 'bg-brand-orange text-white border-brand-orange' : 'border-brand-border text-brand-muted'
@@ -784,17 +1143,17 @@ export default function MenuPage() {
             <span className="text-xs opacity-70">({cat._count?.products ?? 0})</span>
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Search */}
-      <div className="relative">
+      {activeView === 'products' && <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted" />
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Rechercher un produit..." className="input-field pl-10" />
-      </div>
+      </div>}
 
       {/* Stats bar */}
-      {products.length > 0 && (
+      {activeView === 'products' && products.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Disponibles', value: products.filter(p => p.isAvailable).length, icon: Eye, color: 'text-green-400' },
@@ -813,7 +1172,7 @@ export default function MenuPage() {
       )}
 
       {/* Product grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {activeView === 'products' && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <AnimatePresence mode="popLayout">
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
@@ -922,7 +1281,7 @@ export default function MenuPage() {
             ))
           )}
         </AnimatePresence>
-      </div>
+      </div>}
 
       {/* Modals */}
       {productModal.open && (
