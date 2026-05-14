@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { memo } from 'react'
 import { motion } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, ShoppingCart, Users, Table2,
@@ -21,7 +22,7 @@ const stagger = {
 
 const PIE_COLORS = ['#FF4D00', '#FFB800', '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B']
 
-function KPICard({
+const KPICard = memo(function KPICard({
   title, value, trend, trendLabel, icon: Icon, color = 'orange', format = 'number', delay = 0
 }: any) {
   const isPositive = trend >= 0
@@ -72,7 +73,7 @@ function KPICard({
       )}
     </motion.div>
   )
-}
+})
 
 function SkeletonKPI() {
   return (

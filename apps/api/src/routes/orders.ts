@@ -63,11 +63,38 @@ orderRouter.get('/', async (req: AuthRequest, res, next) => {
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
-        include: {
-          items: { include: { product: true, modifiers: true } },
-          table: true,
-          customer: true,
-          payments: true,
+        select: {
+          id: true,
+          orderNumber: true,
+          type: true,
+          status: true,
+          subtotal: true,
+          taxAmount: true,
+          discountAmount: true,
+          totalAmount: true,
+          guestCount: true,
+          notes: true,
+          createdAt: true,
+          updatedAt: true,
+          confirmedAt: true,
+          readyAt: true,
+          completedAt: true,
+          table: { select: { id: true, number: true, name: true, section: true } },
+          customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          payments: { select: { id: true, amount: true, method: true, status: true } },
+          items: {
+            select: {
+              id: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              notes: true,
+              status: true,
+              kdsStation: true,
+              product: { select: { id: true, name: true, image: true } },
+              modifiers: { select: { id: true, name: true, price: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (Number(page) - 1) * Number(limit),
@@ -125,20 +152,20 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
       return sum + (item.unitPrice + modifierTotal) * item.quantity
     }, 0)
 
+    const [coupon, restaurant] = await Promise.all([
+      data.couponId ? prisma.coupon.findUnique({ where: { id: data.couponId } }) : Promise.resolve(null),
+      prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { deliveryFee: true } }),
+    ])
+
     let discountAmount = 0
-    if (data.couponId) {
-      const coupon = await prisma.coupon.findUnique({ where: { id: data.couponId } })
-      if (coupon && coupon.isActive) {
-        if (coupon.type === 'PERCENTAGE') {
-          discountAmount = subtotal * (coupon.value / 100)
-          if (coupon.maxDiscount) discountAmount = Math.min(discountAmount, coupon.maxDiscount)
-        } else if (coupon.type === 'FIXED_AMOUNT') {
-          discountAmount = coupon.value
-        }
+    if (coupon && coupon.isActive) {
+      if (coupon.type === 'PERCENTAGE') {
+        discountAmount = subtotal * (coupon.value / 100)
+        if (coupon.maxDiscount) discountAmount = Math.min(discountAmount, coupon.maxDiscount)
+      } else if (coupon.type === 'FIXED_AMOUNT') {
+        discountAmount = coupon.value
       }
     }
-
-    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } })
     const deliveryFee = data.type === 'DELIVERY' ? (restaurant?.deliveryFee || 0) : 0
     const taxAmount = (subtotal - discountAmount) * 0.1
     const totalAmount = subtotal - discountAmount + taxAmount + deliveryFee
@@ -193,19 +220,14 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
       },
     })
 
-    if (data.tableId) {
-      await prisma.diningTable.update({
-        where: { id: data.tableId },
-        data: { status: 'OCCUPIED' },
-      })
-    }
-
-    if (data.couponId) {
-      await prisma.coupon.update({
-        where: { id: data.couponId },
-        data: { usageCount: { increment: 1 } },
-      })
-    }
+    await Promise.all([
+      data.tableId
+        ? prisma.diningTable.update({ where: { id: data.tableId }, data: { status: 'OCCUPIED' } })
+        : Promise.resolve(null),
+      data.couponId
+        ? prisma.coupon.update({ where: { id: data.couponId }, data: { usageCount: { increment: 1 } } })
+        : Promise.resolve(null),
+    ])
 
     const io = req.app.get('io')
     io?.to(restaurantId).emit('order:created', order)
