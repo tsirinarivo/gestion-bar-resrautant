@@ -373,7 +373,7 @@ export default function POSPage() {
               <button onClick={sendToKitchen} disabled={sending}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors">
                 <Send className="w-4 h-4" />
-                {sending ? 'Envoi...' : 'Envoyer en cuisine'}
+                {sending ? 'Envoi...' : 'Envoyer la commande'}
               </button>
             )}
 

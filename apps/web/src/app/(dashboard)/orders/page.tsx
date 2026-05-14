@@ -34,7 +34,7 @@ const STATUS_ICONS: Record<string, any> = {
 }
 
 const STATUS_NEXT: Record<string, { label: string; status: string }> = {
-  PENDING:   { label: 'Envoyer en cuisine', status: 'CONFIRMED' },
+  PENDING:   { label: 'Envoyer la commande', status: 'CONFIRMED' },
   CONFIRMED: { label: 'En préparation',     status: 'PREPARING' },
   PREPARING: { label: 'Prête à servir',     status: 'READY' },
   READY:     { label: 'Servie',             status: 'COMPLETED' },
@@ -342,7 +342,7 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
                   disabled={createOrder.isPending}
                   className="w-full bg-brand-orange text-white py-4 rounded-2xl font-bold text-base active:opacity-80 disabled:opacity-50 flex items-center justify-center gap-2">
                   <ChefHat className="w-5 h-5" />
-                  {createOrder.isPending ? 'Envoi...' : 'Envoyer en cuisine'}
+                  {createOrder.isPending ? 'Envoi...' : 'Envoyer la commande'}
                 </button>
               </div>
             )}
