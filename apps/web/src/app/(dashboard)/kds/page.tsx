@@ -123,7 +123,7 @@ export default function KDSPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['kds-orders'],
-    queryFn: () => api.get('/orders?status=CONFIRMED&status=PREPARING&limit=50').then(r => r.data.data),
+    queryFn: () => api.get('/orders?status=CONFIRMED,PREPARING&limit=50').then(r => r.data.data),
     refetchInterval: 10000,
   })
 
