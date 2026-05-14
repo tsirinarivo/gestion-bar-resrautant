@@ -32,7 +32,7 @@ export default function LoginPage() {
       const response = await api.post('/auth/login', data)
       const { user, accessToken } = response.data.data
       setUser(user, accessToken)
-      const roleName = (user.role as any)?.name ?? user.role ?? ''
+      const roleName = user.role?.name ?? ''
       const redirectMap: Record<string, string> = {
         cuisinier: '/kds',
         caissier: '/pos',

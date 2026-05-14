@@ -27,7 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!isAuthenticated) { router.push('/login'); return }
-    const role = (user?.role as any)?.name ?? (user?.role as string) ?? ''
+    const role = user?.role?.name ?? ''
     const allowed = ROLE_ALLOWED[role]
     if (allowed) {
       const ok = allowed.some(p => pathname === p || pathname.startsWith(p + '/'))
