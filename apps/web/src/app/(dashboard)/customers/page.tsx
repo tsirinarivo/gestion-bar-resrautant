@@ -97,8 +97,8 @@ function PointsAdjustForm({ customerId, currentPoints, onSuccess }: {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const pts = parseInt(amount, 10)
-    if (!pts || pts <= 0) return toast.error('Entrez un nombre de points valide')
-    if (!reason.trim()) return toast.error('Veuillez indiquer une raison')
+    if (!pts || pts <= 0) { toast.error('Entrez un nombre de points valide'); return }
+    if (!reason.trim()) { toast.error('Veuillez indiquer une raison'); return }
     adjust.mutate({ points: mode === 'add' ? pts : -pts, reason: reason.trim() })
   }
 
