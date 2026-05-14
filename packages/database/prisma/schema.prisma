@@ -64,6 +64,7 @@ model Restaurant {
   waitingLists  WaitingList[]
   coupons       Coupon[]
   reviews       Review[]
+  expenses      Expense[]
 
   @@map("restaurants")
 }
@@ -1189,6 +1190,33 @@ model Notification {
   @@index([restaurantId])
   @@index([isRead])
   @@map("notifications")
+}
+
+// ─── FINANCES ─────────────────────────────────────────────────────────────────
+
+enum ExpenseCategory {
+  PERSONNEL
+  LOYER
+  ENERGIE
+  FOURNITURES
+  MARKETING
+  MAINTENANCE
+  AUTRE
+}
+
+model Expense {
+  id           String          @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category     ExpenseCategory
+  amount       Float
+  date         DateTime
+  description  String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([restaurantId, date])
+  @@map("expenses")
 }
 
 // ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
