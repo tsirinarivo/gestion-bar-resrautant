@@ -53,8 +53,9 @@ function ProductModal({
     isAvailable: product?.isAvailable ?? true,
     isFeatured: product?.isFeatured ?? false,
     isNew: product?.isNew ?? false,
+    hasRecipe: !(product?.tags?.includes('no-recipe') ?? false),
     allergens: product?.allergens ?? [] as string[],
-    tags: product?.tags?.join(', ') ?? '',
+    tags: product?.tags?.filter(t => t !== 'no-recipe').join(', ') ?? '',
   })
 
   const margin = form.price && form.costPrice
@@ -91,7 +92,10 @@ function ProductModal({
       isFeatured: form.isFeatured,
       isNew: form.isNew,
       allergens: form.allergens,
-      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+      tags: [
+        ...form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        ...(form.hasRecipe ? [] : ['no-recipe']),
+      ],
     })
   }
 
@@ -191,6 +195,14 @@ function ProductModal({
                 {icon} {label}
               </button>
             ))}
+            <button type="button"
+              onClick={() => setForm(f => ({ ...f, hasRecipe: !f.hasRecipe }))}
+              className={`px-3 py-1.5 rounded-xl text-sm border transition-all ${
+                form.hasRecipe ? 'bg-purple-500/20 border-purple-500/60 text-purple-300' : 'border-brand-border text-brand-muted'
+              }`}
+              title={form.hasRecipe ? 'Désactiver pour les boissons/produits vendus tels quels' : 'Activer pour les plats préparés'}>
+              🍳 {form.hasRecipe ? 'A une recette' : 'Vendu tel quel'}
+            </button>
           </div>
 
           {/* Tags */}
@@ -823,7 +835,7 @@ export default function MenuPage() {
                     {product.isFeatured && <span className="px-1.5 py-0.5 bg-yellow-400 text-black text-xs rounded-md font-bold">⭐</span>}
                     {product.isNew && <span className="px-1.5 py-0.5 bg-brand-orange text-white text-xs rounded-md font-bold">New</span>}
                     {!product.isAvailable && <span className="px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-md font-bold">Off</span>}
-                    {(product.recipeItems?.length ?? 0) > 0 && (
+                    {!product.tags?.includes('no-recipe') && (product.recipeItems?.length ?? 0) > 0 && (
                       <span className="px-1.5 py-0.5 bg-purple-500/80 text-white text-xs rounded-md font-bold flex items-center gap-0.5">
                         <ChefHat className="w-2.5 h-2.5" />{product.recipeItems!.length}
                       </span>
@@ -835,10 +847,12 @@ export default function MenuPage() {
                       className="p-2 bg-white/10 hover:bg-brand-orange/30 rounded-xl transition-colors" title="Modifier">
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    <button onClick={() => setRecipeModal(product)}
-                      className="p-2 bg-white/10 hover:bg-purple-500/30 rounded-xl transition-colors" title="Recette">
-                      <BookOpen className="w-4 h-4" />
-                    </button>
+                    {!product.tags?.includes('no-recipe') && (
+                      <button onClick={() => setRecipeModal(product)}
+                        className="p-2 bg-white/10 hover:bg-purple-500/30 rounded-xl transition-colors" title="Recette">
+                        <BookOpen className="w-4 h-4" />
+                      </button>
+                    )}
                     <button onClick={() => toggleAvailability.mutate({ id: product.id, isAvailable: !product.isAvailable })}
                       className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors" title={product.isAvailable ? 'Désactiver' : 'Activer'}>
                       {product.isAvailable ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -868,11 +882,13 @@ export default function MenuPage() {
                         }`}>
                           Marge {calculateMargin(product.price, product.costPrice).toFixed(0)}%
                         </p>
-                      ) : (
+                      ) : !product.tags?.includes('no-recipe') ? (
                         <button onClick={() => setRecipeModal(product)}
                           className="text-xs text-brand-muted hover:text-brand-orange transition-colors">
                           + Ajouter recette
                         </button>
+                      ) : (
+                        <span className="text-xs text-brand-muted">Vendu tel quel</span>
                       )}
                     </div>
                     {product.prepTime && (
