@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
@@ -37,6 +38,152 @@ employeeRouter.get('/:id', authorize('manager', 'superadmin'), async (req: AuthR
     })
     if (!employee) throw new AppError('Employé introuvable', 404)
     res.json({ success: true, data: employee })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/employees — Create new employee + user account
+employeeRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const schema = z.object({
+      firstName: z.string().min(1),
+      lastName: z.string().min(1),
+      email: z.string().email(),
+      password: z.string().min(6),
+      role: z.enum(['superadmin', 'manager', 'serveur', 'cuisinier', 'caissier']),
+      phone: z.string().optional(),
+      address: z.string().optional(),
+      salary: z.number().optional(),
+      birthDate: z.string().optional(),
+      hireDate: z.string().optional(),
+      position: z.string().optional(),
+    })
+
+    const data = schema.parse(req.body)
+    const restaurantId = req.user!.restaurantId
+
+    const existing = await prisma.user.findUnique({ where: { email: data.email } })
+    if (existing) throw new AppError('Un utilisateur avec cet email existe déjà', 409)
+
+    const roleRecord = await prisma.role.findUnique({ where: { name: data.role } })
+    if (!roleRecord) throw new AppError('Rôle introuvable', 400)
+
+    const passwordHash = await bcrypt.hash(data.password, 12)
+
+    const user = await prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        restaurantId,
+        roleId: roleRecord.id,
+      },
+    })
+
+    const employee = await prisma.employee.create({
+      data: {
+        userId: user.id,
+        restaurantId,
+        position: data.position || data.role,
+        salary: data.salary,
+        hireDate: data.hireDate ? new Date(data.hireDate) : undefined,
+      },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, avatar: true, role: true } },
+        timeEntries: { orderBy: { clockIn: 'desc' }, take: 1 },
+      },
+    })
+
+    res.status(201).json({ success: true, data: employee })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PUT /api/employees/:id — Update employee
+employeeRouter.put('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const schema = z.object({
+      firstName: z.string().min(1).optional(),
+      lastName: z.string().min(1).optional(),
+      email: z.string().email().optional(),
+      role: z.enum(['superadmin', 'manager', 'serveur', 'cuisinier', 'caissier']).optional(),
+      phone: z.string().optional().nullable(),
+      address: z.string().optional().nullable(),
+      salary: z.number().optional().nullable(),
+      birthDate: z.string().optional().nullable(),
+      hireDate: z.string().optional().nullable(),
+      position: z.string().optional(),
+    })
+
+    const data = schema.parse(req.body)
+    const restaurantId = req.user!.restaurantId
+
+    const employee = await prisma.employee.findFirst({
+      where: { id: req.params.id, restaurantId },
+      include: { user: true },
+    })
+    if (!employee) throw new AppError('Employé introuvable', 404)
+
+    if (data.email && data.email !== employee.user.email) {
+      const conflict = await prisma.user.findUnique({ where: { email: data.email } })
+      if (conflict) throw new AppError('Un utilisateur avec cet email existe déjà', 409)
+    }
+
+    let roleId: string | undefined
+    if (data.role) {
+      const roleRecord = await prisma.role.findUnique({ where: { name: data.role } })
+      if (!roleRecord) throw new AppError('Rôle introuvable', 400)
+      roleId = roleRecord.id
+    }
+
+    await prisma.user.update({
+      where: { id: employee.userId },
+      data: {
+        ...(data.firstName && { firstName: data.firstName }),
+        ...(data.lastName && { lastName: data.lastName }),
+        ...(data.email && { email: data.email }),
+        ...(data.phone !== undefined && { phone: data.phone }),
+        ...(roleId && { roleId }),
+      },
+    })
+
+    const updated = await prisma.employee.update({
+      where: { id: employee.id },
+      data: {
+        ...(data.position && { position: data.position }),
+        ...(data.salary !== undefined && { salary: data.salary }),
+        ...(data.hireDate !== undefined && { hireDate: data.hireDate ? new Date(data.hireDate) : null }),
+      },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, avatar: true, role: true } },
+        timeEntries: { orderBy: { clockIn: 'desc' }, take: 1 },
+      },
+    })
+
+    res.json({ success: true, data: updated })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// DELETE /api/employees/:id — Delete employee (and user)
+employeeRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+
+    const employee = await prisma.employee.findFirst({
+      where: { id: req.params.id, restaurantId },
+    })
+    if (!employee) throw new AppError('Employé introuvable', 404)
+
+    // Deleting the user cascades to the employee record
+    await prisma.user.delete({ where: { id: employee.userId } })
+
+    res.json({ success: true, message: 'Employé supprimé' })
   } catch (error) {
     next(error)
   }

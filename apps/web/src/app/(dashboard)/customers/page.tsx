@@ -1,36 +1,393 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { Users, Search, Star, ShoppingBag, Award } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Users, Search, X, TrendingUp, TrendingDown, ShoppingBag,
+  Calendar, Phone, Mail, Star, Award, Plus, Minus, Clock,
+} from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { formatDate, formatCurrency, initials } from '@restaurant/utils'
+import { formatDate, formatDateTime, formatCurrency, initials } from '@restaurant/utils'
 
 const TIER_CONFIG = {
-  BRONZE: { label: 'Bronze', color: '#CD7F32', icon: '🥉' },
-  SILVER: { label: 'Argent', color: '#C0C0C0', icon: '🥈' },
-  GOLD: { label: 'Or', color: '#FFD700', icon: '🥇' },
-  PLATINUM: { label: 'Platine', color: '#E5E4E2', icon: '💎' },
+  BRONZE:   { label: 'Bronze',  color: '#CD7F32', bg: 'rgba(205,127,50,0.12)',  icon: '🥉' },
+  SILVER:   { label: 'Argent',  color: '#C0C0C0', bg: 'rgba(192,192,192,0.12)', icon: '🥈' },
+  GOLD:     { label: 'Or',      color: '#FFD700', bg: 'rgba(255,215,0,0.12)',   icon: '🥇' },
+  PLATINUM: { label: 'Platine', color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', icon: '💎' },
 }
 
+type Customer = {
+  id: string
+  firstName: string
+  lastName: string
+  email?: string
+  phone?: string
+  city?: string
+  createdAt: string
+  loyaltyAccount?: {
+    id: string
+    points: number
+    totalEarned: number
+    totalSpent: number
+    tier: string
+    transactions?: LoyaltyTx[]
+  }
+  orders?: Order[]
+  _count?: { orders: number }
+}
+
+type LoyaltyTx = {
+  id: string
+  type: string
+  points: number
+  balance: number
+  description?: string
+  createdAt: string
+}
+
+type Order = {
+  id: string
+  total: number
+  status: string
+  createdAt: string
+  items?: { quantity: number; product?: { name: string } }[]
+}
+
+// ─── Tier Badge ───────────────────────────────────────────────────────────────
+function TierBadge({ tier, size = 'sm' }: { tier: string; size?: 'sm' | 'lg' }) {
+  const conf = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG.BRONZE
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full font-semibold ${size === 'lg' ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-xs'}`}
+      style={{ color: conf.color, background: conf.bg, border: `1px solid ${conf.color}40` }}
+    >
+      {conf.icon} {conf.label}
+    </span>
+  )
+}
+
+// ─── Points Adjustment Form ───────────────────────────────────────────────────
+function PointsAdjustForm({ customerId, currentPoints, onSuccess }: {
+  customerId: string
+  currentPoints: number
+  onSuccess: () => void
+}) {
+  const [mode, setMode] = useState<'add' | 'deduct'>('add')
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const qc = useQueryClient()
+
+  const adjust = useMutation({
+    mutationFn: (body: { points: number; reason: string }) =>
+      api.post(`/customers/${customerId}/loyalty/adjust`, body).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Points mis à jour')
+      qc.invalidateQueries({ queryKey: ['customer', customerId] })
+      qc.invalidateQueries({ queryKey: ['customers'] })
+      setAmount('')
+      setReason('')
+      onSuccess()
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.error ?? 'Erreur lors de l\'ajustement'),
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const pts = parseInt(amount, 10)
+    if (!pts || pts <= 0) return toast.error('Entrez un nombre de points valide')
+    if (!reason.trim()) return toast.error('Veuillez indiquer une raison')
+    adjust.mutate({ points: mode === 'add' ? pts : -pts, reason: reason.trim() })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setMode('add')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border transition-all ${
+            mode === 'add'
+              ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+              : 'border-brand-border text-brand-muted hover:border-brand-border/80'
+          }`}
+        >
+          <Plus className="w-3.5 h-3.5" /> Ajouter
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('deduct')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium border transition-all ${
+            mode === 'deduct'
+              ? 'bg-red-500/10 border-red-500/40 text-red-400'
+              : 'border-brand-border text-brand-muted hover:border-brand-border/80'
+          }`}
+        >
+          <Minus className="w-3.5 h-3.5" /> Déduire
+        </button>
+      </div>
+      <input
+        type="number"
+        min={1}
+        value={amount}
+        onChange={e => setAmount(e.target.value)}
+        placeholder="Nombre de points"
+        className="input-field"
+      />
+      <input
+        type="text"
+        value={reason}
+        onChange={e => setReason(e.target.value)}
+        placeholder="Raison (ex: geste commercial)"
+        className="input-field"
+      />
+      <button
+        type="submit"
+        disabled={adjust.isPending}
+        className="w-full btn-primary justify-center disabled:opacity-50"
+      >
+        {adjust.isPending ? 'En cours…' : mode === 'add' ? `Ajouter des points` : `Déduire des points`}
+      </button>
+    </form>
+  )
+}
+
+// ─── Customer Detail Panel ────────────────────────────────────────────────────
+function CustomerPanel({ customerId, onClose }: { customerId: string; onClose: () => void }) {
+  const [showAdjust, setShowAdjust] = useState(false)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['customer', customerId],
+    queryFn: () => api.get(`/customers/${customerId}`).then(r => r.data.data) as Promise<Customer>,
+    enabled: !!customerId,
+  })
+
+  const customer = data as Customer | undefined
+  const loyalty = customer?.loyaltyAccount
+  const tier = loyalty?.tier ?? 'BRONZE'
+  const tierConf = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG.BRONZE
+  const orders = customer?.orders?.slice(0, 5) ?? []
+  const transactions = loyalty?.transactions ?? []
+
+  return (
+    <motion.div
+      key="overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+        className="absolute right-0 top-0 h-full w-full max-w-lg bg-brand-darker border-l border-brand-border flex flex-col overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-brand-border flex-shrink-0">
+          <h2 className="text-base font-semibold">Détail client</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-brand-muted transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex-1 flex items-center justify-center text-brand-muted">
+            <div className="space-y-3 w-full px-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="skeleton h-8 rounded-xl" />
+              ))}
+            </div>
+          </div>
+        ) : !customer ? (
+          <div className="flex-1 flex items-center justify-center text-brand-muted">Client introuvable</div>
+        ) : (
+          <div className="flex-1 overflow-y-auto">
+            {/* Customer identity */}
+            <div className="px-6 py-5 border-b border-brand-border/50">
+              <div className="flex items-start gap-4">
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #FF4D00, #FFB800)' }}
+                >
+                  {initials(customer.firstName, customer.lastName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg leading-tight">
+                    {customer.firstName} {customer.lastName}
+                  </h3>
+                  <TierBadge tier={tier} size="sm" />
+                  <div className="mt-2 space-y-1">
+                    {customer.email && (
+                      <p className="text-xs text-brand-muted flex items-center gap-1.5">
+                        <Mail className="w-3 h-3" /> {customer.email}
+                      </p>
+                    )}
+                    {customer.phone && (
+                      <p className="text-xs text-brand-muted flex items-center gap-1.5">
+                        <Phone className="w-3 h-3" /> {customer.phone}
+                      </p>
+                    )}
+                    <p className="text-xs text-brand-muted flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3" /> Client depuis {formatDate(customer.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Loyalty stats */}
+            <div className="px-6 py-5 border-b border-brand-border/50">
+              <h4 className="text-xs font-semibold text-brand-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Award className="w-3.5 h-3.5" /> Fidélité
+              </h4>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="glass-card p-3 text-center">
+                  <p className="text-xl font-bold" style={{ color: tierConf.color }}>
+                    {loyalty?.points ?? 0}
+                  </p>
+                  <p className="text-xs text-brand-muted mt-0.5">Points</p>
+                </div>
+                <div className="glass-card p-3 text-center">
+                  <p className="text-sm font-bold text-white leading-tight">
+                    {formatCurrency(loyalty?.totalSpent ?? 0)}
+                  </p>
+                  <p className="text-xs text-brand-muted mt-0.5">Dépensé</p>
+                </div>
+                <div className="glass-card p-3 text-center">
+                  <p className="text-xl font-bold text-white">{customer._count?.orders ?? orders.length}</p>
+                  <p className="text-xs text-brand-muted mt-0.5">Commandes</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Points adjustment */}
+            <div className="px-6 py-5 border-b border-brand-border/50">
+              <button
+                onClick={() => setShowAdjust(v => !v)}
+                className="w-full flex items-center justify-between text-xs font-semibold text-brand-muted uppercase tracking-wider"
+              >
+                <span className="flex items-center gap-1.5"><Star className="w-3.5 h-3.5" /> Ajustement manuel</span>
+                <span className="text-brand-muted">{showAdjust ? '▲' : '▼'}</span>
+              </button>
+              <AnimatePresence>
+                {showAdjust && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-3">
+                      <PointsAdjustForm
+                        customerId={customer.id}
+                        currentPoints={loyalty?.points ?? 0}
+                        onSuccess={() => setShowAdjust(false)}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Recent orders */}
+            {orders.length > 0 && (
+              <div className="px-6 py-5 border-b border-brand-border/50">
+                <h4 className="text-xs font-semibold text-brand-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5" /> Dernières commandes
+                </h4>
+                <div className="space-y-2">
+                  {orders.map(order => (
+                    <div key={order.id} className="glass-card px-3 py-2.5 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {order.items?.map(i => i.product?.name ?? '?').join(', ').slice(0, 40) ||
+                            `Commande #${order.id.slice(-6)}`}
+                        </p>
+                        <p className="text-xs text-brand-muted">{formatDateTime(order.createdAt)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold">{formatCurrency(order.total)}</p>
+                        <p className="text-xs text-brand-muted capitalize">{order.status.toLowerCase()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Loyalty transaction history */}
+            {transactions.length > 0 && (
+              <div className="px-6 py-5">
+                <h4 className="text-xs font-semibold text-brand-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Historique points
+                </h4>
+                <div className="space-y-2">
+                  {transactions.map(tx => {
+                    const isEarn = tx.points > 0
+                    return (
+                      <div key={tx.id} className="glass-card px-3 py-2.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                              isEarn ? 'bg-emerald-500/10' : 'bg-red-500/10'
+                            }`}
+                          >
+                            {isEarn
+                              ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                              : <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium">{tx.description || tx.type}</p>
+                            <p className="text-xs text-brand-muted">{formatDateTime(tx.createdAt)}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-semibold ${isEarn ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {isEarn ? '+' : ''}{tx.points} pts
+                          </p>
+                          <p className="text-xs text-brand-muted">Solde: {tx.balance}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CustomersPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers', search, page],
-    queryFn: () => api.get(`/customers?${search ? `search=${search}&` : ''}page=${page}&limit=20`).then(r => r.data),
+    queryFn: () =>
+      api.get(`/customers?${search ? `search=${encodeURIComponent(search)}&` : ''}page=${page}&limit=20`)
+        .then(r => r.data),
   })
 
-  const customers = data?.data || []
+  const customers: Customer[] = data?.data ?? []
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Clients</h1>
-          <p className="text-brand-muted text-sm">{data?.pagination?.total || 0} clients</p>
+          <p className="text-brand-muted text-sm">{data?.pagination?.total ?? 0} clients</p>
         </div>
         <button className="btn-primary flex items-center gap-2">
           <Users className="w-4 h-4" />
@@ -40,8 +397,12 @@ export default function CustomersPage() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted" />
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Rechercher par nom, email, téléphone..." className="input-field pl-10" />
+        <input
+          value={search}
+          onChange={e => { setSearch(e.target.value); setPage(1) }}
+          placeholder="Rechercher par nom, email, téléphone…"
+          className="input-field pl-10"
+        />
       </div>
 
       <div className="glass-card overflow-hidden">
@@ -51,6 +412,7 @@ export default function CustomersPage() {
               <th className="px-4 py-3 text-left text-xs font-medium text-brand-muted uppercase">Client</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-brand-muted uppercase">Contact</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-brand-muted uppercase">Fidélité</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-brand-muted uppercase">Dépensé</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-brand-muted uppercase">Commandes</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-brand-muted uppercase">Depuis</th>
             </tr>
@@ -59,34 +421,41 @@ export default function CustomersPage() {
             {isLoading ? (
               Array.from({ length: 10 }).map((_, i) => (
                 <tr key={i} className="border-b border-brand-border/30">
-                  <td colSpan={5} className="px-4 py-3"><div className="skeleton h-8 rounded" /></td>
+                  <td colSpan={6} className="px-4 py-3">
+                    <div className="skeleton h-8 rounded" />
+                  </td>
                 </tr>
               ))
             ) : customers.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center py-12 text-brand-muted">
+                <td colSpan={6} className="text-center py-12 text-brand-muted">
                   <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
                   Aucun client trouvé
                 </td>
               </tr>
             ) : (
-              customers.map((customer: any) => {
-                const tier = customer.loyaltyAccount?.tier || 'BRONZE'
-                const tierConf = TIER_CONFIG[tier as keyof typeof TIER_CONFIG]
+              customers.map(customer => {
+                const tier = customer.loyaltyAccount?.tier ?? 'BRONZE'
+                const tierConf = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG.BRONZE
                 return (
-                  <motion.tr key={customer.id}
+                  <motion.tr
+                    key={customer.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="border-b border-brand-border/30 hover:bg-white/2 transition-colors cursor-pointer">
+                    onClick={() => setSelectedId(customer.id)}
+                    className="border-b border-brand-border/30 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                  >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                          style={{ background: 'linear-gradient(135deg, #FF4D00, #FFB800)' }}>
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          style={{ background: 'linear-gradient(135deg, #FF4D00, #FFB800)' }}
+                        >
                           {initials(customer.firstName, customer.lastName)}
                         </div>
                         <div>
                           <p className="font-medium text-sm">{customer.firstName} {customer.lastName}</p>
-                          <p className="text-xs text-brand-muted">{customer.city || 'Paris'}</p>
+                          <p className="text-xs text-brand-muted">{customer.city || '—'}</p>
                         </div>
                       </div>
                     </td>
@@ -95,16 +464,18 @@ export default function CustomersPage() {
                       <p>{customer.phone || '—'}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span>{tierConf.icon}</span>
-                        <div>
-                          <p className="text-sm font-medium" style={{ color: tierConf.color }}>{tierConf.label}</p>
-                          <p className="text-xs text-brand-muted">{customer.loyaltyAccount?.points || 0} pts</p>
-                        </div>
+                      <div className="flex flex-col gap-1">
+                        <TierBadge tier={tier} size="sm" />
+                        <p className="text-xs text-brand-muted pl-0.5">
+                          {customer.loyaltyAccount?.points ?? 0} pts
+                        </p>
                       </div>
                     </td>
+                    <td className="px-4 py-3 text-sm">
+                      {formatCurrency(customer.loyaltyAccount?.totalSpent ?? 0)}
+                    </td>
                     <td className="px-4 py-3">
-                      <p className="text-sm font-semibold">{customer._count?.orders || 0}</p>
+                      <p className="text-sm font-semibold">{customer._count?.orders ?? 0}</p>
                     </td>
                     <td className="px-4 py-3 text-sm text-brand-muted">
                       {formatDate(customer.createdAt)}
@@ -116,6 +487,36 @@ export default function CustomersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {data?.pagination && data.pagination.totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            disabled={page === 1}
+            onClick={() => setPage(p => p - 1)}
+            className="btn-primary disabled:opacity-40"
+          >
+            ← Précédent
+          </button>
+          <span className="text-sm text-brand-muted px-3">
+            Page {page} / {data.pagination.totalPages}
+          </span>
+          <button
+            disabled={page >= data.pagination.totalPages}
+            onClick={() => setPage(p => p + 1)}
+            className="btn-primary disabled:opacity-40"
+          >
+            Suivant →
+          </button>
+        </div>
+      )}
+
+      {/* Detail slide-over */}
+      <AnimatePresence>
+        {selectedId && (
+          <CustomerPanel key={selectedId} customerId={selectedId} onClose={() => setSelectedId(null)} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

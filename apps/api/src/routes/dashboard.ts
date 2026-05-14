@@ -259,6 +259,77 @@ dashboardRouter.get('/category-stats', async (req: AuthRequest, res, next) => {
   }
 })
 
+// GET /api/dashboard/analytics
+dashboardRouter.get('/analytics', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const now = new Date()
+
+    // Daily revenue for last 30 days
+    const thirtyDaysAgo = startOfDay(subDays(now, 29))
+    const dailyOrders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        createdAt: { gte: thirtyDaysAgo, lte: endOfDay(now) },
+        status: { notIn: ['CANCELLED'] },
+      },
+      select: { createdAt: true, totalAmount: true },
+    })
+
+    const dailyMap = new Map<string, { date: string; revenue: number; orders: number }>()
+    for (let i = 29; i >= 0; i--) {
+      const d = subDays(now, i)
+      const key = d.toISOString().split('T')[0]
+      dailyMap.set(key, { date: key, revenue: 0, orders: 0 })
+    }
+    dailyOrders.forEach(o => {
+      const key = o.createdAt.toISOString().split('T')[0]
+      const entry = dailyMap.get(key)
+      if (entry) { entry.revenue += o.totalAmount; entry.orders += 1 }
+    })
+    const dailyRevenue = Array.from(dailyMap.values())
+
+    // Hourly orders for last 7 days (rolling peak hours)
+    const sevenDaysAgo = startOfDay(subDays(now, 6))
+    const hourlyOrders7d = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        createdAt: { gte: sevenDaysAgo, lte: endOfDay(now) },
+        status: { notIn: ['CANCELLED'] },
+      },
+      select: { createdAt: true },
+    })
+
+    const hourlyMap = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }))
+    hourlyOrders7d.forEach(o => {
+      hourlyMap[o.createdAt.getHours()].count += 1
+    })
+    const hourlyOrders = hourlyMap
+
+    // Orders by type for last 30 days
+    const typeRaw = await prisma.order.groupBy({
+      by: ['type'],
+      where: {
+        restaurantId,
+        createdAt: { gte: thirtyDaysAgo },
+        status: { notIn: ['CANCELLED'] },
+      },
+      _count: true,
+      _sum: { totalAmount: true },
+    })
+
+    const ordersByType = typeRaw.map(t => ({
+      type: t.type,
+      count: t._count,
+      revenue: t._sum.totalAmount || 0,
+    }))
+
+    res.json({ success: true, data: { dailyRevenue, hourlyOrders, ordersByType } })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // GET /api/dashboard/live
 dashboardRouter.get('/live', async (req: AuthRequest, res, next) => {
   try {

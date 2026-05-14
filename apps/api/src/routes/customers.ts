@@ -129,3 +129,57 @@ customerRouter.get('/:id/loyalty', async (req: AuthRequest, res, next) => {
     next(error)
   }
 })
+
+const adjustSchema = z.object({
+  points: z.number().int().refine(n => n !== 0, { message: 'Points must be non-zero' }),
+  reason: z.string().min(1, 'Reason is required'),
+})
+
+// POST /api/customers/:id/loyalty/adjust — Manual points adjustment
+customerRouter.post('/:id/loyalty/adjust', async (req: AuthRequest, res, next) => {
+  try {
+    const { points, reason } = adjustSchema.parse(req.body)
+
+    const customer = await prisma.customer.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+      include: { loyaltyAccount: true },
+    })
+    if (!customer) throw new AppError('Client introuvable', 404)
+    if (!customer.loyaltyAccount) throw new AppError('Compte fidélité introuvable', 404)
+
+    const account = customer.loyaltyAccount
+    const newBalance = account.points + points
+    if (newBalance < 0) throw new AppError('Solde de points insuffisant', 400)
+
+    // Recalculate tier based on totalEarned
+    const totalEarned = points > 0 ? account.totalEarned + points : account.totalEarned
+    let tier = 'BRONZE'
+    if (totalEarned >= 10000) tier = 'PLATINUM'
+    else if (totalEarned >= 5000) tier = 'GOLD'
+    else if (totalEarned >= 1000) tier = 'SILVER'
+
+    const [updatedAccount] = await prisma.$transaction([
+      prisma.loyaltyAccount.update({
+        where: { id: account.id },
+        data: {
+          points: newBalance,
+          totalEarned,
+          tier,
+          transactions: {
+            create: {
+              type: 'ADJUSTMENT',
+              points,
+              balance: newBalance,
+              description: reason,
+            },
+          },
+        },
+        include: { transactions: { orderBy: { createdAt: 'desc' }, take: 20 } },
+      }),
+    ])
+
+    res.json({ success: true, data: updatedAccount })
+  } catch (error) {
+    next(error)
+  }
+})
