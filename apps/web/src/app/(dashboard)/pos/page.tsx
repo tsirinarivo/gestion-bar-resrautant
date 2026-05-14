@@ -113,7 +113,7 @@ export default function POSPage() {
       const res = await api.post('/orders', {
         type: orderType,
         tableId: activeTable?.id,
-        guestCount: activeTable?.capacity ?? 1,
+        guestCount: activeTable?.capacity > 0 ? activeTable.capacity : 1,
         items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.price })),
       })
       const order = res.data.data
@@ -122,8 +122,9 @@ export default function POSPage() {
       await refetchOrders()
       qc.invalidateQueries({ queryKey: ['pos-tables'] })
       toast.success(`Commande ${order.orderNumber} envoyée en cuisine`)
-    } catch {
-      toast.error('Erreur lors de l\'envoi')
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? err?.message ?? 'Erreur lors de l\'envoi'
+      toast.error(msg)
     } finally {
       setSending(false)
     }
@@ -136,7 +137,7 @@ export default function POSPage() {
         const res = await api.post('/orders', {
           type: orderType,
           tableId: activeTable?.id,
-          guestCount: activeTable?.capacity ?? 1,
+          guestCount: activeTable?.capacity > 0 ? activeTable.capacity : 1,
           items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.price })),
         })
         const newOrder = res.data.data
@@ -156,8 +157,9 @@ export default function POSPage() {
       qc.invalidateQueries({ queryKey: ['pos-tables'] })
       qc.invalidateQueries({ queryKey: ['pos-table-orders'] })
       qc.invalidateQueries({ queryKey: ['orders'] })
-    } catch {
-      toast.error('Erreur lors du paiement')
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? err?.message ?? 'Erreur lors du paiement'
+      toast.error(msg)
     } finally {
       setPaying(false)
     }
