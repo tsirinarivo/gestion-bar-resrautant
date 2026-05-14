@@ -32,7 +32,13 @@ export default function LoginPage() {
       const response = await api.post('/auth/login', data)
       const { user, accessToken } = response.data.data
       setUser(user, accessToken)
-      router.push('/dashboard')
+      const roleName = (user.role as any)?.name ?? user.role ?? ''
+      const redirectMap: Record<string, string> = {
+        cuisinier: '/kds',
+        caissier: '/pos',
+        serveur: '/orders',
+      }
+      router.push(redirectMap[roleName] ?? '/dashboard')
       toast.success(`Bienvenue, ${user.firstName} !`)
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Erreur de connexion')

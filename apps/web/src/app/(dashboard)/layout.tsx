@@ -1,19 +1,39 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
 
+// Pages accessible par rôle (undefined = accès complet)
+const ROLE_HOME: Record<string, string> = {
+  cuisinier: '/kds',
+  caissier: '/pos',
+  serveur: '/orders',
+}
+
+const ROLE_ALLOWED: Record<string, string[]> = {
+  cuisinier: ['/kds', '/orders', '/tables', '/dashboard'],
+  caissier: ['/pos', '/orders', '/tables', '/customers', '/dashboard'],
+  serveur: ['/orders', '/tables', '/reservations', '/dashboard'],
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
   const router = useRouter()
+  const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
-    if (!isAuthenticated) router.push('/login')
-  }, [isAuthenticated, router])
+    if (!isAuthenticated) { router.push('/login'); return }
+    const role = (user?.role as any)?.name ?? (user?.role as string) ?? ''
+    const allowed = ROLE_ALLOWED[role]
+    if (allowed) {
+      const ok = allowed.some(p => pathname === p || pathname.startsWith(p + '/'))
+      if (!ok) router.push(ROLE_HOME[role] ?? '/dashboard')
+    }
+  }, [isAuthenticated, pathname, router, user])
 
   if (!isAuthenticated) return null
 
