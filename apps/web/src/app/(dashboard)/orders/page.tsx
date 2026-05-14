@@ -77,6 +77,7 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   const createOrder = useMutation({
     mutationFn: () => api.post('/orders', {
       type: orderType,
+      status: 'CONFIRMED',
       tableId: orderType === 'DINE_IN' && tableId ? tableId : undefined,
       notes: globalNotes || undefined,
       items: cart.map(i => ({

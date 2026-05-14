@@ -25,6 +25,7 @@ const orderItemSchema = z.object({
 
 const createOrderSchema = z.object({
   type: z.enum(['DINE_IN', 'TAKEAWAY', 'DELIVERY', 'ONLINE']),
+  status: z.enum(['PENDING', 'CONFIRMED']).default('PENDING'),
   tableId: z.string().optional(),
   customerId: z.string().optional(),
   couponId: z.string().optional(),
@@ -170,11 +171,13 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
     const taxAmount = (subtotal - discountAmount) * 0.1
     const totalAmount = subtotal - discountAmount + taxAmount + deliveryFee
 
+    const initialStatus = data.status ?? 'PENDING'
     const order = await prisma.order.create({
       data: {
         orderNumber: generateOrderNumber(),
         type: data.type,
-        status: 'PENDING',
+        status: initialStatus,
+        confirmedAt: initialStatus === 'CONFIRMED' ? new Date() : undefined,
         restaurantId,
         tableId: data.tableId,
         customerId: data.customerId,
@@ -210,7 +213,7 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
           })),
         },
         statusHistory: {
-          create: { status: 'PENDING', changedBy: req.user!.id },
+          create: { status: initialStatus, changedBy: req.user!.id },
         },
       },
       include: {

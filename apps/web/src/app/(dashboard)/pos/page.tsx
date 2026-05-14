@@ -116,16 +116,15 @@ export default function POSPage() {
     try {
       const res = await api.post('/orders', {
         type: orderType,
+        status: 'CONFIRMED',
         tableId: activeTable?.id,
         guestCount: activeTable?.capacity > 0 ? activeTable.capacity : 1,
         items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.price })),
       })
-      const order = res.data.data
-      await api.patch(`/orders/${order.id}/status`, { status: 'CONFIRMED' })
       setCart([])
       await refetchOrders()
       qc.invalidateQueries({ queryKey: ['pos-tables'] })
-      toast.success(`Commande ${order.orderNumber} envoyée en cuisine`)
+      toast.success(`Commande ${res.data.data.orderNumber} envoyée en cuisine`)
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? err?.message ?? 'Erreur lors de l\'envoi'
       toast.error(msg)
@@ -140,12 +139,12 @@ export default function POSPage() {
       if (cart.length > 0) {
         const res = await api.post('/orders', {
           type: orderType,
+          status: 'CONFIRMED',
           tableId: activeTable?.id,
           guestCount: activeTable?.capacity > 0 ? activeTable.capacity : 1,
           items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.price })),
         })
         const newOrder = res.data.data
-        await api.patch(`/orders/${newOrder.id}/status`, { status: 'CONFIRMED' })
         await api.post('/payments', { orderId: newOrder.id, amount: newOrder.totalAmount, method: paymentMethod })
         await api.patch(`/orders/${newOrder.id}/status`, { status: 'COMPLETED' })
       }
