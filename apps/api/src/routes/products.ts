@@ -190,3 +190,117 @@ productRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: Aut
     next(error)
   }
 })
+
+// GET /api/products/ingredients — stock items usable as recipe ingredients
+productRouter.get('/ingredients/list', async (req: AuthRequest, res, next) => {
+  try {
+    const items = await prisma.stockItem.findMany({
+      where: { restaurantId: req.user!.restaurantId },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, unit: true, costPerUnit: true, currentQuantity: true },
+    })
+    res.json({ success: true, data: items })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/products/:id/recipe
+productRouter.get('/:id/recipe', async (req: AuthRequest, res, next) => {
+  try {
+    const product = await prisma.product.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!product) throw new AppError('Produit introuvable', 404)
+
+    const items = await prisma.recipeItem.findMany({
+      where: { productId: product.id },
+      include: { ingredient: { include: { stockItem: true } } },
+    })
+    res.json({ success: true, data: items })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// PUT /api/products/:id/recipe — replace all recipe items
+productRouter.put('/:id/recipe', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const product = await prisma.product.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!product) throw new AppError('Produit introuvable', 404)
+
+    const itemsSchema = z.array(z.object({
+      stockItemId: z.string(),
+      quantity: z.number().positive(),
+      unit: z.string(),
+      yieldRate: z.number().min(0).max(1).default(1),
+      notes: z.string().optional(),
+    }))
+    const items = itemsSchema.parse(req.body.items ?? [])
+
+    // Delete existing recipe items
+    await prisma.recipeItem.deleteMany({ where: { productId: product.id } })
+
+    let totalCost = 0
+
+    for (const item of items) {
+      const stockItem = await prisma.stockItem.findFirst({
+        where: { id: item.stockItemId, restaurantId: req.user!.restaurantId },
+      })
+      if (!stockItem) continue
+
+      // Find or create Ingredient linked to stockItem
+      let ingredient = await prisma.ingredient.findFirst({
+        where: { stockItemId: stockItem.id },
+      })
+      if (!ingredient) {
+        ingredient = await prisma.ingredient.create({
+          data: {
+            name: stockItem.name,
+            unit: stockItem.unit,
+            costPerUnit: stockItem.costPerUnit,
+            stockItemId: stockItem.id,
+          },
+        })
+      } else {
+        // Sync cost from stock
+        ingredient = await prisma.ingredient.update({
+          where: { id: ingredient.id },
+          data: { costPerUnit: stockItem.costPerUnit, unit: stockItem.unit },
+        })
+      }
+
+      await prisma.recipeItem.create({
+        data: {
+          productId: product.id,
+          ingredientId: ingredient.id,
+          quantity: item.quantity,
+          unit: item.unit,
+          yieldRate: item.yieldRate ?? 1,
+          notes: item.notes,
+        },
+      })
+
+      totalCost += (item.quantity * stockItem.costPerUnit) / item.yieldRate
+    }
+
+    // Auto-update costPrice from recipe
+    if (items.length > 0) {
+      await prisma.product.update({
+        where: { id: product.id },
+        data: { costPrice: Math.round(totalCost) },
+      })
+    }
+
+    const updatedItems = await prisma.recipeItem.findMany({
+      where: { productId: product.id },
+      include: { ingredient: { include: { stockItem: true } } },
+    })
+
+    res.json({ success: true, data: updatedItems, totalCost: Math.round(totalCost) })
+  } catch (error) {
+    next(error)
+  }
+})
