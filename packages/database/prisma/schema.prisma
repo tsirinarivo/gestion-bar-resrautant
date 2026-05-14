@@ -444,6 +444,7 @@ model StockAlert {
   createdAt DateTime @default(now())
 
   @@index([stockItemId])
+  @@index([isRead, createdAt])
   @@map("stock_alerts")
 }
 
@@ -544,6 +545,7 @@ model DiningTable {
 
   @@unique([restaurantId, number])
   @@index([restaurantId])
+  @@index([restaurantId, status])
   @@map("dining_tables")
 }
 
@@ -694,6 +696,7 @@ model OrderItem {
   modifiers OrderItemModifier[]
 
   @@index([orderId])
+  @@index([productId])
   @@map("order_items")
 }
 

@@ -48,7 +48,8 @@ export default function POSPage() {
   const { data: tables = [] } = useQuery({
     queryKey: ['pos-tables'],
     queryFn: () => api.get('/tables').then(r => r.data.data ?? []),
-    refetchInterval: 15_000,
+    refetchInterval: 120_000,
+    staleTime: 30_000,
   })
 
   const { data: openOrders = [], refetch: refetchOrders } = useQuery({
@@ -57,12 +58,14 @@ export default function POSPage() {
       api.get(`/orders?tableId=${activeTable!.id}&status=PENDING,CONFIRMED,PREPARING,READY&limit=50`)
         .then(r => r.data.data ?? []),
     enabled: !!activeTable?.id,
-    refetchInterval: 20_000,
+    refetchInterval: 60_000,
+    staleTime: 20_000,
   })
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => api.get('/categories').then(r => r.data.data ?? []),
+    staleTime: 600_000,
   })
 
   const { data: products = [] } = useQuery({
@@ -70,6 +73,7 @@ export default function POSPage() {
     queryFn: () =>
       api.get(`/products?isAvailable=true&limit=100${selectedCategory ? `&categoryId=${selectedCategory}` : ''}`)
         .then(r => r.data.data ?? []),
+    staleTime: 300_000,
   })
 
   const filteredProducts = useMemo(() =>

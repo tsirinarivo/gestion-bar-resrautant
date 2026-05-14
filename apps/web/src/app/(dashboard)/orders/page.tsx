@@ -458,7 +458,8 @@ export default function OrdersPage() {
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['orders', statusFilter],
     queryFn: () => api.get(`/orders?${statusFilter ? `status=${statusFilter}&` : ''}limit=80`).then(r => r.data),
-    refetchInterval: 20000,
+    refetchInterval: 60_000,
+    staleTime: 20_000,
   })
 
   const updateStatus = useMutation({

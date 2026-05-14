@@ -88,24 +88,28 @@ export default function DashboardPage() {
   const { data: kpisData, isLoading: kpisLoading } = useQuery({
     queryKey: ['dashboard', 'kpis'],
     queryFn: () => api.get('/dashboard/kpis').then(r => r.data.data),
-    refetchInterval: 30000,
+    refetchInterval: 300_000,
+    staleTime: 60_000,
   })
 
   const { data: revenueData, isLoading: revenueLoading } = useQuery({
     queryKey: ['dashboard', 'revenue', 'week'],
     queryFn: () => api.get('/dashboard/revenue-chart?period=week').then(r => r.data.data),
-    refetchInterval: 60000,
+    refetchInterval: 300_000,
+    staleTime: 120_000,
   })
 
   const { data: hourlyData } = useQuery({
     queryKey: ['dashboard', 'hourly'],
     queryFn: () => api.get('/dashboard/hourly-stats').then(r => r.data.data),
-    refetchInterval: 60000,
+    refetchInterval: 300_000,
+    staleTime: 120_000,
   })
 
   const { data: categoryData } = useQuery({
     queryKey: ['dashboard', 'categories'],
     queryFn: () => api.get('/dashboard/category-stats').then(r => r.data.data),
+    staleTime: 300_000,
   })
 
   const kpis = kpisData

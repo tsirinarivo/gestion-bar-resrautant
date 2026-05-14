@@ -49,6 +49,7 @@ stockRouter.get('/', async (req: AuthRequest, res, next) => {
         _count: { select: { movements: true } },
       },
       orderBy: { name: 'asc' },
+      take: 200,
     })
 
     const itemsWithStatus = items.map(item => ({

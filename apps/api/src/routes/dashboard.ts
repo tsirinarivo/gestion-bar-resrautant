@@ -340,6 +340,7 @@ dashboardRouter.get('/live', async (req: AuthRequest, res, next) => {
         where: { restaurantId, status: { in: ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'] } },
         include: { items: { include: { product: true } }, table: true },
         orderBy: { createdAt: 'asc' },
+        take: 50,
       }),
       prisma.diningTable.findMany({
         where: { restaurantId, isActive: true },
