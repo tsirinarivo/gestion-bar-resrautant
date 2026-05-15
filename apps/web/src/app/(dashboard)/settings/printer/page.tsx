@@ -21,9 +21,9 @@ const VOICE_OPTIONS = [
 ]
 
 const REGION_OPTIONS = [
-  { label: 'Chine — cn.xpyun.net (par défaut)', value: 'cn' },
-  { label: 'Singapour — sg.xpyun.net',          value: 'sg' },
-  { label: 'Europe — gm.xpyun.net',             value: 'de' },
+  { label: 'Chine — open.xpyun.net (par défaut)',    value: 'cn' },
+  { label: 'Singapour — sg.open.xpyun.net',          value: 'sg' },
+  { label: 'Europe — gm.open.xpyun.net',             value: 'de' },
 ]
 
 const STATUS_META: Record<string, { label: string; icon: any; color: string }> = {
