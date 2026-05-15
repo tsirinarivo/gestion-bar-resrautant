@@ -70,11 +70,11 @@ printerRouter.get('/status', async (req: AuthRequest, res, next) => {
 // GET /api/printer/logs
 printerRouter.get('/logs', async (req: AuthRequest, res, next) => {
   try {
-    const { page = '1', limit = '30', status } = req.query
+    const { page = '1', perPage = '20', status } = req.query
     const logs = await getLogs(req.user!.restaurantId, {
-      page:   Number(page),
-      limit:  Number(limit),
-      status: status as string | undefined,
+      page:    Number(page),
+      perPage: Number(perPage),
+      status:  status as string | undefined,
     })
     res.json({ success: true, data: logs })
   } catch (error) {

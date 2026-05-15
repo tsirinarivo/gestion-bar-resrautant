@@ -54,25 +54,25 @@ export default function PrinterSettingsPage() {
     retry: false,
   })
 
-  const config = configData ?? {}
-
   const [form, setForm] = useState<any>(null)
 
+  // configData is null  → no config yet (initialize form with defaults)
+  // configData is undefined → API error (query failed)
   useEffect(() => {
-    if (configData && form === null) {
+    if (configData !== undefined && form === null) {
       setForm({
-        enabled:                 configData.enabled ?? false,
-        user:                    configData.user ?? '',
-        key:                     '••••••••',
-        baseUrl:                 configData.baseUrl ?? '',
-        sn:                      configData.sn ?? '',
-        voice:                   configData.voice ?? 1,
-        header:                  configData.header ?? '',
-        footer:                  configData.footer ?? '',
-        copies:                  configData.copies ?? 1,
-        autoOnSaleConfirm:       configData.autoOnSaleConfirm ?? true,
-        autoOnPaymentConfirm:    configData.autoOnPaymentConfirm ?? true,
-        autoOnDeliveryRegister:  configData.autoOnDeliveryRegister ?? false,
+        enabled:                 configData?.enabled                ?? false,
+        user:                    configData?.user                   ?? '',
+        key:                     configData?.key                    ?? '',
+        baseUrl:                 configData?.baseUrl                ?? '',
+        sn:                      configData?.sn                     ?? '',
+        voice:                   configData?.voice                  ?? 1,
+        header:                  configData?.header                 ?? '',
+        footer:                  configData?.footer                 ?? '',
+        copies:                  configData?.copies                 ?? 1,
+        autoOnSaleConfirm:       configData?.autoOnSaleConfirm      ?? true,
+        autoOnPaymentConfirm:    configData?.autoOnPaymentConfirm   ?? true,
+        autoOnDeliveryRegister:  configData?.autoOnDeliveryRegister ?? false,
       })
     }
   }, [configData]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -93,7 +93,7 @@ export default function PrinterSettingsPage() {
   // ── Fetch logs ────────────────────────────────────────────────────────────
   const { data: logsData, isLoading: logsLoading } = useQuery({
     queryKey: ['printer-logs', logPage],
-    queryFn: () => api.get(`/printer/logs?page=${logPage}&limit=20`).then(r => r.data),
+    queryFn: () => api.get(`/printer/logs?page=${logPage}&perPage=20`).then(r => r.data),
     retry: false,
   })
 
@@ -358,14 +358,14 @@ export default function PrinterSettingsPage() {
                     <td colSpan={5} className="px-4 py-3"><div className="skeleton h-4 rounded" /></td>
                   </tr>
                 ))
-              ) : (logsData?.data?.items ?? logsData?.data ?? []).length === 0 ? (
+              ) : (logsData?.data?.data ?? []).length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-10 text-brand-muted">
                     <Printer className="w-8 h-8 mx-auto mb-2 opacity-30" />
                     <p className="text-sm">Aucune impression enregistrée</p>
                   </td>
                 </tr>
-              ) : (logsData?.data?.items ?? logsData?.data ?? []).map((log: any) => (
+              ) : (logsData?.data?.data ?? []).map((log: any) => (
                 <tr key={log.id} className="border-b border-brand-border/30 hover:bg-white/2 transition-colors">
                   <td className="px-4 py-3 text-sm text-brand-muted whitespace-nowrap">
                     {new Date(log.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
@@ -394,17 +394,17 @@ export default function PrinterSettingsPage() {
         </div>
 
         {/* Pagination */}
-        {logsData?.data?.pagination && logsData.data.pagination.totalPages > 1 && (
+        {(logsData?.data?.meta?.pageCount ?? 0) > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-brand-border">
-            <p className="text-xs text-brand-muted">{logsData.data.pagination.total} impression(s)</p>
+            <p className="text-xs text-brand-muted">{logsData!.data.meta.total} impression(s)</p>
             <div className="flex items-center gap-2">
               <button onClick={() => setLogPage(p => Math.max(1, p - 1))} disabled={logPage === 1}
                 className="px-3 py-1.5 text-xs rounded-lg border border-brand-border disabled:opacity-30">
                 Précédent
               </button>
-              <span className="text-xs text-brand-muted">{logPage} / {logsData.data.pagination.totalPages}</span>
-              <button onClick={() => setLogPage(p => Math.min(logsData.data.pagination.totalPages, p + 1))}
-                disabled={logPage === logsData.data.pagination.totalPages}
+              <span className="text-xs text-brand-muted">{logPage} / {logsData!.data.meta.pageCount}</span>
+              <button onClick={() => setLogPage(p => Math.min(logsData!.data.meta.pageCount, p + 1))}
+                disabled={logPage === logsData!.data.meta.pageCount}
                 className="px-3 py-1.5 text-xs rounded-lg border border-brand-border disabled:opacity-30">
                 Suivant
               </button>
