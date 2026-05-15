@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Package, Plus, Search, AlertTriangle, RefreshCw, ArrowDown, ArrowUp,
   X, Edit2, ClipboardList, ArrowRightLeft, ShoppingCart, Truck, CheckSquare, Square, Star,
+  UtensilsCrossed,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatQuantity, formatCurrency } from '@restaurant/utils'
@@ -218,6 +219,131 @@ function ReorderModal({ lines: initLines, suppliers, onClose, onCreated }: {
   )
 }
 
+// ─── Create Product from Stock Item ──────────────────────────────────────────
+
+function CreateProductFromStockModal({
+  stockItem,
+  onClose,
+}: { stockItem: any; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [name, setName]       = useState(stockItem.name)
+  const [price, setPrice]     = useState('')
+  const [categoryId, setCategoryId] = useState('')
+  const [saving, setSaving]   = useState(false)
+
+  const { data: categories = [] } = useQuery<any[]>({
+    queryKey: ['categories'],
+    queryFn: () => api.get('/categories').then(r => r.data.data ?? []),
+    staleTime: 600_000,
+  })
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!price || parseFloat(price) <= 0) { toast.error('Prix de vente requis'); return }
+    if (!categoryId) { toast.error('Catégorie requise'); return }
+    setSaving(true)
+    try {
+      // 1. Create product
+      const res = await api.post('/products', {
+        name: name.trim(),
+        price: parseFloat(price),
+        categoryId,
+        isAvailable: true,
+        requiresPreparation: false,
+        costPrice: stockItem.costPerUnit || undefined,
+        allergens: [],
+        tags: [],
+      })
+      const product = res.data.data
+
+      // 2. Link to stock item (recipe 1:1)
+      await api.put(`/products/${product.id}/recipe`, {
+        items: [{
+          stockItemId: stockItem.id,
+          quantity: 1,
+          unit: stockItem.unit,
+          yieldRate: 1,
+        }],
+      })
+
+      qc.invalidateQueries({ queryKey: ['products'] })
+      qc.invalidateQueries({ queryKey: ['categories'] })
+      toast.success(`"${name}" créé dans le menu et lié au stock`)
+      onClose()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? 'Erreur lors de la création')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="glass-card w-full max-w-sm">
+        <div className="flex items-center justify-between p-5 border-b border-brand-border">
+          <div>
+            <h2 className="font-bold text-base flex items-center gap-2">
+              <UtensilsCrossed className="w-4 h-4 text-brand-orange" />
+              Créer un produit vendable
+            </h2>
+            <p className="text-xs text-brand-muted mt-0.5">
+              Lié au stock : <span className="text-white">{stockItem.name}</span>
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="text-xs text-brand-muted block mb-1">Nom affiché au POS *</label>
+            <input value={name} onChange={e => setName(e.target.value)}
+              className="input-field" required />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-brand-muted block mb-1">Prix de vente (Ar) *</label>
+              <input type="number" min="0" step="1" value={price}
+                onChange={e => setPrice(e.target.value)}
+                className="input-field" placeholder="0" required />
+            </div>
+            <div>
+              <label className="text-xs text-brand-muted block mb-1">Catégorie *</label>
+              <select value={categoryId} onChange={e => setCategoryId(e.target.value)}
+                className="input-field" required>
+                <option value="">Choisir...</option>
+                {categories.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {stockItem.costPerUnit > 0 && price && parseFloat(price) > 0 && (
+            <div className={`px-3 py-2 rounded-xl text-xs font-medium ${
+              (parseFloat(price) - stockItem.costPerUnit) / parseFloat(price) >= 0.5
+                ? 'bg-green-500/10 text-green-400'
+                : 'bg-yellow-500/10 text-yellow-400'
+            }`}>
+              Marge : {(((parseFloat(price) - stockItem.costPerUnit) / parseFloat(price)) * 100).toFixed(1)}%
+              &nbsp;·&nbsp; Coût : {formatCurrency(stockItem.costPerUnit)} / {stockItem.unit}
+            </div>
+          )}
+          <p className="text-xs text-brand-muted bg-white/3 rounded-xl px-3 py-2">
+            ✅ Vendre 1 unité au POS déduira <strong>1 {stockItem.unit}</strong> du stock automatiquement.
+          </p>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 btn-secondary">Annuler</button>
+            <button type="submit" disabled={saving} className="flex-1 btn-primary disabled:opacity-50">
+              {saving ? 'Création...' : 'Créer le produit'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function StockPage() {
@@ -240,6 +366,8 @@ export default function StockPage() {
   // Reorder
   const [reorderLines, setReorderLines]   = useState<ReorderLine[] | null>(null)
   const [selected, setSelected]           = useState<Set<string>>(new Set())
+  // Create product from stock item
+  const [createProductFrom, setCreateProductFrom] = useState<any>(null)
 
   const qc = useQueryClient()
 
@@ -610,6 +738,10 @@ export default function StockPage() {
                             <button onClick={() => openEditItem(item)}
                               className="p-1.5 text-brand-muted hover:text-white hover:bg-white/10 rounded-lg" title="Modifier">
                               <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => setCreateProductFrom(item)}
+                              className="p-1.5 text-purple-400 hover:bg-purple-400/10 rounded-lg" title="Créer un produit vendable (POS)">
+                              <UtensilsCrossed className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -1065,6 +1197,16 @@ export default function StockPage() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Create product from stock item modal */}
+      <AnimatePresence>
+        {createProductFrom && (
+          <CreateProductFromStockModal
+            stockItem={createProductFrom}
+            onClose={() => setCreateProductFrom(null)}
+          />
         )}
       </AnimatePresence>
     </div>
