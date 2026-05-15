@@ -256,14 +256,14 @@ export default function PrinterSettingsPage() {
                 onChange={e => setF('key', e.target.value)}
                 placeholder="Votre UserKEY xpyun"
                 className="input-field text-sm pr-10 font-mono" />
-              <button onClick={() => setShowKey(v => !v)}
+              <button type="button" onClick={() => setShowKey(v => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted hover:text-white">
                 {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-xs text-brand-muted mt-1">
-              Si vous renvoyez "••••••••", la clé existante est conservée.
-            </p>
+            {f.key === '••••••••' && (
+              <p className="text-xs text-green-400 mt-1">✓ Clé enregistrée — effacez le champ pour la modifier</p>
+            )}
           </div>
         </div>
       </section>
