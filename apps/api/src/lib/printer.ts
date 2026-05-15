@@ -24,4 +24,6 @@ export {
   formatMoney,
   sendPrintAndLog,
   XPYUN_REGIONS,
+  loadPrinterCfg,
+  callXprint,
 } from 'imprimantcloud'

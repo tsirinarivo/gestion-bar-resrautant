@@ -6,6 +6,8 @@ import {
   getLogs, refreshLogs,
   enrollPrinter,
   XPYUN_REGIONS,
+  loadPrinterCfg,
+  callXprint,
 } from '../lib/printer'
 
 export const printerRouter = Router()
@@ -86,13 +88,18 @@ printerRouter.post('/refresh-logs', async (req: AuthRequest, res, next) => {
   }
 })
 
-// GET /api/printer/debug — diagnostic: URL utilisée + test fetch brut vers XPyun
+// GET /api/printer/debug — diagnostic avec vrais credentials
 printerRouter.get('/debug', async (req: AuthRequest, res, next) => {
   try {
-    const config = await getConfig(req.user!.restaurantId)
-    const region = (config as any)?.region ?? 'cn'
-    const baseUrl = (XPYUN_REGIONS as any)[region] ?? XPYUN_REGIONS['cn']
-    const testUrl = `${baseUrl}/queryPrinterStatus`
+    const cfg = await (loadPrinterCfg as any)(req.user!.restaurantId)
+    if (!cfg) {
+      return res.json({ success: true, data: { error: 'Imprimante non configurée (enabled=false ou champs manquants)' } })
+    }
+
+    const testUrl = `${cfg.baseUrl}/queryPrinterStatus`
+    const ts = Math.floor(Date.now() / 1000).toString()
+    const crypto = await import('crypto')
+    const sign = crypto.createHash('sha1').update(cfg.user + cfg.key + ts).digest('hex')
 
     let rawStatus: number | null = null
     let rawBody: string | null = null
@@ -101,18 +108,18 @@ printerRouter.get('/debug', async (req: AuthRequest, res, next) => {
       const r = await fetch(testUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json;charset=UTF-8' },
-        body: JSON.stringify({ user: '__test__', timestamp: '0', sign: '__test__', sn: '__test__', debug: '0' }),
-        signal: AbortSignal.timeout(5000),
+        body: JSON.stringify({ user: cfg.user, timestamp: ts, sign, sn: cfg.sn, debug: '0' }),
+        signal: AbortSignal.timeout(8000),
       })
       rawStatus = r.status
-      rawBody = (await r.text()).slice(0, 300)
+      rawBody = (await r.text()).slice(0, 500)
     } catch (e: any) {
-      fetchError = e?.message ?? String(e)
+      fetchError = (e?.cause?.message ?? e?.message ?? String(e))
     }
 
     res.json({
       success: true,
-      data: { region, baseUrl, testUrl, httpStatus: rawStatus, bodySnippet: rawBody, fetchError },
+      data: { region: cfg.region, baseUrl: cfg.baseUrl, testUrl, user: cfg.user, sn: cfg.sn, httpStatus: rawStatus, body: rawBody, fetchError },
     })
   } catch (error) {
     next(error)
