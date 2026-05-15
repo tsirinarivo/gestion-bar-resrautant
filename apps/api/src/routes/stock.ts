@@ -266,6 +266,41 @@ stockRouter.get('/:id/movements', async (req: AuthRequest, res, next) => {
   }
 })
 
+// GET /api/stock/movements/all — All stock movements for the restaurant
+stockRouter.get('/movements/all', async (req: AuthRequest, res, next) => {
+  try {
+    const { page = '1', limit = '50', type, stockItemId, from, to } = req.query
+
+    const where: any = { stockItem: { restaurantId: req.user!.restaurantId } }
+    if (type) where.type = type
+    if (stockItemId) where.stockItemId = stockItemId
+    if (from || to) {
+      where.createdAt = {}
+      if (from) where.createdAt.gte = new Date(from as string)
+      if (to) where.createdAt.lte = new Date(to as string)
+    }
+
+    const [movements, total] = await Promise.all([
+      prisma.stockMovement.findMany({
+        where,
+        include: { stockItem: { select: { id: true, name: true, unit: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit),
+      }),
+      prisma.stockMovement.count({ where }),
+    ])
+
+    res.json({
+      success: true,
+      data: movements,
+      pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) },
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // GET /api/stock/alerts — All stock alerts
 stockRouter.get('/alerts/all', async (req: AuthRequest, res, next) => {
   try {

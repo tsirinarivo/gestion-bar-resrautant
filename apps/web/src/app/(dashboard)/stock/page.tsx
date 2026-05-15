@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Package, Plus, Search, AlertTriangle, RefreshCw, ArrowDown, ArrowUp,
   X, Edit2, ClipboardList, ArrowRightLeft, ShoppingCart, Truck, CheckSquare, Square, Star,
-  UtensilsCrossed,
+  UtensilsCrossed, History, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatQuantity, formatCurrency } from '@restaurant/utils'
@@ -347,7 +347,7 @@ function CreateProductFromStockModal({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function StockPage() {
-  const [activeTab, setActiveTab]       = useState<'stock' | 'reorder'>('stock')
+  const [activeTab, setActiveTab]       = useState<'stock' | 'reorder' | 'history'>('stock')
   const [search, setSearch]             = useState('')
   const [filter, setFilter]             = useState('')
   // Movement modal
@@ -368,6 +368,12 @@ export default function StockPage() {
   const [selected, setSelected]           = useState<Set<string>>(new Set())
   // Create product from stock item
   const [createProductFrom, setCreateProductFrom] = useState<any>(null)
+  // History filters
+  const [historyType, setHistoryType]         = useState('')
+  const [historyItem, setHistoryItem]         = useState('')
+  const [historyFrom, setHistoryFrom]         = useState('')
+  const [historyTo, setHistoryTo]             = useState('')
+  const [historyPage, setHistoryPage]         = useState(1)
 
   const qc = useQueryClient()
 
@@ -381,6 +387,19 @@ export default function StockPage() {
     queryKey: ['suppliers'],
     queryFn: () => api.get('/suppliers').then(r => r.data.data ?? []),
     staleTime: 300_000,
+  })
+
+  const historyParams = new URLSearchParams({ page: String(historyPage), limit: '50' })
+  if (historyType) historyParams.set('type', historyType)
+  if (historyItem) historyParams.set('stockItemId', historyItem)
+  if (historyFrom) historyParams.set('from', historyFrom)
+  if (historyTo)   historyParams.set('to', historyTo)
+
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ['stock-movements', historyType, historyItem, historyFrom, historyTo, historyPage],
+    queryFn: () => api.get(`/stock/movements/all?${historyParams}`).then(r => r.data),
+    enabled: activeTab === 'history',
+    staleTime: 10_000,
   })
 
   const recordMovement = useMutation({
@@ -647,6 +666,10 @@ export default function StockPage() {
             </span>
           )}
         </button>
+        <button onClick={() => setActiveTab('history')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'history' ? 'bg-brand-orange text-white' : 'text-brand-muted hover:text-white'}`}>
+          <History className="w-4 h-4" /> Historique
+        </button>
       </div>
 
       {/* ── Stock tab ─────────────────────────────────────────────────────────── */}
@@ -846,6 +869,143 @@ export default function StockPage() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Historique des mouvements ─────────────────────────────────────────── */}
+      {activeTab === 'history' && (
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Type filter */}
+            <select value={historyType}
+              onChange={e => { setHistoryType(e.target.value); setHistoryPage(1) }}
+              className="input-field w-auto text-sm">
+              <option value="">Tous les types</option>
+              <option value="IN">Entrée</option>
+              <option value="OUT">Sortie</option>
+              <option value="ADJUSTMENT">Ajustement</option>
+              <option value="LOSS">Perte</option>
+              <option value="TRANSFER">Transfert</option>
+            </select>
+            {/* Item filter */}
+            <select value={historyItem}
+              onChange={e => { setHistoryItem(e.target.value); setHistoryPage(1) }}
+              className="input-field w-auto text-sm flex-1 min-w-40">
+              <option value="">Tous les articles</option>
+              {allItems.map((i: any) => (
+                <option key={i.id} value={i.id}>{i.name}</option>
+              ))}
+            </select>
+            {/* Date range */}
+            <input type="date" value={historyFrom}
+              onChange={e => { setHistoryFrom(e.target.value); setHistoryPage(1) }}
+              className="input-field w-auto text-sm" />
+            <span className="text-brand-muted text-sm">→</span>
+            <input type="date" value={historyTo}
+              onChange={e => { setHistoryTo(e.target.value); setHistoryPage(1) }}
+              className="input-field w-auto text-sm" />
+            {(historyType || historyItem || historyFrom || historyTo) && (
+              <button onClick={() => { setHistoryType(''); setHistoryItem(''); setHistoryFrom(''); setHistoryTo(''); setHistoryPage(1) }}
+                className="text-xs text-brand-muted hover:text-white flex items-center gap-1 px-2 py-1 border border-brand-border rounded-lg">
+                <X className="w-3 h-3" /> Réinitialiser
+              </button>
+            )}
+          </div>
+
+          <div className="glass-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-brand-border text-left">
+                    {['Date', 'Article', 'Type', 'Quantité', 'Raison / Note', 'Référence'].map(h => (
+                      <th key={h} className="px-4 py-3 text-xs font-medium text-brand-muted uppercase">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyLoading ? (
+                    Array.from({ length: 10 }).map((_, i) => (
+                      <tr key={i} className="border-b border-brand-border/50">
+                        <td colSpan={6} className="px-4 py-3"><div className="skeleton h-4 rounded" /></td>
+                      </tr>
+                    ))
+                  ) : (historyData?.data ?? []).length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-12 text-brand-muted">
+                        <History className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <p>Aucun mouvement trouvé</p>
+                      </td>
+                    </tr>
+                  ) : (historyData?.data ?? []).map((m: any) => {
+                    const TYPE_META: Record<string, { label: string; color: string; icon: JSX.Element | null }> = {
+                      IN:         { label: 'Entrée',      color: '#10B981', icon: <ArrowDown className="w-3.5 h-3.5" /> },
+                      OUT:        { label: 'Sortie',      color: '#EF4444', icon: <ArrowUp className="w-3.5 h-3.5" /> },
+                      ADJUSTMENT: { label: 'Ajustement',  color: '#F59E0B', icon: <RefreshCw className="w-3.5 h-3.5" /> },
+                      LOSS:       { label: 'Perte',       color: '#F97316', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+                      TRANSFER:   { label: 'Transfert',   color: '#3B82F6', icon: <ArrowRightLeft className="w-3.5 h-3.5" /> },
+                    }
+                    const meta = TYPE_META[m.type] ?? { label: m.type, color: '#6B7280', icon: null }
+                    return (
+                      <tr key={m.id} className="border-b border-brand-border/30 hover:bg-white/2 transition-colors">
+                        <td className="px-4 py-3 text-sm text-brand-muted whitespace-nowrap">
+                          {new Date(m.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                          <span className="ml-1 text-xs opacity-60">
+                            {new Date(m.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-medium">{m.stockItem?.name ?? '—'}</p>
+                          <p className="text-xs text-brand-muted">{m.stockItem?.unit}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: `${meta.color}20`, color: meta.color }}>
+                            {meta.icon} {meta.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-sm"
+                          style={{ color: ['IN', 'ADJUSTMENT'].includes(m.type) ? '#10B981' : '#EF4444' }}>
+                          {['IN', 'ADJUSTMENT'].includes(m.type) ? '+' : '-'}
+                          {formatQuantity(m.quantity, m.stockItem?.unit ?? '')}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-brand-muted max-w-xs truncate">
+                          {m.reason || m.notes || '—'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-brand-muted font-mono">
+                          {m.reference || '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {historyData?.pagination && historyData.pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-brand-border">
+                <p className="text-xs text-brand-muted">
+                  {historyData.pagination.total} mouvement{historyData.pagination.total > 1 ? 's' : ''}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                    disabled={historyPage === 1}
+                    className="p-1.5 rounded-lg border border-brand-border text-brand-muted hover:text-white disabled:opacity-30">
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm text-brand-muted">
+                    {historyPage} / {historyData.pagination.totalPages}
+                  </span>
+                  <button onClick={() => setHistoryPage(p => Math.min(historyData.pagination.totalPages, p + 1))}
+                    disabled={historyPage === historyData.pagination.totalPages}
+                    className="p-1.5 rounded-lg border border-brand-border text-brand-muted hover:text-white disabled:opacity-30">
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
