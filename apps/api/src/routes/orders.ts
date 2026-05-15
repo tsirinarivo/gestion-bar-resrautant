@@ -4,6 +4,31 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { generateOrderNumber } from '@restaurant/utils'
+import { autoPrintSaleReceipt } from '../lib/printer'
+
+// Build receipt payload for autoPrintSaleReceipt (uses transaction date from original order)
+function buildReceiptPayload(updatedOrder: any, originalOrder: any) {
+  return {
+    id:            updatedOrder.id,
+    code:          updatedOrder.orderNumber,
+    date:          originalOrder.createdAt,
+    shopName:      '',   // enrichi dynamiquement si besoin — le module peut lire depuis la config
+    shopAddr:      null,
+    shopPhone:     null,
+    cashierName:   null,
+    items:         (updatedOrder.items ?? []).map((i: any) => ({
+      name:      i.product?.name ?? 'Article',
+      qty:       i.quantity,
+      unitPrice: i.unitPrice,
+      total:     i.totalPrice,
+    })),
+    subtotal:      updatedOrder.subtotal,
+    discount:      updatedOrder.discountAmount ?? 0,
+    total:         updatedOrder.totalAmount,
+    paymentMethod: (updatedOrder.payments?.[0]?.method) ?? null,
+    currency:      'MGA',
+  }
+}
 
 export const orderRouter = Router()
 orderRouter.use(authenticate)
@@ -379,6 +404,11 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
           } catch { /* continue si table stock non disponible */ }
         }
       }
+    }
+
+    // ── Impression automatique ticket ────────────────────────────────────────
+    if (status === 'CONFIRMED' || status === 'COMPLETED') {
+      autoPrintSaleReceipt(req.user!.restaurantId, buildReceiptPayload(updatedOrder, order)).catch(() => {})
     }
 
     const io = req.app.get('io')

@@ -25,6 +25,7 @@ import { couponRouter } from './routes/coupons'
 import { publicRouter } from './routes/public'
 import { supplierRouter } from './routes/suppliers'
 import { financesRouter } from './routes/finances'
+import { printerRouter } from './routes/printer'
 import { errorHandler } from './middleware/errorHandler'
 import { setupSocketHandlers } from './socket/handlers'
 import { prisma } from './lib/prisma'
@@ -86,6 +87,7 @@ app.use('/api/payments', paymentRouter)
 app.use('/api/coupons', couponRouter)
 app.use('/api/suppliers', supplierRouter)
 app.use('/api/finances', financesRouter)
+app.use('/api/printer', printerRouter)
 
 app.get('/api/health', async (req, res) => {
   try {

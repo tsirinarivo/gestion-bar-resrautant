@@ -1219,6 +1219,53 @@ model Expense {
   @@map("expenses")
 }
 
+// ─── IMPRIMANTE THERMIQUE ─────────────────────────────────────────────────────
+
+enum PrintLogStatus {
+  pending
+  printed
+  failed
+}
+
+model PrinterConfig {
+  id        String  @id @default(cuid())
+  ownerId   String  @unique
+  enabled   Boolean @default(false)
+  user      String?
+  key       String?
+  baseUrl   String?
+  sn        String?
+  voice     Int?
+  header    String?
+  footer    String?
+  copies    Int     @default(1)
+  autoOnSaleConfirm      Boolean @default(true)
+  autoOnPaymentConfirm   Boolean @default(true)
+  autoOnDeliveryRegister Boolean @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@map("printer_configs")
+}
+
+model PrintLog {
+  id        String         @id @default(cuid())
+  ownerId   String
+  sn        String
+  kind      String
+  relatedId String?
+  content   String
+  copies    Int            @default(1)
+  status    PrintLogStatus @default(pending)
+  orderId   String?
+  error     String?
+  failedAt  DateTime?
+  createdAt DateTime       @default(now())
+
+  @@index([ownerId, createdAt])
+  @@index([status])
+  @@map("print_logs")
+}
+
 // ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
 
 model AuditLog {

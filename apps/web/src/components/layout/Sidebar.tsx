@@ -8,7 +8,7 @@ import {
   LayoutDashboard, UtensilsCrossed, ShoppingCart, Table2,
   Package, Users, Calendar, BarChart3, Settings, ChefHat,
   Monitor, LogOut, ChevronLeft, ChevronRight,
-  CreditCard, Tag, UserCog, X, Truck, TrendingUp
+  CreditCard, Tag, UserCog, X, Truck, TrendingUp, Printer
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/lib/api'
@@ -31,6 +31,7 @@ const navItems = [
   { href: '/coupons', label: 'Promotions', icon: Tag, roles: ['manager', 'superadmin'] },
   { href: '/finances', label: 'Finances', icon: TrendingUp, roles: ['manager', 'superadmin'] },
   { href: '/analytics', label: 'Analytics', icon: BarChart3, roles: ['manager', 'superadmin'] },
+  { href: '/settings/printer', label: 'Imprimante', icon: Printer, roles: ['manager', 'superadmin'] },
   { href: '/settings', label: 'Paramètres', icon: Settings, roles: ['manager', 'superadmin'] },
 ]
 
