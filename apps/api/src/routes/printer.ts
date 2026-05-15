@@ -52,8 +52,9 @@ printerRouter.post('/test', async (req: AuthRequest, res, next) => {
 // GET /api/printer/status
 printerRouter.get('/status', async (req: AuthRequest, res, next) => {
   try {
-    const status = await printerStatus(req.user!.restaurantId)
-    res.json({ success: true, data: status })
+    const result = await printerStatus(req.user!.restaurantId)
+    const STATE: Record<number, string> = { [-1]: 'unknown', 0: 'offline', 1: 'online', 2: 'busy' }
+    res.json({ success: true, data: { ...result, state: STATE[result.status] ?? 'unknown' } })
   } catch (error) {
     next(error)
   }
