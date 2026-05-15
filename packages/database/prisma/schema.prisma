@@ -1233,7 +1233,7 @@ model PrinterConfig {
   enabled   Boolean @default(false)
   user      String?
   key       String?
-  baseUrl   String?
+  region    String  @default("cn")
   sn        String?
   voice     Int?
   header    String?

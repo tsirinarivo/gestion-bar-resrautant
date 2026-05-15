@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { z } from 'zod'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import {
   getConfig, updateConfig,
@@ -88,11 +87,10 @@ printerRouter.post('/refresh-logs', async (req: AuthRequest, res, next) => {
 // POST /api/printer/enroll
 printerRouter.post('/enroll', async (req: AuthRequest, res, next) => {
   try {
-    const { sn, name } = z.object({
-      sn:   z.string().min(1),
-      name: z.string().optional(),
-    }).parse(req.body)
-    const result = await enrollPrinter(req.user!.restaurantId, { sn, name })
+    const result = await enrollPrinter(req.user!.restaurantId, req.body)
+    if (!result.ok) {
+      return res.status(422).json({ success: false, error: 'Données invalides', details: (result as any).errors })
+    }
     res.json({ success: true, data: result })
   } catch (error) {
     next(error)

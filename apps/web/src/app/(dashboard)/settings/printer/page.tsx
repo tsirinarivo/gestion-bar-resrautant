@@ -13,16 +13,17 @@ import { toast } from 'sonner'
 import { formatCurrency } from '@restaurant/utils'
 
 const VOICE_OPTIONS = [
-  { value: 0, label: 'Silencieux' },
-  { value: 1, label: 'Bip court' },
-  { value: 2, label: 'Bip long' },
-  { value: 3, label: 'Bip triple' },
+  { value: 0, label: 'Voix fort' },
+  { value: 1, label: 'Voix moyen' },
+  { value: 2, label: 'Voix bas' },
+  { value: 3, label: 'Bip' },
+  { value: 4, label: 'Muet' },
 ]
 
-const SERVER_PRESETS = [
-  { label: 'XPyun (par défaut)',      value: 'https://open.xpyun.net/api/openapi/xprinter' },
-  { label: 'Feiyin Cloud',            value: 'https://api.feiyin.com/v1/print' },
-  { label: 'Serveur personnalisé…',   value: '__custom__' },
+const REGION_OPTIONS = [
+  { label: 'Chine — cn.xpyun.net (par défaut)', value: 'cn' },
+  { label: 'Singapour — sg.xpyun.net',          value: 'sg' },
+  { label: 'Europe — gm.xpyun.net',             value: 'de' },
 ]
 
 const STATUS_META: Record<string, { label: string; icon: any; color: string }> = {
@@ -70,7 +71,7 @@ export default function PrinterSettingsPage() {
         enabled:                 configData?.enabled                ?? false,
         user:                    configData?.user                   ?? '',
         key:                     configData?.key                    ?? '',
-        baseUrl:                 configData?.baseUrl                ?? '',
+        region:                  configData?.region                 ?? 'cn',
         sn:                      configData?.sn                     ?? '',
         voice:                   configData?.voice                  ?? 1,
         header:                  configData?.header                 ?? '',
@@ -228,24 +229,13 @@ export default function PrinterSettingsPage() {
               placeholder="Ex: 7654321098" className="input-field font-mono text-sm" />
           </div>
           <div>
-            <label className="text-xs text-brand-muted block mb-1.5">Serveur d'impression</label>
-            <select
-              value={SERVER_PRESETS.find(p => p.value !== '__custom__' && p.value === (f.baseUrl || ''))?.value ?? '__custom__'}
-              onChange={e => {
-                if (e.target.value !== '__custom__') setF('baseUrl', e.target.value)
-                else setF('baseUrl', '')
-              }}
-              className="input-field text-sm mb-2"
-            >
-              {SERVER_PRESETS.map(p => (
-                <option key={p.value} value={p.value}>{p.label}</option>
+            <label className="text-xs text-brand-muted block mb-1.5">Région du serveur</label>
+            <select value={f.region ?? 'cn'} onChange={e => setF('region', e.target.value)}
+              className="input-field text-sm">
+              {REGION_OPTIONS.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
-            {/* Show custom URL input only when no preset is selected */}
-            {!SERVER_PRESETS.find(p => p.value !== '__custom__' && p.value === (f.baseUrl || '')) && (
-              <input value={f.baseUrl ?? ''} onChange={e => setF('baseUrl', e.target.value)}
-                placeholder="https://mon-serveur.com/api/print" className="input-field text-sm font-mono" />
-            )}
           </div>
           <div>
             <label className="text-xs text-brand-muted block mb-1.5">Utilisateur (User)</label>
