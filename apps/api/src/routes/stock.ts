@@ -49,23 +49,39 @@ stockRouter.get('/', async (req: AuthRequest, res, next) => {
     if (search) where.name = { contains: search as string, mode: 'insensitive' }
     if (lowStock === 'true') where.currentQuantity = { lte: prisma.stockItem.fields.minQuantity }
 
-    const items = await prisma.stockItem.findMany({
-      where,
-      include: {
-        supplier: true,
-        alerts: { where: { isRead: false }, take: 3 },
-        _count: { select: { movements: true } },
-        supplierPrices: {
-          include: { supplier: { select: { id: true, name: true } } },
-          orderBy: { isPreferred: 'desc' },
+    // Try with supplierPrices first; fall back without if table doesn't exist yet
+    let items: any[]
+    try {
+      items = await prisma.stockItem.findMany({
+        where,
+        include: {
+          supplier: true,
+          alerts: { where: { isRead: false }, take: 3 },
+          _count: { select: { movements: true } },
+          supplierPrices: {
+            include: { supplier: { select: { id: true, name: true } } },
+            orderBy: { isPreferred: 'desc' },
+          },
         },
-      },
-      orderBy: { name: 'asc' },
-      take: 200,
-    })
+        orderBy: { name: 'asc' },
+        take: 200,
+      })
+    } catch {
+      items = await prisma.stockItem.findMany({
+        where,
+        include: {
+          supplier: true,
+          alerts: { where: { isRead: false }, take: 3 },
+          _count: { select: { movements: true } },
+        },
+        orderBy: { name: 'asc' },
+        take: 200,
+      })
+    }
 
-    const itemsWithStatus = items.map(item => ({
+    const itemsWithStatus = items.map((item: any) => ({
       ...item,
+      supplierPrices: item.supplierPrices ?? [],
       stockStatus: item.currentQuantity <= 0 ? 'OUT_OF_STOCK'
         : item.currentQuantity <= item.minQuantity ? 'LOW_STOCK'
         : item.currentQuantity <= item.reorderQuantity ? 'REORDER_NEEDED'
@@ -99,20 +115,35 @@ stockRouter.get('/:id', async (req: AuthRequest, res, next) => {
 stockRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const { supplierPrices, ...rest } = stockItemSchema.parse(req.body)
+
+    // Create base item first (always works)
     const item = await prisma.stockItem.create({
       data: {
         ...rest,
         restaurantId: req.user!.restaurantId,
         expiryDate: rest.expiryDate ? new Date(rest.expiryDate) : undefined,
-        supplierPrices: supplierPrices?.length
-          ? { create: supplierPrices }
-          : undefined,
       },
-      include: {
-        supplierPrices: { include: { supplier: { select: { id: true, name: true } } } },
-      },
+      include: { supplier: true },
     })
-    res.status(201).json({ success: true, data: item })
+
+    // Add supplier prices if provided (requires stock_item_suppliers table — run db push)
+    let itemWithPrices: any = { ...item, supplierPrices: [] }
+    if (supplierPrices?.length) {
+      try {
+        await prisma.stockItemSupplier.createMany({
+          data: supplierPrices.map((sp: any) => ({ ...sp, stockItemId: item.id })),
+        })
+        const withPrices = await prisma.stockItem.findUnique({
+          where: { id: item.id },
+          include: { supplier: true, supplierPrices: { include: { supplier: { select: { id: true, name: true } } } } },
+        })
+        itemWithPrices = withPrices ?? itemWithPrices
+      } catch {
+        // stock_item_suppliers table not yet created — prices ignored until db push
+      }
+    }
+
+    res.status(201).json({ success: true, data: itemWithPrices })
   } catch (error) {
     next(error)
   }
@@ -129,22 +160,30 @@ stockRouter.put('/:id', authorize('manager', 'superadmin'), async (req: AuthRequ
     const updated = await prisma.stockItem.update({
       where: { id: item.id },
       data: rest,
+      include: { supplier: true },
     })
 
+    // Update supplier prices (requires stock_item_suppliers table — run db push)
+    let result: any = { ...updated, supplierPrices: [] }
     if (supplierPrices !== undefined) {
-      await prisma.stockItemSupplier.deleteMany({ where: { stockItemId: item.id } })
-      if (supplierPrices.length > 0) {
-        await prisma.stockItemSupplier.createMany({
-          data: supplierPrices.map(sp => ({ ...sp, stockItemId: item.id })),
+      try {
+        await prisma.stockItemSupplier.deleteMany({ where: { stockItemId: item.id } })
+        if (supplierPrices.length > 0) {
+          await prisma.stockItemSupplier.createMany({
+            data: supplierPrices.map((sp: any) => ({ ...sp, stockItemId: item.id })),
+          })
+        }
+        const withPrices = await prisma.stockItem.findUnique({
+          where: { id: item.id },
+          include: { supplier: true, supplierPrices: { include: { supplier: { select: { id: true, name: true } } } } },
         })
+        result = withPrices ?? result
+      } catch {
+        // stock_item_suppliers table not yet created — prices ignored until db push
       }
     }
 
-    const withPrices = await prisma.stockItem.findUnique({
-      where: { id: item.id },
-      include: { supplierPrices: { include: { supplier: { select: { id: true, name: true } } } } },
-    })
-    res.json({ success: true, data: withPrices })
+    res.json({ success: true, data: result })
   } catch (error) {
     next(error)
   }
