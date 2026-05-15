@@ -20,7 +20,7 @@
     "db:seed": "turbo db:seed",
     "db:studio": "turbo db:studio",
     "db:reset": "turbo db:reset",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package 2>/dev/null || true"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",

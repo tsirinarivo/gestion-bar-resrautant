@@ -21,6 +21,10 @@ COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 COPY turbo.json package.json tsconfig.json ./
 
+# Fix imprimantcloud: platform.xpyun.net → open.xpyun.net (wrong default URL)
+RUN sed -i 's|platform.xpyun.net/api/openapi/xprinter|open.xpyun.net/api/openapi/xprinter|g' \
+    node_modules/imprimantcloud/dist/lib/xprint.js
+
 # Generate Prisma client
 RUN cd packages/database && npx prisma generate
 
