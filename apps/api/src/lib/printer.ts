@@ -23,4 +23,5 @@ export {
   formatCreditNote,
   formatMoney,
   sendPrintAndLog,
+  XPYUN_REGIONS,
 } from 'imprimantcloud'

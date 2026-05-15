@@ -5,6 +5,7 @@ import {
   printTest, printerStatus,
   getLogs, refreshLogs,
   enrollPrinter,
+  XPYUN_REGIONS,
 } from '../lib/printer'
 
 export const printerRouter = Router()
@@ -80,6 +81,39 @@ printerRouter.post('/refresh-logs', async (req: AuthRequest, res, next) => {
   try {
     const result = await refreshLogs(req.user!.restaurantId)
     res.json({ success: true, data: result })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/printer/debug — diagnostic: URL utilisée + test fetch brut vers XPyun
+printerRouter.get('/debug', async (req: AuthRequest, res, next) => {
+  try {
+    const config = await getConfig(req.user!.restaurantId)
+    const region = (config as any)?.region ?? 'cn'
+    const baseUrl = (XPYUN_REGIONS as any)[region] ?? XPYUN_REGIONS['cn']
+    const testUrl = `${baseUrl}/queryPrinterStatus`
+
+    let rawStatus: number | null = null
+    let rawBody: string | null = null
+    let fetchError: string | null = null
+    try {
+      const r = await fetch(testUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json;charset=UTF-8' },
+        body: JSON.stringify({ user: '__test__', timestamp: '0', sign: '__test__', sn: '__test__', debug: '0' }),
+        signal: AbortSignal.timeout(5000),
+      })
+      rawStatus = r.status
+      rawBody = (await r.text()).slice(0, 300)
+    } catch (e: any) {
+      fetchError = e?.message ?? String(e)
+    }
+
+    res.json({
+      success: true,
+      data: { region, baseUrl, testUrl, httpStatus: rawStatus, bodySnippet: rawBody, fetchError },
+    })
   } catch (error) {
     next(error)
   }
