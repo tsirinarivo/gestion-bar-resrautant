@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -57,23 +57,25 @@ export default function PrinterSettingsPage() {
   const config = configData ?? {}
 
   const [form, setForm] = useState<any>(null)
-  // Initialise form once config is loaded
-  if (configData && form === null) {
-    setForm({
-      enabled:                 configData.enabled ?? false,
-      user:                    configData.user ?? '',
-      key:                     '••••••••',
-      baseUrl:                 configData.baseUrl ?? '',
-      sn:                      configData.sn ?? '',
-      voice:                   configData.voice ?? 1,
-      header:                  configData.header ?? '',
-      footer:                  configData.footer ?? '',
-      copies:                  configData.copies ?? 1,
-      autoOnSaleConfirm:       configData.autoOnSaleConfirm ?? true,
-      autoOnPaymentConfirm:    configData.autoOnPaymentConfirm ?? true,
-      autoOnDeliveryRegister:  configData.autoOnDeliveryRegister ?? false,
-    })
-  }
+
+  useEffect(() => {
+    if (configData && form === null) {
+      setForm({
+        enabled:                 configData.enabled ?? false,
+        user:                    configData.user ?? '',
+        key:                     '••••••••',
+        baseUrl:                 configData.baseUrl ?? '',
+        sn:                      configData.sn ?? '',
+        voice:                   configData.voice ?? 1,
+        header:                  configData.header ?? '',
+        footer:                  configData.footer ?? '',
+        copies:                  configData.copies ?? 1,
+        autoOnSaleConfirm:       configData.autoOnSaleConfirm ?? true,
+        autoOnPaymentConfirm:    configData.autoOnPaymentConfirm ?? true,
+        autoOnDeliveryRegister:  configData.autoOnDeliveryRegister ?? false,
+      })
+    }
+  }, [configData]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const f = form ?? {}
   function setF(key: string, val: any) {
@@ -392,17 +394,17 @@ export default function PrinterSettingsPage() {
         </div>
 
         {/* Pagination */}
-        {logsData?.pagination && logsData.pagination.totalPages > 1 && (
+        {logsData?.data?.pagination && logsData.data.pagination.totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-brand-border">
-            <p className="text-xs text-brand-muted">{logsData.pagination.total} impression(s)</p>
+            <p className="text-xs text-brand-muted">{logsData.data.pagination.total} impression(s)</p>
             <div className="flex items-center gap-2">
               <button onClick={() => setLogPage(p => Math.max(1, p - 1))} disabled={logPage === 1}
                 className="px-3 py-1.5 text-xs rounded-lg border border-brand-border disabled:opacity-30">
                 Précédent
               </button>
-              <span className="text-xs text-brand-muted">{logPage} / {logsData.pagination.totalPages}</span>
-              <button onClick={() => setLogPage(p => Math.min(logsData.pagination.totalPages, p + 1))}
-                disabled={logPage === logsData.pagination.totalPages}
+              <span className="text-xs text-brand-muted">{logPage} / {logsData.data.pagination.totalPages}</span>
+              <button onClick={() => setLogPage(p => Math.min(logsData.data.pagination.totalPages, p + 1))}
+                disabled={logPage === logsData.data.pagination.totalPages}
                 className="px-3 py-1.5 text-xs rounded-lg border border-brand-border disabled:opacity-30">
                 Suivant
               </button>
