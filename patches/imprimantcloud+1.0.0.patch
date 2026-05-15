@@ -1,0 +1,13 @@
+diff --git a/node_modules/imprimantcloud/dist/lib/xprint.js b/node_modules/imprimantcloud/dist/lib/xprint.js
+index e9de48c..db7120a 100644
+--- a/node_modules/imprimantcloud/dist/lib/xprint.js
++++ b/node_modules/imprimantcloud/dist/lib/xprint.js
+@@ -16,7 +16,7 @@ const encrypt_1 = require("./encrypt");
+ // ─── Types ────────────────────────────────────────────────────────────────────
+ // Serveurs cloud xpyun documentés (Cloud Printer Server Config Guide)
+ exports.XPYUN_REGIONS = {
+-    cn: "https://platform.xpyun.net/api/openapi/xprinter", // Chine (défaut)
++    cn: "https://open.xpyun.net/api/openapi/xprinter", // Chine (défaut)
+     sg: "https://sg.xpyun.net/api/openapi/xprinter", // Singapour
+     de: "https://gm.xpyun.net/api/openapi/xprinter", // Allemagne (Europe)
+ };
