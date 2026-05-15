@@ -65,6 +65,10 @@ model Restaurant {
   coupons       Coupon[]
   reviews       Review[]
   expenses      Expense[]
+  warehouses     Warehouse[]
+  stockTransfers StockTransfer[]
+  caisseSessions CaisseSession[]
+  bankAccounts   BankAccount[]
 
   @@map("restaurants")
 }
@@ -386,12 +390,16 @@ model StockItem {
   supplierId  String?
   supplier    Supplier? @relation(fields: [supplierId], references: [id])
 
+  warehouseId String?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+
   movements       StockMovement[]
   alerts          StockAlert[]
   purchaseItems   PurchaseOrderItem[]
   ingredients     Ingredient[]
   stockBatches    StockBatch[]
   supplierPrices  StockItemSupplier[]
+  transferItems   StockTransferItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -470,6 +478,65 @@ model StockAlert {
   @@index([stockItemId])
   @@index([isRead, createdAt])
   @@map("stock_alerts")
+}
+
+model Warehouse {
+  id           String   @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  location     String?
+  isDefault    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stockItems    StockItem[]
+  transfersFrom StockTransfer[] @relation("TransferFrom")
+  transfersTo   StockTransfer[] @relation("TransferTo")
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+  @@map("warehouses")
+}
+
+model StockTransfer {
+  id              String              @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  reference       String?
+  fromWarehouseId String
+  toWarehouseId   String
+  status          String              @default("PENDING") // PENDING, IN_TRANSIT, COMPLETED, CANCELLED
+  notes           String?
+  completedAt     DateTime?
+  createdBy       String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  fromWarehouse Warehouse           @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouse   Warehouse           @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  items         StockTransferItem[]
+
+  @@index([restaurantId])
+  @@index([status])
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id           String        @id @default(cuid())
+  transferId   String
+  stockItemId  String
+  quantity     Float
+  unitCost     Float?
+  notes        String?
+
+  transfer  StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  stockItem StockItem     @relation(fields: [stockItemId], references: [id])
+
+  @@index([transferId])
+  @@map("stock_transfer_items")
 }
 
 model Supplier {
@@ -1217,6 +1284,89 @@ model Expense {
 
   @@index([restaurantId, date])
   @@map("expenses")
+}
+
+// ─── CAISSE & BANQUE ──────────────────────────────────────────────────────────
+
+model CaisseSession {
+  id            String    @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  status        String    @default("OPEN")   // OPEN, CLOSED
+  openedAt      DateTime  @default(now())
+  closedAt      DateTime?
+  openedById    String?
+  closedById    String?
+  openingFloat  Float     @default(0)
+  expectedCash  Float     @default(0)
+  closingFloat  Float?
+  difference    Float?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  transactions CaisseTransaction[]
+
+  @@index([restaurantId, status])
+  @@index([restaurantId, openedAt])
+  @@map("caisse_sessions")
+}
+
+model CaisseTransaction {
+  id           String   @id @default(cuid())
+  sessionId    String
+  restaurantId String
+  type         String   // SALE, REFUND, EXPENSE, DEPOSIT, WITHDRAWAL, ADJUSTMENT
+  amount       Float
+  description  String?
+  reference    String?
+  createdAt    DateTime @default(now())
+
+  session CaisseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([restaurantId, createdAt])
+  @@map("caisse_transactions")
+}
+
+model BankAccount {
+  id            String   @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name          String
+  bankName      String?
+  accountNumber String?
+  type          String   @default("CHECKING") // CHECKING, SAVINGS
+  balance       Float    @default(0)
+  currency      String   @default("MGA")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  transactions BankTransaction[]
+
+  @@index([restaurantId])
+  @@map("bank_accounts")
+}
+
+model BankTransaction {
+  id           String   @id @default(cuid())
+  accountId    String
+  restaurantId String
+  type         String   // CREDIT, DEBIT
+  amount       Float
+  balanceAfter Float
+  description  String?
+  reference    String?
+  date         DateTime @default(now())
+  reconciled   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  account BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([restaurantId, date])
+  @@map("bank_transactions")
 }
 
 // ─── IMPRIMANTE THERMIQUE ─────────────────────────────────────────────────────
