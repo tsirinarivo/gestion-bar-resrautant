@@ -19,6 +19,12 @@ const VOICE_OPTIONS = [
   { value: 3, label: 'Bip triple' },
 ]
 
+const SERVER_PRESETS = [
+  { label: 'XPyun (par défaut)',      value: 'https://open.xpyun.net/api/openapi/xprinter' },
+  { label: 'Feiyin Cloud',            value: 'https://api.feiyin.com/v1/print' },
+  { label: 'Serveur personnalisé…',   value: '__custom__' },
+]
+
 const STATUS_META: Record<string, { label: string; icon: any; color: string }> = {
   online:  { label: 'En ligne',   icon: Wifi,     color: '#10B981' },
   offline: { label: 'Hors ligne', icon: WifiOff,  color: '#EF4444' },
@@ -105,7 +111,15 @@ export default function PrinterSettingsPage() {
       qc.invalidateQueries({ queryKey: ['printer-status'] })
       toast.success('Configuration enregistrée')
     },
-    onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur de configuration'),
+    onError: (e: any) => {
+      const details = e?.response?.data?.details
+      if (details) {
+        const first = Object.entries(details as Record<string, string[]>).map(([k, v]) => `${k}: ${v[0]}`).join(', ')
+        toast.error(`Données invalides — ${first}`)
+      } else {
+        toast.error(e?.response?.data?.error ?? 'Erreur de configuration')
+      }
+    },
   })
 
   const testPrint = useMutation({
@@ -214,9 +228,24 @@ export default function PrinterSettingsPage() {
               placeholder="Ex: 7654321098" className="input-field font-mono text-sm" />
           </div>
           <div>
-            <label className="text-xs text-brand-muted block mb-1.5">Base URL (optionnel)</label>
-            <input value={f.baseUrl ?? ''} onChange={e => setF('baseUrl', e.target.value)}
-              placeholder="https://open.xpyun.net" className="input-field text-sm" />
+            <label className="text-xs text-brand-muted block mb-1.5">Serveur d'impression</label>
+            <select
+              value={SERVER_PRESETS.find(p => p.value !== '__custom__' && p.value === (f.baseUrl || ''))?.value ?? '__custom__'}
+              onChange={e => {
+                if (e.target.value !== '__custom__') setF('baseUrl', e.target.value)
+                else setF('baseUrl', '')
+              }}
+              className="input-field text-sm mb-2"
+            >
+              {SERVER_PRESETS.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+            {/* Show custom URL input only when no preset is selected */}
+            {!SERVER_PRESETS.find(p => p.value !== '__custom__' && p.value === (f.baseUrl || '')) && (
+              <input value={f.baseUrl ?? ''} onChange={e => setF('baseUrl', e.target.value)}
+                placeholder="https://mon-serveur.com/api/print" className="input-field text-sm font-mono" />
+            )}
           </div>
           <div>
             <label className="text-xs text-brand-muted block mb-1.5">Utilisateur (User)</label>

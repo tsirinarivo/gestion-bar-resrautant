@@ -25,23 +25,16 @@ printerRouter.get('/config', async (req: AuthRequest, res, next) => {
 // PUT /api/printer/config
 printerRouter.put('/config', async (req: AuthRequest, res, next) => {
   try {
-    const schema = z.object({
-      enabled:                 z.boolean().optional(),
-      user:                    z.string().optional(),
-      key:                     z.string().optional(),
-      baseUrl:                 z.string().url().optional().or(z.literal('')),
-      sn:                      z.string().optional(),
-      voice:                   z.number().int().min(0).max(3).optional(),
-      header:                  z.string().max(200).optional(),
-      footer:                  z.string().max(200).optional(),
-      copies:                  z.number().int().min(1).max(5).optional(),
-      autoOnSaleConfirm:       z.boolean().optional(),
-      autoOnPaymentConfirm:    z.boolean().optional(),
-      autoOnDeliveryRegister:  z.boolean().optional(),
-    })
-    const data = schema.parse(req.body)
-    const config = await updateConfig(req.user!.restaurantId, data)
-    res.json({ success: true, data: config })
+    // Strip empty strings so optional fields with min(1) in PrinterConfigSchema
+    // don't fail validation when the user leaves them blank
+    const body = Object.fromEntries(
+      Object.entries(req.body as Record<string, unknown>).filter(([, v]) => v !== '' && v !== null)
+    )
+    const result = await updateConfig(req.user!.restaurantId, body)
+    if (!result.ok) {
+      return res.status(422).json({ success: false, error: 'Données invalides', details: result.errors })
+    }
+    res.json({ success: true, data: result })
   } catch (error) {
     next(error)
   }
