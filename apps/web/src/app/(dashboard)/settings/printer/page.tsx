@@ -179,12 +179,17 @@ export default function PrinterSettingsPage() {
         {/* Live status chip */}
         <div className="flex items-center gap-2">
           {statusData && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border"
-              style={{ borderColor: `${statusMeta.color}40`, background: `${statusMeta.color}10` }}>
-              <statusMeta.icon className="w-4 h-4" style={{ color: statusMeta.color }} />
-              <span className="text-sm font-medium" style={{ color: statusMeta.color }}>
-                {statusMeta.label}
-              </span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border"
+                style={{ borderColor: `${statusMeta.color}40`, background: `${statusMeta.color}10` }}>
+                <statusMeta.icon className="w-4 h-4" style={{ color: statusMeta.color }} />
+                <span className="text-sm font-medium" style={{ color: statusMeta.color }}>
+                  {statusMeta.label}
+                </span>
+              </div>
+              {(statusData as any).msg && printerStatus !== 'online' && (
+                <span className="text-xs text-brand-muted">{(statusData as any).msg}</span>
+              )}
             </div>
           )}
           <button onClick={() => refetchStatus()}
