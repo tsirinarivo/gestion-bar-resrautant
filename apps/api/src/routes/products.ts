@@ -23,6 +23,7 @@ const productSchema = z.object({
   isAvailable: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
   isNew: z.boolean().default(false),
+  requiresPreparation: z.boolean().default(true),
   sortOrder: z.number().default(0),
   calories: z.number().optional(),
   proteins: z.number().optional(),
