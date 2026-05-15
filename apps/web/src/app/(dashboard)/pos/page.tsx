@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Plus, Minus, ShoppingCart, CreditCard,
   Receipt, Table2, X, Users, ChefHat, CheckCircle2, Clock, Send,
+  ArrowLeft,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency } from '@restaurant/utils'
@@ -43,6 +44,7 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod]       = useState<'CASH' | 'CARD'>('CASH')
   const [sending, setSending]                   = useState(false)
   const [paying, setPaying]                     = useState(false)
+  const [mobileView, setMobileView]             = useState<'products' | 'cart'>('products')
   const qc = useQueryClient()
 
   const { data: tables = [] } = useQuery({
@@ -168,12 +170,143 @@ export default function POSPage() {
     }
   }
 
+  // Ticket panel content — shared between desktop sidebar and mobile drawer
+  const ticketContent = (
+    <>
+      {/* En-tête ticket */}
+      <div className="p-3 border-b border-brand-border flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
+          {/* Back button on mobile */}
+          <button onClick={() => setMobileView('products')}
+            className="md:hidden p-1 text-brand-muted hover:text-white mr-1">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <Receipt className="w-4 h-4 text-brand-orange" />
+          <span className="font-semibold text-sm">
+            {activeTable ? `Table ${activeTable.number}` : orderType === 'TAKEAWAY' ? '🥡 Emporté' : 'Aucune table'}
+          </span>
+        </div>
+        {cart.length > 0 && (
+          <button onClick={() => setCart([])} className="text-xs text-red-400 hover:text-red-300">Vider</button>
+        )}
+      </div>
+
+      {/* Items */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {/* Commandes en cuisine */}
+        {(openOrders as any[]).length > 0 && (
+          <div>
+            <p className="text-xs text-brand-muted font-medium mb-2 flex items-center gap-1">
+              <ChefHat className="w-3 h-3" /> En cuisine
+            </p>
+            {(openOrders as any[]).map((order: any) => {
+              const st = ORDER_STATUS[order.status] ?? ORDER_STATUS['CONFIRMED']!
+              const Icon = st.icon
+              return (
+                <div key={order.id} className="mb-2 bg-white/3 rounded-xl p-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-brand-muted">{order.orderNumber}</span>
+                    <span className={`text-xs flex items-center gap-1 ${st.color}`}>
+                      <Icon className="w-3 h-3" />{st.label}
+                    </span>
+                  </div>
+                  {(order.items ?? []).map((item: any) => (
+                    <div key={item.id} className="flex justify-between text-xs py-0.5 text-brand-muted">
+                      <span>{item.quantity}× {item.product?.name}</span>
+                      <span>{formatCurrency(item.totalPrice)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-xs font-medium pt-1 border-t border-brand-border mt-1">
+                    <span>S-total</span><span>{formatCurrency(order.totalAmount)}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Panier actuel */}
+        {cart.length > 0 && (
+          <div>
+            <p className="text-xs text-brand-muted font-medium mb-2 flex items-center gap-1">
+              <Plus className="w-3 h-3" /> Nouvelle commande
+            </p>
+            <AnimatePresence>
+              {cart.map(item => (
+                <motion.div key={item.productId}
+                  initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-brand-orange/5 border border-brand-orange/20 mb-1">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{item.name}</p>
+                    <p className="text-xs text-brand-orange">{formatCurrency(item.price)}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => updateQty(item.productId, item.quantity - 1)}
+                      className="w-7 h-7 rounded-lg bg-brand-border flex items-center justify-center hover:bg-red-500/20 active:scale-95">
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="w-6 text-center text-xs font-bold">{item.quantity}</span>
+                    <button onClick={() => updateQty(item.productId, item.quantity + 1)}
+                      className="w-7 h-7 rounded-lg bg-brand-border flex items-center justify-center hover:bg-brand-orange/20 active:scale-95">
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p className="text-xs font-bold w-14 text-right">{formatCurrency(item.price * item.quantity)}</p>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {(openOrders as any[]).length === 0 && cart.length === 0 && (
+          <div className="text-center py-10 text-brand-muted">
+            <ShoppingCart className="w-8 h-8 mx-auto mb-2 opacity-20" />
+            <p className="text-xs">{activeTable ? 'Table vide' : 'Sélectionnez une table'}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Totaux + boutons */}
+      <div className="p-3 border-t border-brand-border space-y-2 flex-shrink-0">
+        {(openOrders as any[]).length > 0 && (
+          <div className="flex justify-between text-xs text-brand-muted">
+            <span>En cuisine</span><span>{formatCurrency(existingTotal)}</span>
+          </div>
+        )}
+        {cart.length > 0 && (
+          <div className="flex justify-between text-xs text-brand-muted">
+            <span>Panier (TVA incl.)</span><span>{formatCurrency(cartTotal)}</span>
+          </div>
+        )}
+        {((openOrders as any[]).length > 0 || cart.length > 0) && (
+          <div className="flex justify-between font-bold text-sm border-t border-brand-border pt-2">
+            <span>Total ticket</span>
+            <span className="text-brand-orange">{formatCurrency(grandTotal)}</span>
+          </div>
+        )}
+        {cart.length > 0 && (
+          <button onClick={sendToKitchen} disabled={sending}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors active:scale-98">
+            <Send className="w-4 h-4" />
+            {sending ? 'Envoi...' : 'Envoyer la commande'}
+          </button>
+        )}
+        {((openOrders as any[]).length > 0 || (orderType === 'TAKEAWAY' && cart.length > 0)) && (
+          <button onClick={() => setShowPayment(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl btn-primary text-sm font-semibold active:scale-98">
+            <CreditCard className="w-4 h-4" />
+            L'addition — {formatCurrency(grandTotal)}
+          </button>
+        )}
+      </div>
+    </>
+  )
+
   return (
     <div className="flex flex-col h-[calc(100vh-9rem)] gap-3">
 
       {/* ── Sélecteur de tables ─────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 flex-shrink-0">
-        {/* Bouton À emporter */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 flex-shrink-0 scrollbar-hide">
         <button
           onClick={() => { setActiveTable(null); setOrderType('TAKEAWAY'); setCart([]) }}
           className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
@@ -184,24 +317,17 @@ export default function POSPage() {
         >
           🥡 Emporté
         </button>
-
         <div className="w-px h-6 bg-brand-border flex-shrink-0" />
-
-        {/* Tables */}
         {(tables as any[]).map((table: any) => {
           const isActive = activeTable?.id === table.id
           const colorClass = isActive
             ? 'bg-brand-orange border-brand-orange text-white'
             : (TABLE_COLOR[table.status] ?? TABLE_COLOR['AVAILABLE']!)
           return (
-            <button
-              key={table.id}
-              onClick={() => selectTable(table)}
-              className={`flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${colorClass}`}
-            >
+            <button key={table.id} onClick={() => selectTable(table)}
+              className={`flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${colorClass}`}>
               <span className="flex items-center gap-1">
-                <Table2 className="w-3 h-3" />
-                T{table.number}
+                <Table2 className="w-3 h-3" />T{table.number}
               </span>
               <span className="font-normal opacity-80">{TABLE_LABEL[table.status] ?? ''}</span>
             </button>
@@ -210,10 +336,10 @@ export default function POSPage() {
       </div>
 
       {/* ── Corps principal ─────────────────────────────────────────────── */}
-      <div className="flex flex-1 gap-4 overflow-hidden">
+      <div className="flex flex-1 gap-4 overflow-hidden min-h-0">
 
-        {/* Produits */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* ── Colonne produits (desktop: toujours visible; mobile: masqué quand cart ouvert) */}
+        <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${mobileView === 'cart' ? 'hidden md:flex' : 'flex'}`}>
           {/* Recherche */}
           <div className="relative mb-3 flex-shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted" />
@@ -222,7 +348,7 @@ export default function POSPage() {
           </div>
 
           {/* Catégories */}
-          <div className="flex gap-2 mb-3 overflow-x-auto pb-1 flex-shrink-0">
+          <div className="flex gap-2 mb-3 overflow-x-auto pb-1 flex-shrink-0 scrollbar-hide">
             <button onClick={() => setSelectedCategory('')}
               className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap border transition-all ${!selectedCategory ? 'bg-brand-orange text-white border-brand-orange' : 'border-brand-border text-brand-muted'}`}>
               Tout
@@ -236,23 +362,23 @@ export default function POSPage() {
           </div>
 
           {/* Grille produits */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pb-2">
+          <div className="flex-1 overflow-y-auto pb-20 md:pb-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3">
               {filteredProducts.map((product: any) => {
                 const inCart = cart.find(i => i.productId === product.id)
                 return (
-                  <motion.button key={product.id} whileTap={{ scale: 0.95 }}
+                  <motion.button key={product.id} whileTap={{ scale: 0.93 }}
                     onClick={() => addToCart(product)}
-                    className="glass-card p-3 text-left hover:border-brand-orange/50 transition-all relative">
+                    className="glass-card p-2.5 sm:p-3 text-left hover:border-brand-orange/50 transition-all relative active:scale-95">
                     {inCart && (
                       <span className="absolute top-2 right-2 w-5 h-5 bg-brand-orange rounded-full text-xs font-bold text-white flex items-center justify-center z-10">
                         {inCart.quantity}
                       </span>
                     )}
-                    <div className="h-16 bg-brand-darker rounded-xl mb-2 flex items-center justify-center">
-                      <span className="text-2xl opacity-50">🍽️</span>
+                    <div className="h-14 sm:h-16 bg-brand-darker rounded-xl mb-2 flex items-center justify-center">
+                      <span className="text-xl sm:text-2xl opacity-50">🍽️</span>
                     </div>
-                    <p className="text-xs font-medium line-clamp-2 mb-1">{product.name}</p>
+                    <p className="text-xs font-medium line-clamp-2 mb-1 leading-tight">{product.name}</p>
                     <p className="text-sm font-bold text-brand-orange">{formatCurrency(product.price)}</p>
                   </motion.button>
                 )
@@ -261,143 +387,57 @@ export default function POSPage() {
           </div>
         </div>
 
-        {/* Ticket */}
-        <div className="w-72 flex flex-col bg-brand-card border border-brand-border rounded-2xl overflow-hidden flex-shrink-0">
-          {/* En-tête */}
-          <div className="p-3 border-b border-brand-border flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Receipt className="w-4 h-4 text-brand-orange" />
-              <span className="font-semibold text-sm">
-                {activeTable ? `Table ${activeTable.number}` : orderType === 'TAKEAWAY' ? '🥡 Emporté' : 'Aucune table'}
-              </span>
-            </div>
-            {cart.length > 0 && (
-              <button onClick={() => setCart([])} className="text-xs text-red-400 hover:text-red-300">Vider</button>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {/* Commandes en cuisine */}
-            {(openOrders as any[]).length > 0 && (
-              <div>
-                <p className="text-xs text-brand-muted font-medium mb-2 flex items-center gap-1">
-                  <ChefHat className="w-3 h-3" /> En cuisine
-                </p>
-                {(openOrders as any[]).map((order: any) => {
-                  const st = ORDER_STATUS[order.status] ?? ORDER_STATUS['CONFIRMED']!
-                  const Icon = st.icon
-                  return (
-                    <div key={order.id} className="mb-2 bg-white/3 rounded-xl p-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-brand-muted">{order.orderNumber}</span>
-                        <span className={`text-xs flex items-center gap-1 ${st.color}`}>
-                          <Icon className="w-3 h-3" />{st.label}
-                        </span>
-                      </div>
-                      {(order.items ?? []).map((item: any) => (
-                        <div key={item.id} className="flex justify-between text-xs py-0.5 text-brand-muted">
-                          <span>{item.quantity}× {item.product?.name}</span>
-                          <span>{formatCurrency(item.totalPrice)}</span>
-                        </div>
-                      ))}
-                      <div className="flex justify-between text-xs font-medium pt-1 border-t border-brand-border mt-1">
-                        <span>S-total</span><span>{formatCurrency(order.totalAmount)}</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Panier actuel */}
-            {cart.length > 0 && (
-              <div>
-                <p className="text-xs text-brand-muted font-medium mb-2 flex items-center gap-1">
-                  <Plus className="w-3 h-3" /> Nouvelle commande
-                </p>
-                <AnimatePresence>
-                  {cart.map(item => (
-                    <motion.div key={item.productId}
-                      initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
-                      className="flex items-center gap-2 p-2 rounded-xl bg-brand-orange/5 border border-brand-orange/20 mb-1">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{item.name}</p>
-                        <p className="text-xs text-brand-orange">{formatCurrency(item.price)}</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => updateQty(item.productId, item.quantity - 1)}
-                          className="w-6 h-6 rounded-lg bg-brand-border flex items-center justify-center hover:bg-red-500/20">
-                          <Minus className="w-3 h-3" />
-                        </button>
-                        <span className="w-5 text-center text-xs font-bold">{item.quantity}</span>
-                        <button onClick={() => updateQty(item.productId, item.quantity + 1)}
-                          className="w-6 h-6 rounded-lg bg-brand-border flex items-center justify-center hover:bg-brand-orange/20">
-                          <Plus className="w-3 h-3" />
-                        </button>
-                      </div>
-                      <p className="text-xs font-bold w-12 text-right">{formatCurrency(item.price * item.quantity)}</p>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
-
-            {(openOrders as any[]).length === 0 && cart.length === 0 && (
-              <div className="text-center py-10 text-brand-muted">
-                <ShoppingCart className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                <p className="text-xs">{activeTable ? 'Table vide' : 'Sélectionnez une table'}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Totaux + boutons */}
-          <div className="p-3 border-t border-brand-border space-y-2">
-            {(openOrders as any[]).length > 0 && (
-              <div className="flex justify-between text-xs text-brand-muted">
-                <span>En cuisine</span><span>{formatCurrency(existingTotal)}</span>
-              </div>
-            )}
-            {cart.length > 0 && (
-              <div className="flex justify-between text-xs text-brand-muted">
-                <span>Panier (TVA incl.)</span><span>{formatCurrency(cartTotal)}</span>
-              </div>
-            )}
-            {((openOrders as any[]).length > 0 || cart.length > 0) && (
-              <div className="flex justify-between font-bold text-sm border-t border-brand-border pt-2">
-                <span>Total ticket</span>
-                <span className="text-brand-orange">{formatCurrency(grandTotal)}</span>
-              </div>
-            )}
-
-            {cart.length > 0 && (
-              <button onClick={sendToKitchen} disabled={sending}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors">
-                <Send className="w-4 h-4" />
-                {sending ? 'Envoi...' : 'Envoyer la commande'}
-              </button>
-            )}
-
-            {((openOrders as any[]).length > 0 || (orderType === 'TAKEAWAY' && cart.length > 0)) && (
-              <button onClick={() => setShowPayment(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl btn-primary text-sm font-semibold">
-                <CreditCard className="w-4 h-4" />
-                L'addition — {formatCurrency(grandTotal)}
-              </button>
-            )}
-          </div>
+        {/* ── Ticket — desktop sidebar (toujours visible ≥ md) */}
+        <div className="hidden md:flex w-64 lg:w-72 flex-col bg-brand-card border border-brand-border rounded-2xl overflow-hidden flex-shrink-0">
+          {ticketContent}
         </div>
       </div>
 
-      {/* Modal paiement */}
+      {/* ── Ticket — mobile drawer (visible uniquement en mode cart) */}
+      <AnimatePresence>
+        {mobileView === 'cart' && (
+          <motion.div
+            key="mobile-cart"
+            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+            transition={{ type: 'tween', duration: 0.25 }}
+            className="md:hidden fixed inset-0 z-40 flex flex-col bg-brand-card"
+          >
+            {ticketContent}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── FAB mobile — bouton panier flottant */}
+      {mobileView === 'products' && (cart.length > 0 || (openOrders as any[]).length > 0) && (
+        <div className="md:hidden fixed bottom-4 left-4 right-4 z-30">
+          <motion.button
+            initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+            onClick={() => setMobileView('cart')}
+            className="w-full flex items-center justify-between px-5 py-3.5 rounded-2xl bg-brand-orange shadow-lg shadow-brand-orange/30 text-white font-semibold">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5" />
+              <span className="text-sm">
+                {cart.length > 0 ? `${cart.reduce((s, i) => s + i.quantity, 0)} article${cart.reduce((s, i) => s + i.quantity, 0) > 1 ? 's' : ''}` : 'Voir le ticket'}
+              </span>
+            </div>
+            <span className="text-sm font-bold">{formatCurrency(grandTotal)}</span>
+          </motion.button>
+        </div>
+      )}
+
+      {/* ── Modal paiement */}
       <AnimatePresence>
         {showPayment && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              className="glass-card p-6 w-full max-w-sm">
+            className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div
+              initial={{ y: '100%', scale: 1 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%', scale: 1 }}
+              transition={{ type: 'tween', duration: 0.25 }}
+              className="glass-card p-6 w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl">
+              <div className="w-10 h-1 bg-brand-border rounded-full mx-auto mb-5 sm:hidden" />
               <div className="flex items-center justify-between mb-6">
                 <h2 className="font-bold text-xl">L'addition</h2>
-                <button onClick={() => setShowPayment(false)} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowPayment(false)} className="text-brand-muted hover:text-white p-1"><X className="w-5 h-5" /></button>
               </div>
               {activeTable && <p className="text-center text-brand-muted text-sm mb-2">Table {activeTable.number}</p>}
               <div className="text-center mb-6">
