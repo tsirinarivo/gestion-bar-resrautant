@@ -24,9 +24,11 @@ COPY turbo.json package.json tsconfig.json ./
 # Fix imprimantcloud: wrong XPyun region URLs (all three regions need the open. subdomain)
 RUN sed -i \
     -e 's|platform.xpyun.net/api/openapi/xprinter|open.xpyun.net/api/openapi/xprinter|g' \
-    -e 's|"sg.xpyun.net/api/openapi/xprinter|"sg.open.xpyun.net/api/openapi/xprinter|g' \
-    -e 's|"gm.xpyun.net/api/openapi/xprinter|"gm.open.xpyun.net/api/openapi/xprinter|g' \
-    node_modules/imprimantcloud/dist/lib/xprint.js
+    -e 's|sg.xpyun.net/api/openapi/xprinter|sg.open.xpyun.net/api/openapi/xprinter|g' \
+    -e 's|gm.xpyun.net/api/openapi/xprinter|gm.open.xpyun.net/api/openapi/xprinter|g' \
+    node_modules/imprimantcloud/dist/lib/xprint.js && \
+    grep -q "gm.open.xpyun.net" node_modules/imprimantcloud/dist/lib/xprint.js && \
+    echo "✓ XPyun URLs correctes" || (echo "✗ sed n'a pas patché les URLs" && exit 1)
 
 # Generate Prisma client
 RUN cd packages/database && npx prisma generate
