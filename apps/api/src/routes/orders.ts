@@ -316,6 +316,71 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
       }
     }
 
+    // ── Déduction automatique du stock quand commande COMPLETED ──────────
+    if (status === 'COMPLETED') {
+      const orderWithItems = await prisma.order.findUnique({
+        where: { id: order.id },
+        select: {
+          items: {
+            select: {
+              quantity: true,
+              product: {
+                select: {
+                  recipeItems: {
+                    select: {
+                      quantity: true,
+                      yieldRate: true,
+                      ingredient: {
+                        select: { stockItemId: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      })
+
+      for (const item of orderWithItems?.items ?? []) {
+        for (const recipeItem of item.product?.recipeItems ?? []) {
+          const stockItemId = recipeItem.ingredient?.stockItemId
+          if (!stockItemId) continue
+          const qtyToDeduct = item.quantity * recipeItem.quantity / (recipeItem.yieldRate || 1)
+          try {
+            const stockItem = await prisma.stockItem.findUnique({ where: { id: stockItemId } })
+            if (!stockItem) continue
+            const newQty = Math.max(0, stockItem.currentQuantity - qtyToDeduct)
+            await prisma.$transaction([
+              prisma.stockMovement.create({
+                data: {
+                  type: 'OUT',
+                  quantity: qtyToDeduct,
+                  stockItemId,
+                  reason: `Vente commande #${updatedOrder.orderNumber}`,
+                  createdBy: req.user!.id,
+                },
+              }),
+              prisma.stockItem.update({
+                where: { id: stockItemId },
+                data: { currentQuantity: newQty },
+              }),
+            ])
+            // Alerte stock faible
+            if (newQty <= stockItem.minQuantity && stockItem.currentQuantity > stockItem.minQuantity) {
+              await prisma.stockAlert.create({
+                data: {
+                  type: newQty <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
+                  message: `Stock faible : ${stockItem.name} (${newQty} ${stockItem.unit} restants)`,
+                  stockItemId,
+                },
+              })
+            }
+          } catch { /* continue si table stock non disponible */ }
+        }
+      }
+    }
+
     const io = req.app.get('io')
     io?.to(req.user!.restaurantId).emit('order:status_changed', {
       orderId: order.id,
