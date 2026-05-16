@@ -146,7 +146,7 @@ function PaymentModal({
         </div>
         <p className="text-gray-400 text-sm mb-1">{tableLabel}{orderCount > 0 ? ` · ${orderCount} commande(s)` : ''}</p>
         <p className="text-4xl font-bold text-orange-400 mb-5">{formatCurrency(total)}</p>
-        <div className="grid grid-cols-3 gap-2 mb-5 max-h-52 overflow-y-auto">
+        <div className="grid grid-cols-4 gap-2 mb-5">
           {POS_PAYMENT_METHODS.map(m => (
             <button key={m.value} onClick={() => setSelected(m.value)}
               className={`py-3 px-1 rounded-xl border-2 text-center text-xs font-semibold transition-all ${
