@@ -549,20 +549,19 @@ export default function POSPage() {
 
           {/* Product grid */}
           <div className="flex-1 overflow-y-auto px-3 pb-24 md:pb-3">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-1.5">
               {filteredProducts.map(product => {
                 const inCart = cart.find(i => i.product.id === product.id);
                 return (
                   <button key={product.id} onClick={() => addToCart(product)}
-                    className="bg-gray-800 hover:bg-gray-750 rounded-xl p-3 text-left transition-all active:scale-95 relative border border-transparent hover:border-orange-500/30">
+                    className="bg-gray-800 hover:bg-gray-700 rounded-xl p-2 text-left transition-all active:scale-95 relative border border-transparent hover:border-orange-500/30">
                     {inCart && (
-                      <span className="absolute top-2 right-2 w-5 h-5 bg-orange-500 rounded-full text-xs font-bold flex items-center justify-center z-10">
+                      <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-orange-500 rounded-full text-[10px] font-bold flex items-center justify-center z-10">
                         {inCart.quantity}
                       </span>
                     )}
-                    <div className="aspect-square bg-gray-700 rounded-lg mb-2 flex items-center justify-center text-2xl">🍽️</div>
-                    <p className="font-medium text-xs leading-tight line-clamp-2 mb-1">{product.name}</p>
-                    <p className="text-orange-400 font-bold text-sm">{formatCurrency(product.price)}</p>
+                    <p className="font-medium text-[11px] leading-tight line-clamp-2 mb-1 pr-4">{product.name}</p>
+                    <p className="text-orange-400 font-bold text-xs">{formatCurrency(product.price)}</p>
                   </button>
                 );
               })}
