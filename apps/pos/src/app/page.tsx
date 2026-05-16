@@ -560,7 +560,8 @@ export default function POSPage() {
                         {inCart.quantity}
                       </span>
                     )}
-                    <p className="font-medium text-[11px] leading-tight line-clamp-2 mb-1 pr-4">{product.name}</p>
+                    <div className="w-full h-12 bg-gray-700 rounded-lg mb-1.5 flex items-center justify-center text-xl">🍽️</div>
+                    <p className="font-medium text-[11px] leading-tight line-clamp-2 mb-0.5 pr-3">{product.name}</p>
                     <p className="text-orange-400 font-bold text-xs">{formatCurrency(product.price)}</p>
                   </button>
                 );
