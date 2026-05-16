@@ -1,10 +1,12 @@
 import { Router } from 'express'
+import { z } from 'zod'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import {
   getConfig, updateConfig,
   printTest, printerStatus,
   getLogs, refreshLogs,
   enrollPrinter,
+  autoPrintSaleReceipt,
   XPYUN_REGIONS,
   loadPrinterCfg,
   callXprint,
@@ -121,6 +123,46 @@ printerRouter.get('/debug', async (req: AuthRequest, res, next) => {
       success: true,
       data: { region: cfg.region, baseUrl: cfg.baseUrl, testUrl, user: cfg.user, sn: cfg.sn, httpStatus: rawStatus, body: rawBody, fetchError },
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/printer/receipt — impression reçu depuis POS
+printerRouter.post('/receipt', async (req: AuthRequest, res, next) => {
+  try {
+    const body = z.object({
+      tableLabel:    z.string().optional(),
+      orderNumber:   z.string().optional(),
+      paymentMethod: z.string().optional(),
+      items: z.array(z.object({
+        name:      z.string(),
+        qty:       z.number(),
+        unitPrice: z.number(),
+        total:     z.number(),
+      })),
+      subtotal:    z.number(),
+      grandTotal:  z.number(),
+    }).parse(req.body)
+
+    const payload = {
+      id:            `receipt-${Date.now()}`,
+      code:          body.orderNumber ?? `TABLE-${body.tableLabel ?? '?'}`,
+      date:          new Date(),
+      shopName:      body.tableLabel ?? '',
+      shopAddr:      null,
+      shopPhone:     null,
+      cashierName:   null,
+      items:         body.items,
+      subtotal:      body.subtotal,
+      discount:      0,
+      total:         body.grandTotal,
+      paymentMethod: body.paymentMethod ?? null,
+      currency:      'MGA',
+    }
+
+    await autoPrintSaleReceipt(req.user!.restaurantId, payload)
+    res.json({ success: true })
   } catch (error) {
     next(error)
   }

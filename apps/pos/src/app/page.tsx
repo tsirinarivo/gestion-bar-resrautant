@@ -128,10 +128,12 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
 // ─── Receipt modal ─────────────────────────────────────────────────────────────
 
 function ReceiptModal({
-  tableLabel, openOrders, cart, onClose,
+  token, tableLabel, openOrders, cart, onClose,
 }: {
-  tableLabel: string; openOrders: Order[]; cart: CartItem[]; onClose: () => void;
+  token: string; tableLabel: string; openOrders: Order[]; cart: CartItem[]; onClose: () => void;
 }) {
+  const [cloudStatus, setCloudStatus] = useState<'idle' | 'sending' | 'ok' | 'err'>('idle');
+
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -140,6 +142,39 @@ function ReceiptModal({
   const cartTotal    = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const grandTotal   = kitchenTotal + cartTotal;
 
+  const allItems = [
+    ...openOrders.flatMap(o => o.items.map(i => ({
+      name: i.product.name, qty: i.quantity,
+      unitPrice: i.totalPrice / i.quantity, total: i.totalPrice,
+    }))),
+    ...cart.map(i => ({
+      name: i.product.name, qty: i.quantity,
+      unitPrice: i.product.price, total: i.product.price * i.quantity,
+    })),
+  ];
+
+  async function printOnCloud() {
+    setCloudStatus('sending');
+    try {
+      const res = await fetch(`${API_URL}/api/printer/receipt`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          tableLabel,
+          orderNumber: openOrders[0]?.orderNumber,
+          items: allItems,
+          subtotal: grandTotal,
+          grandTotal,
+        }),
+      });
+      const data = await res.json() as { success: boolean };
+      setCloudStatus(data.success ? 'ok' : 'err');
+    } catch {
+      setCloudStatus('err');
+    }
+    setTimeout(() => setCloudStatus('idle'), 3000);
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70 print:hidden" onClick={onClose} />
@@ -147,11 +182,19 @@ function ReceiptModal({
 
         {/* Header actions — hidden when printing */}
         <div className="flex items-center justify-between px-4 py-3 bg-gray-100 print:hidden">
-          <span className="text-sm font-semibold text-gray-600">Aperçu reçu</span>
+          <span className="text-sm font-semibold text-gray-600">Reçu</span>
           <div className="flex gap-2">
+            <button onClick={printOnCloud} disabled={cloudStatus === 'sending'}
+              className={`text-white text-sm font-bold px-3 py-1.5 rounded-xl transition-colors disabled:opacity-60 ${
+                cloudStatus === 'ok'  ? 'bg-green-600' :
+                cloudStatus === 'err' ? 'bg-red-600'   :
+                'bg-blue-600 hover:bg-blue-500'
+              }`}>
+              {cloudStatus === 'sending' ? '⏳' : cloudStatus === 'ok' ? '✅ Envoyé' : cloudStatus === 'err' ? '❌ Erreur' : '☁️ Imprimer'}
+            </button>
             <button onClick={() => window.print()}
-              className="bg-orange-500 hover:bg-orange-400 text-white text-sm font-bold px-4 py-1.5 rounded-xl transition-colors">
-              🖨️ Imprimer
+              className="bg-gray-600 hover:bg-gray-500 text-white text-sm font-bold px-3 py-1.5 rounded-xl transition-colors">
+              🖨️
             </button>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl w-8 h-8 flex items-center justify-center">&times;</button>
           </div>
@@ -576,6 +619,7 @@ export default function POSPage() {
       {/* Receipt modal */}
       {showReceipt && (
         <ReceiptModal
+          token={token!}
           tableLabel={tableLabel}
           openOrders={openOrders as Order[]}
           cart={cart}
