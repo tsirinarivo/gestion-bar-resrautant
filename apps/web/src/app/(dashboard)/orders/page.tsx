@@ -76,18 +76,15 @@ function PaymentModal({ orderId, onClose, onDone }: { orderId: string; onClose: 
 
   const addPayment = useMutation({
     mutationFn: (body: any) => api.post('/payments', body),
-    onSuccess: (res) => {
-      refetch()
-      qc.invalidateQueries({ queryKey: ['orders'] })
+    onSuccess: () => {
       setPayAmount('')
       setNotes('')
-      if (res.data?.data) {
-        // Check if order is now fully paid
-        refetch().then((r: any) => {
-          if ((r.data?.remaining ?? 1) <= 0) { toast.success('Commande entièrement réglée'); onDone() }
-          else toast.success('Paiement partiel enregistré')
-        })
-      }
+      refetch().then((result) => {
+        const freshRemaining: number = (result.data as any)?.remaining ?? 1
+        if (freshRemaining <= 0) { toast.success('Commande entièrement réglée'); onDone() }
+        else toast.success('Paiement partiel enregistré')
+      })
+      qc.invalidateQueries({ queryKey: ['orders'] })
     },
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Erreur paiement'),
   })
@@ -101,17 +98,17 @@ function PaymentModal({ orderId, onClose, onDone }: { orderId: string; onClose: 
 
   function handlePayAll() { setPayAmount(String(remaining.toFixed(0))) }
 
-  function handleApplyTip() {
+  function handleApplyTip(): void {
     const t = parseFloat(tip)
-    if (isNaN(t) || t < 0) return toast.error('Montant invalide')
+    if (isNaN(t) || t < 0) { toast.error('Montant invalide'); return }
     saveTip.mutate(t)
     setTip('')
   }
 
-  function handlePay() {
+  function handlePay(): void {
     const amount = parseFloat(payAmount)
-    if (isNaN(amount) || amount <= 0) return toast.error('Montant invalide')
-    if (amount > remaining + 0.01) return toast.error(`Maximum encaissable: ${formatCurrency(remaining)}`)
+    if (isNaN(amount) || amount <= 0) { toast.error('Montant invalide'); return }
+    if (amount > remaining + 0.01) { toast.error(`Maximum encaissable: ${formatCurrency(remaining)}`); return }
     addPayment.mutate({ orderId, amount, method, notes: notes || undefined })
   }
 
