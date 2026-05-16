@@ -7,11 +7,83 @@ import {
   printTest, printerStatus,
   getLogs, refreshLogs,
   enrollPrinter,
-  autoPrintSaleReceipt,
+  sendPrintAndLog,
   XPYUN_REGIONS,
   loadPrinterCfg,
   callXprint,
 } from '../lib/printer'
+
+const WIDTH = 48
+
+function esc(s: string): string {
+  return (s ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/œ/g, 'oe').replace(/Œ/g, 'OE')
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+    .replace(/[–—]/g, '-')
+    .replace(/[^\x20-\x7E]/g, '')
+    .replace(/</g, '(').replace(/>/g, ')')
+}
+
+function rowLine(left: string, right: string): string {
+  const pad = WIDTH - left.length - right.length
+  if (pad > 0) return left + ' '.repeat(pad) + right
+  return left.slice(0, WIDTH - right.length - 1) + ' ' + right
+}
+
+function fmtAr(amount: number): string {
+  const formatted = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    .format(amount)
+    .replace(/[  ]/g, ' ')
+  return `Ar ${formatted}`
+}
+
+function buildPOSReceipt(params: {
+  shopName: string
+  shopAddr: string | null
+  shopPhone: string | null
+  tableLabel: string
+  items: Array<{ name: string; qty: number; total: number }>
+  grandTotal: number
+}): string {
+  const { shopName, shopAddr, shopPhone, tableLabel, items, grandTotal } = params
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  const dDiv = '='.repeat(WIDTH)
+  const div  = '-'.repeat(WIDTH)
+
+  const lines: string[] = []
+
+  // ── Logo & header ───────────────────────────────────────────────────────────
+  lines.push(dDiv)
+  lines.push(`<C><B>${esc(shopName).toUpperCase()}</B></C>`)
+  if (shopAddr)  lines.push(`<C>${esc(shopAddr)}</C>`)
+  if (shopPhone) lines.push(`<C>Tel: ${esc(shopPhone)}</C>`)
+  lines.push(dDiv)
+  if (tableLabel) lines.push(`<C><B>${esc(tableLabel).toUpperCase()}</B></C>`)
+  lines.push(`<C>${dateStr}  ${timeStr}</C>`)
+  lines.push(div)
+
+  // ── Items (une ligne par article, comme l'écran) ────────────────────────────
+  for (const item of items) {
+    const name  = esc(item.name)
+    const price = fmtAr(item.total)
+    lines.push(`<L>${rowLine(`${item.qty}x ${name}`, price)}</L>`)
+  }
+
+  lines.push(div)
+
+  // ── Total ───────────────────────────────────────────────────────────────────
+  lines.push(`<C><B>${rowLine('TOTAL', fmtAr(grandTotal))}</B></C>`)
+  lines.push(dDiv)
+  lines.push('')
+  lines.push(`<C>Merci de votre visite !</C>`)
+  lines.push('')
+
+  return lines.join('<BR>')
+}
 
 export const printerRouter = Router()
 printerRouter.use(authenticate)
@@ -40,26 +112,25 @@ printerRouter.post('/receipt', async (req: AuthRequest, res, next) => {
       select: { name: true, address: true, phone: true },
     })
 
-    const tableInfo = body.tableNumber ? `Table ${body.tableNumber}` : (body.tableLabel || 'Emporté')
+    const tableLabel = body.tableNumber
+      ? `Table ${body.tableNumber}`
+      : (body.tableLabel || 'Emporte')
 
-    const payload = {
-      id:            `receipt-${Date.now()}`,
-      code:          body.orderNumber || tableInfo,
-      date:          new Date(),
-      shopName:      restaurant?.name ?? 'Restaurant',
-      shopAddr:      restaurant?.address ?? null,
-      shopPhone:     restaurant?.phone ?? null,
-      cashierName:   body.cashierName ?? null,
-      items:         body.items,
-      subtotal:      body.subtotal,
-      discount:      0,
-      total:         body.grandTotal,
-      paymentMethod: body.paymentMethod ?? null,
-      currency:      'MGA',
-      note:          tableInfo,
-    }
+    const content = buildPOSReceipt({
+      shopName:   restaurant?.name ?? 'Restaurant',
+      shopAddr:   (restaurant as any)?.address ?? null,
+      shopPhone:  (restaurant as any)?.phone ?? null,
+      tableLabel,
+      items:      body.items,
+      grandTotal: body.grandTotal,
+    })
 
-    await autoPrintSaleReceipt(req.user!.restaurantId, payload)
+    await sendPrintAndLog(req.user!.restaurantId, content, {
+      kind:      'receipt',
+      relatedId: body.orderNumber ?? `receipt-${Date.now()}`,
+      copies:    1,
+    })
+
     res.json({ success: true })
   } catch (error) {
     next(error)
