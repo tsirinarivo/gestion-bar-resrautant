@@ -125,6 +125,89 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
   );
 }
 
+// ─── Receipt modal ─────────────────────────────────────────────────────────────
+
+function ReceiptModal({
+  tableLabel, openOrders, cart, onClose,
+}: {
+  tableLabel: string; openOrders: Order[]; cart: CartItem[]; onClose: () => void;
+}) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  const kitchenTotal = openOrders.reduce((s, o) => s + o.totalAmount, 0);
+  const cartTotal    = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
+  const grandTotal   = kitchenTotal + cartTotal;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/70 print:hidden" onClick={onClose} />
+      <div className="relative w-full sm:max-w-sm bg-white text-gray-900 rounded-t-2xl sm:rounded-2xl z-10 overflow-hidden">
+
+        {/* Header actions — hidden when printing */}
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-100 print:hidden">
+          <span className="text-sm font-semibold text-gray-600">Aperçu reçu</span>
+          <div className="flex gap-2">
+            <button onClick={() => window.print()}
+              className="bg-orange-500 hover:bg-orange-400 text-white text-sm font-bold px-4 py-1.5 rounded-xl transition-colors">
+              🖨️ Imprimer
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl w-8 h-8 flex items-center justify-center">&times;</button>
+          </div>
+        </div>
+
+        {/* Receipt body */}
+        <div className="p-5 font-mono text-sm" id="receipt-content">
+          <div className="text-center mb-4">
+            <p className="text-lg font-bold tracking-wide">🍽️ RestaurantOS</p>
+            <p className="text-xs text-gray-500">{dateStr} à {timeStr}</p>
+            <p className="text-xs text-gray-500">{tableLabel}</p>
+          </div>
+
+          <div className="border-t border-dashed border-gray-400 my-3" />
+
+          {/* Items from kitchen orders */}
+          {openOrders.map(order => (
+            <div key={order.id}>
+              <p className="text-[10px] text-gray-400 mb-1">Commande {order.orderNumber}</p>
+              {order.items.map(item => (
+                <div key={item.id} className="flex justify-between py-0.5">
+                  <span>{item.quantity}× {item.product.name}</span>
+                  <span className="font-semibold">{formatCurrency(item.totalPrice)}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+
+          {/* Pending cart items */}
+          {cart.length > 0 && (
+            <div>
+              {openOrders.length > 0 && <p className="text-[10px] text-gray-400 mt-2 mb-1">En cours</p>}
+              {cart.map(item => (
+                <div key={item.product.id} className="flex justify-between py-0.5">
+                  <span>{item.quantity}× {item.product.name}</span>
+                  <span className="font-semibold">{formatCurrency(item.product.price * item.quantity)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t border-dashed border-gray-400 my-3" />
+
+          <div className="flex justify-between font-bold text-base">
+            <span>TOTAL</span>
+            <span>{formatCurrency(grandTotal)}</span>
+          </div>
+
+          <div className="border-t border-dashed border-gray-400 my-3" />
+          <p className="text-center text-xs text-gray-400">Merci de votre visite !</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Payment modal ─────────────────────────────────────────────────────────────
 
 function PaymentModal({
@@ -172,7 +255,7 @@ function PaymentModal({
 
 function CartPanel({
   token, cart, orderNote, activeTable, orderType, openOrders,
-  onAdd, onRemove, onNoteChange, onSendToKitchen, onShowPayment, onClearCart, onClose,
+  onAdd, onRemove, onNoteChange, onSendToKitchen, onShowPayment, onShowReceipt, onClearCart, onClose,
   sending, isMobile,
 }: {
   token: string; cart: CartItem[]; orderNote: string;
@@ -180,7 +263,7 @@ function CartPanel({
   openOrders: Order[];
   onAdd: (p: Product) => void; onRemove: (id: string) => void;
   onNoteChange: (v: string) => void;
-  onSendToKitchen: () => void; onShowPayment: () => void; onClearCart: () => void;
+  onSendToKitchen: () => void; onShowPayment: () => void; onShowReceipt: () => void; onClearCart: () => void;
   onClose?: () => void; sending: boolean; isMobile?: boolean;
 }) {
   const existingTotal = openOrders.reduce((s, o) => s + o.totalAmount, 0);
@@ -303,11 +386,19 @@ function CartPanel({
             {sending ? '⏳ Envoi...' : '👨‍🍳 Envoyer en cuisine'}
           </button>
         )}
-        {(openOrders.length > 0 || (orderType === 'TAKEAWAY' && cart.length > 0)) && (
-          <button onClick={onShowPayment}
-            className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white py-3.5 rounded-xl font-bold transition-colors">
-            💳 L'addition — {formatCurrency(grandTotal)}
-          </button>
+        {(openOrders.length > 0 || cart.length > 0) && (
+          <div className="flex gap-2">
+            <button onClick={onShowReceipt}
+              className="flex items-center justify-center gap-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-3.5 rounded-xl font-bold transition-colors text-sm whitespace-nowrap">
+              🧾 Reçu
+            </button>
+            {(openOrders.length > 0 || (orderType === 'TAKEAWAY' && cart.length > 0)) && (
+              <button onClick={onShowPayment}
+                className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white py-3.5 rounded-xl font-bold transition-colors text-sm">
+                💳 L'addition — {formatCurrency(grandTotal)}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -327,6 +418,7 @@ export default function POSPage() {
   const [sending,          setSending]          = useState(false);
   const [paying,           setPaying]           = useState(false);
   const [showPayModal,     setShowPayModal]      = useState(false);
+  const [showReceipt,      setShowReceipt]       = useState(false);
   const [cartOpen,         setCartOpen]          = useState(false);
   const [toast,            setToast]            = useState<{ msg: string; ok: boolean } | null>(null);
   const qc = useQueryClient();
@@ -467,6 +559,7 @@ export default function POSPage() {
     openOrders: openOrders as Order[],
     onAdd: addToCart, onRemove: removeFromCart, onNoteChange: setOrderNote,
     onSendToKitchen: sendToKitchen, onShowPayment: () => setShowPayModal(true),
+    onShowReceipt: () => setShowReceipt(true),
     onClearCart: () => setCart([]), sending,
   };
 
@@ -478,6 +571,16 @@ export default function POSPage() {
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl ${toast.ok ? 'bg-green-800 text-green-100' : 'bg-red-800 text-red-100'}`}>
           {toast.msg}
         </div>
+      )}
+
+      {/* Receipt modal */}
+      {showReceipt && (
+        <ReceiptModal
+          tableLabel={tableLabel}
+          openOrders={openOrders as Order[]}
+          cart={cart}
+          onClose={() => setShowReceipt(false)}
+        />
       )}
 
       {/* Payment modal */}
