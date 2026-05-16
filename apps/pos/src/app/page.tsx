@@ -128,15 +128,16 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
 // ─── Receipt modal ─────────────────────────────────────────────────────────────
 
 function ReceiptModal({
-  token, tableLabel, openOrders, cart, onClose,
+  token, activeTable, orderType, openOrders, cart, onClose,
 }: {
-  token: string; tableLabel: string; openOrders: Order[]; cart: CartItem[]; onClose: () => void;
+  token: string; activeTable: Table | null; orderType: 'DINE_IN' | 'TAKEAWAY'; openOrders: Order[]; cart: CartItem[]; onClose: () => void;
 }) {
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'sending' | 'ok' | 'err'>('idle');
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const tableLabel = activeTable ? `Table ${activeTable.number}` : orderType === 'TAKEAWAY' ? 'Emporté' : 'Commande';
 
   const kitchenTotal = openOrders.reduce((s, o) => s + o.totalAmount, 0);
   const cartTotal    = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
@@ -160,10 +161,11 @@ function ReceiptModal({
         method: 'POST',
         headers: authHeaders(token),
         body: JSON.stringify({
+          tableNumber:  activeTable?.number,
           tableLabel,
-          orderNumber: openOrders[0]?.orderNumber,
-          items: allItems,
-          subtotal: grandTotal,
+          orderNumber:  openOrders[0]?.orderNumber,
+          items:        allItems,
+          subtotal:     grandTotal,
           grandTotal,
         }),
       });
@@ -620,7 +622,8 @@ export default function POSPage() {
       {showReceipt && (
         <ReceiptModal
           token={token!}
-          tableLabel={tableLabel}
+          activeTable={activeTable}
+          orderType={orderType}
           openOrders={openOrders as Order[]}
           cart={cart}
           onClose={() => setShowReceipt(false)}

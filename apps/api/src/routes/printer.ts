@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
+import { prisma } from '../lib/prisma'
 import {
   getConfig, updateConfig,
   printTest, printerStatus,
@@ -19,9 +20,11 @@ printerRouter.use(authenticate)
 printerRouter.post('/receipt', async (req: AuthRequest, res, next) => {
   try {
     const body = z.object({
+      tableNumber:   z.number().optional(),
       tableLabel:    z.string().optional(),
       orderNumber:   z.string().optional(),
       paymentMethod: z.string().optional(),
+      cashierName:   z.string().optional(),
       items: z.array(z.object({
         name:      z.string(),
         qty:       z.number(),
@@ -32,20 +35,28 @@ printerRouter.post('/receipt', async (req: AuthRequest, res, next) => {
       grandTotal:  z.number(),
     }).parse(req.body)
 
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: req.user!.restaurantId },
+      select: { name: true, address: true, phone: true },
+    })
+
+    const tableInfo = body.tableNumber ? `Table ${body.tableNumber}` : (body.tableLabel || 'Emporté')
+
     const payload = {
       id:            `receipt-${Date.now()}`,
-      code:          body.orderNumber ?? `TABLE-${body.tableLabel ?? '?'}`,
+      code:          body.orderNumber || tableInfo,
       date:          new Date(),
-      shopName:      body.tableLabel ?? '',
-      shopAddr:      null,
-      shopPhone:     null,
-      cashierName:   null,
+      shopName:      restaurant?.name ?? 'Restaurant',
+      shopAddr:      restaurant?.address ?? null,
+      shopPhone:     restaurant?.phone ?? null,
+      cashierName:   body.cashierName ?? null,
       items:         body.items,
       subtotal:      body.subtotal,
       discount:      0,
       total:         body.grandTotal,
       paymentMethod: body.paymentMethod ?? null,
       currency:      'MGA',
+      note:          tableInfo,
     }
 
     await autoPrintSaleReceipt(req.user!.restaurantId, payload)
