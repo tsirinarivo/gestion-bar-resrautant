@@ -139,6 +139,39 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
   );
 }
 
+function PaymentMethodModal({
+  total, onPay, onClose, processing,
+}: {
+  total: number; onPay: (m: PaymentMethod) => void; onClose: () => void; processing: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-5 z-10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold">Mode de paiement</h3>
+            <p className="text-orange-400 font-bold text-xl">{formatCurrency(total)}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none w-9 h-9 flex items-center justify-center">&times;</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {POS_PAYMENT_METHODS.map(m => (
+            <button
+              key={m.value}
+              onClick={() => { onPay(m.value); onClose(); }}
+              disabled={processing}
+              className={`${m.color} disabled:opacity-40 text-white py-4 rounded-xl text-sm font-bold transition-colors active:scale-95`}
+            >
+              {processing ? '...' : m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CartPanel({
   cart, total, orderNote, status, statusMsg,
   onAdd, onRemove, onNoteChange, onPay, onClear, onClose, isMobile,
@@ -148,85 +181,91 @@ function CartPanel({
   onNoteChange: (v: string) => void; onPay: (m: PaymentMethod) => void;
   onClear: () => void; onClose?: () => void; isMobile?: boolean;
 }) {
+  const [showPayModal, setShowPayModal] = useState(false);
+
   return (
-    <div className={`flex flex-col ${isMobile ? 'h-full' : 'w-96 border-l border-gray-700'} bg-gray-800`}>
-      <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold">Commande en cours</h2>
-          <p className="text-sm text-gray-400">{cart.reduce((s, i) => s + i.quantity, 0)} article(s)</p>
-        </div>
-        {onClose && (
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
-        )}
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        {cart.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <p className="text-4xl mb-3">🛒</p>
-            <p className="text-sm">Panier vide</p>
-          </div>
-        ) : cart.map(item => (
-          <div key={item.product.id} className="flex items-center gap-2 bg-gray-700/50 rounded-xl p-3">
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">{item.product.name}</p>
-              <p className="text-xs text-gray-400">{formatCurrency(item.product.price)} × {item.quantity}</p>
-            </div>
-            <div className="flex items-center gap-1">
-              <button onClick={() => onRemove(item.product.id)} className="w-7 h-7 rounded-full bg-gray-600 hover:bg-red-600 flex items-center justify-center text-sm">−</button>
-              <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
-              <button onClick={() => onAdd(item.product)} className="w-7 h-7 rounded-full bg-gray-600 hover:bg-green-600 flex items-center justify-center text-sm">+</button>
-            </div>
-            <span className="text-orange-400 font-bold text-sm w-24 text-right">{formatCurrency(item.product.price * item.quantity)}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="px-4 pb-2">
-        <input
-          type="text" placeholder="Note..." value={orderNote}
-          onChange={e => onNoteChange(e.target.value)}
-          className="w-full bg-gray-700 rounded-xl px-3 py-2 text-sm placeholder-gray-500 outline-none focus:ring-1 focus:ring-orange-500"
+    <>
+      {showPayModal && (
+        <PaymentMethodModal
+          total={total}
+          onPay={onPay}
+          onClose={() => setShowPayModal(false)}
+          processing={status === 'processing'}
         />
-      </div>
-
-      <div className="px-4 pt-2 border-t border-gray-700">
-        <div className="flex justify-between font-bold text-xl py-3">
-          <span>Total TTC</span>
-          <span className="text-orange-400">{formatCurrency(total)}</span>
+      )}
+      <div className={`flex flex-col ${isMobile ? 'h-full' : 'w-96 border-l border-gray-700'} bg-gray-800`}>
+        <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold">Commande en cours</h2>
+            <p className="text-sm text-gray-400">{cart.reduce((s, i) => s + i.quantity, 0)} article(s)</p>
+          </div>
+          {onClose && (
+            <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+          )}
         </div>
-      </div>
 
-      {status === 'success' && (
-        <div className="mx-4 mb-2 bg-green-900/60 text-green-300 text-sm rounded-xl px-4 py-3">{statusMsg}</div>
-      )}
-      {status === 'error' && (
-        <div className="mx-4 mb-2 bg-red-900/60 text-red-300 text-sm rounded-xl px-4 py-3">{statusMsg}</div>
-      )}
-
-      <div className="p-4 space-y-2">
-        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Mode de paiement</p>
-        <div className="grid grid-cols-2 gap-2">
-          {POS_PAYMENT_METHODS.map(m => (
-            <button
-              key={m.value}
-              onClick={() => onPay(m.value)}
-              disabled={cart.length === 0 || status === 'processing'}
-              className={`${m.color} disabled:opacity-40 text-white py-3 rounded-xl text-sm font-bold transition-colors`}
-            >
-              {status === 'processing' ? '...' : m.label}
-            </button>
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {cart.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-500">
+              <p className="text-4xl mb-3">🛒</p>
+              <p className="text-sm">Panier vide</p>
+            </div>
+          ) : cart.map(item => (
+            <div key={item.product.id} className="flex items-center gap-2 bg-gray-700/50 rounded-xl p-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm truncate">{item.product.name}</p>
+                <p className="text-xs text-gray-400">{formatCurrency(item.product.price)} × {item.quantity}</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => onRemove(item.product.id)} className="w-7 h-7 rounded-full bg-gray-600 hover:bg-red-600 flex items-center justify-center text-sm">−</button>
+                <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
+                <button onClick={() => onAdd(item.product)} className="w-7 h-7 rounded-full bg-gray-600 hover:bg-green-600 flex items-center justify-center text-sm">+</button>
+              </div>
+              <span className="text-orange-400 font-bold text-sm w-24 text-right">{formatCurrency(item.product.price * item.quantity)}</span>
+            </div>
           ))}
         </div>
-        <button
-          onClick={onClear}
-          disabled={cart.length === 0}
-          className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 py-3 rounded-xl text-sm mt-1"
-        >
-          Annuler
-        </button>
+
+        <div className="px-4 pb-2">
+          <input
+            type="text" placeholder="Note..." value={orderNote}
+            onChange={e => onNoteChange(e.target.value)}
+            className="w-full bg-gray-700 rounded-xl px-3 py-2 text-sm placeholder-gray-500 outline-none focus:ring-1 focus:ring-orange-500"
+          />
+        </div>
+
+        <div className="px-4 pt-2 border-t border-gray-700">
+          <div className="flex justify-between font-bold text-xl py-3">
+            <span>Total TTC</span>
+            <span className="text-orange-400">{formatCurrency(total)}</span>
+          </div>
+        </div>
+
+        {status === 'success' && (
+          <div className="mx-4 mb-2 bg-green-900/60 text-green-300 text-sm rounded-xl px-4 py-3">{statusMsg}</div>
+        )}
+        {status === 'error' && (
+          <div className="mx-4 mb-2 bg-red-900/60 text-red-300 text-sm rounded-xl px-4 py-3">{statusMsg}</div>
+        )}
+
+        <div className="p-4 flex gap-2">
+          <button
+            onClick={() => setShowPayModal(true)}
+            disabled={cart.length === 0 || status === 'processing'}
+            className="flex-1 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white py-4 rounded-xl font-bold text-base transition-colors"
+          >
+            {status === 'processing' ? 'Traitement...' : '💳 Payer'}
+          </button>
+          <button
+            onClick={onClear}
+            disabled={cart.length === 0}
+            className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 px-4 py-4 rounded-xl text-sm"
+          >
+            ✕
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
