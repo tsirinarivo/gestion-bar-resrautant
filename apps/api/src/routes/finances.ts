@@ -344,6 +344,101 @@ financesRouter.put('/expenses/:id', async (req: AuthRequest, res, next) => {
   }
 })
 
+// GET /api/finances/rapport-journalier?date=YYYY-MM-DD
+financesRouter.get('/rapport-journalier', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const dateStr = (req.query.date as string) || new Date().toISOString().slice(0, 10)
+    const day = new Date(dateStr)
+    const start = new Date(day); start.setHours(0, 0, 0, 0)
+    const end   = new Date(day); end.setHours(23, 59, 59, 999)
+
+    const [orders, expenses, caisse, stockAlerts, topProducts] = await Promise.all([
+      // Commandes complétées du jour
+      prisma.order.findMany({
+        where: { restaurantId, status: { in: ['COMPLETED', 'DELIVERED'] }, createdAt: { gte: start, lte: end } },
+        include: { payments: true, items: { include: { product: { select: { name: true, costPrice: true } } } } },
+      }),
+      // Dépenses du jour
+      prisma.expense.findMany({
+        where: { restaurantId, date: { gte: start, lte: end } },
+      }),
+      // Session caisse du jour
+      prisma.caisseSession.findFirst({
+        where: { restaurantId, openedAt: { gte: start, lte: end } },
+        include: { transactions: true },
+        orderBy: { openedAt: 'desc' },
+      }),
+      // Alertes stock actives
+      prisma.stockAlert.count({ where: { stockItem: { restaurantId }, isRead: false } }),
+      // Top 10 produits vendus
+      prisma.orderItem.groupBy({
+        by: ['productId'],
+        where: { order: { restaurantId, status: { in: ['COMPLETED', 'DELIVERED'] }, createdAt: { gte: start, lte: end } } },
+        _sum: { quantity: true, totalPrice: true },
+        orderBy: { _sum: { totalPrice: 'desc' } },
+        take: 10,
+      }),
+    ])
+
+    // Calculs CA
+    const totalRevenue  = orders.reduce((s, o) => s + o.totalAmount, 0)
+    const totalTax      = orders.reduce((s, o) => s + o.taxAmount, 0)
+    const totalDiscount = orders.reduce((s, o) => s + o.discountAmount, 0)
+    const totalTip      = orders.reduce((s, o) => s + (o.tipAmount || 0), 0)
+    const totalCOGS     = orders.reduce((s, o) => s + o.items.reduce((si, i) => si + (i.product?.costPrice || 0) * i.quantity, 0), 0)
+    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
+    const grossMargin   = totalRevenue - totalCOGS
+    const netMargin     = grossMargin - totalExpenses
+
+    // CA par mode de paiement
+    const byMethod: Record<string, number> = {}
+    for (const order of orders) {
+      for (const p of order.payments) {
+        if (p.status === 'COMPLETED') byMethod[p.method] = (byMethod[p.method] || 0) + p.amount
+      }
+    }
+
+    // Top produits enrichis
+    const productIds = topProducts.map(p => p.productId)
+    const productNames = await prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true } })
+    const nameMap = Object.fromEntries(productNames.map(p => [p.id, p.name]))
+    const topProductsList = topProducts.map(p => ({
+      productId: p.productId,
+      name: nameMap[p.productId] || 'Inconnu',
+      quantity: p._sum.quantity || 0,
+      revenue: p._sum.totalPrice || 0,
+    }))
+
+    // Résumé caisse
+    let caisseExpected = 0, caisseDiff: number | null = null
+    if (caisse) {
+      caisseExpected = caisse.openingFloat
+      for (const t of caisse.transactions) {
+        if (['SALE', 'WITHDRAWAL'].includes(t.type)) caisseExpected += t.amount
+        else if (['REFUND', 'EXPENSE', 'DEPOSIT'].includes(t.type)) caisseExpected -= t.amount
+        else if (t.type === 'ADJUSTMENT') caisseExpected += t.amount
+      }
+      if (caisse.closingFloat !== null) caisseDiff = caisse.closingFloat - caisseExpected
+    }
+
+    res.json({
+      success: true,
+      data: {
+        date: dateStr,
+        orders: { count: orders.length, totalRevenue, totalTax, totalDiscount, totalTip, totalCOGS, grossMargin, netMargin },
+        byPaymentMethod: byMethod,
+        expenses: { total: totalExpenses, items: expenses },
+        caisse: caisse ? { id: caisse.id, status: caisse.status, openingFloat: caisse.openingFloat, expectedCash: caisseExpected, closingFloat: caisse.closingFloat, difference: caisseDiff, openedAt: caisse.openedAt, closedAt: caisse.closedAt } : null,
+        topProducts: topProductsList,
+        stockAlerts,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // DELETE /api/finances/expenses/:id
 financesRouter.delete('/expenses/:id', async (req: AuthRequest, res, next) => {
   try {

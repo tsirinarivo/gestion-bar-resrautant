@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ShoppingCart, Plus, RefreshCw, XCircle, X, ChefHat,
-  Check, Clock, Utensils, CheckCircle2, Search, ChevronDown, Trash2
+  Check, Clock, Utensils, CheckCircle2, Search, ChevronDown, Trash2,
+  Banknote, CreditCard, Split,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, formatRelative } from '@restaurant/utils'
@@ -47,6 +48,209 @@ const ORDER_TYPES = {
 }
 
 interface CartItem { productId: string; name: string; price: number; quantity: number; notes: string }
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: '💵 Espèces', CARD: '💳 Carte', STRIPE: 'Stripe', PAYPAL: 'PayPal', VOUCHER: '🎟️ Bon', WALLET: '👜 Wallet',
+}
+
+// ─── Payment Modal (tip + split bill) ────────────────────────────────────────
+
+function PaymentModal({ orderId, onClose, onDone }: { orderId: string; onClose: () => void; onDone: () => void }) {
+  const qc = useQueryClient()
+  const [payAmount, setPayAmount] = useState('')
+  const [method, setMethod] = useState<string>('CASH')
+  const [tip, setTip] = useState('')
+  const [tipSaved, setTipSaved] = useState(false)
+  const [notes, setNotes] = useState('')
+
+  const { data, refetch } = useQuery({
+    queryKey: ['order-payments', orderId],
+    queryFn: () => api.get(`/orders/${orderId}/payments`).then(r => r.data.data),
+  })
+
+  const saveTip = useMutation({
+    mutationFn: (t: number) => api.patch(`/orders/${orderId}/tip`, { tip: t }),
+    onSuccess: () => { setTipSaved(true); refetch(); qc.invalidateQueries({ queryKey: ['orders'] }) },
+    onError: () => toast.error('Erreur pourboire'),
+  })
+
+  const addPayment = useMutation({
+    mutationFn: (body: any) => api.post('/payments', body),
+    onSuccess: (res) => {
+      refetch()
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      setPayAmount('')
+      setNotes('')
+      if (res.data?.data) {
+        // Check if order is now fully paid
+        refetch().then((r: any) => {
+          if ((r.data?.remaining ?? 1) <= 0) { toast.success('Commande entièrement réglée'); onDone() }
+          else toast.success('Paiement partiel enregistré')
+        })
+      }
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Erreur paiement'),
+  })
+
+  const order = data?.order
+  const payments: any[] = data?.payments ?? []
+  const paid = data?.paid ?? 0
+  const remaining = data?.remaining ?? 0
+  const totalAmount = order?.totalAmount ?? 0
+  const tipAmount = order?.tipAmount ?? 0
+
+  function handlePayAll() { setPayAmount(String(remaining.toFixed(0))) }
+
+  function handleApplyTip() {
+    const t = parseFloat(tip)
+    if (isNaN(t) || t < 0) return toast.error('Montant invalide')
+    saveTip.mutate(t)
+    setTip('')
+  }
+
+  function handlePay() {
+    const amount = parseFloat(payAmount)
+    if (isNaN(amount) || amount <= 0) return toast.error('Montant invalide')
+    if (amount > remaining + 0.01) return toast.error(`Maximum encaissable: ${formatCurrency(remaining)}`)
+    addPayment.mutate({ orderId, amount, method, notes: notes || undefined })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
+        className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-md overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-brand-border">
+          <div>
+            <h2 className="font-bold text-lg flex items-center gap-2">
+              <Banknote className="w-5 h-5 text-brand-orange" /> Encaissement
+            </h2>
+            {order && <p className="text-xs text-brand-muted mt-0.5">Commande {order.orderNumber}</p>}
+          </div>
+          <button onClick={onClose} className="text-brand-muted hover:text-white p-1"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
+          {/* Totaux */}
+          <div className="bg-black/20 rounded-xl p-4 space-y-2 text-sm">
+            <div className="flex justify-between text-brand-muted">
+              <span>Sous-total</span>
+              <span>{formatCurrency((order?.subtotal ?? 0) + (order?.taxAmount ?? 0) - (order?.discountAmount ?? 0))}</span>
+            </div>
+            {tipAmount > 0 && (
+              <div className="flex justify-between text-yellow-400">
+                <span>Pourboire</span>
+                <span>+{formatCurrency(tipAmount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-base border-t border-white/10 pt-2">
+              <span>Total</span>
+              <span className="text-brand-orange">{formatCurrency(totalAmount)}</span>
+            </div>
+            <div className="flex justify-between text-emerald-400">
+              <span>Déjà payé</span>
+              <span>{formatCurrency(paid)}</span>
+            </div>
+            <div className="flex justify-between font-bold text-lg border-t border-white/10 pt-2">
+              <span>Reste à payer</span>
+              <span className={remaining <= 0 ? 'text-emerald-400' : 'text-white'}>{formatCurrency(remaining)}</span>
+            </div>
+          </div>
+
+          {/* Pourboire */}
+          {remaining > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-2">Ajouter un pourboire</p>
+              <div className="flex gap-2">
+                <input
+                  type="number" min="0" placeholder="Montant pourboire"
+                  value={tip} onChange={e => { setTip(e.target.value); setTipSaved(false) }}
+                  className="flex-1 bg-black/30 border border-brand-border rounded-xl px-3 py-2.5 text-sm text-white"
+                />
+                <button
+                  onClick={handleApplyTip} disabled={!tip || saveTip.isPending}
+                  className="px-4 py-2.5 rounded-xl bg-yellow-500/20 text-yellow-400 text-sm font-semibold border border-yellow-500/30 hover:bg-yellow-500/30 disabled:opacity-40"
+                >
+                  {tipSaved ? '✓' : 'Appliquer'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Historique paiements partiels */}
+          {payments.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-2 flex items-center gap-1">
+                <Split className="w-3 h-3" /> Paiements enregistrés
+              </p>
+              <div className="space-y-1.5">
+                {payments.map((p: any) => (
+                  <div key={p.id} className="flex justify-between items-center text-sm bg-black/20 rounded-lg px-3 py-2">
+                    <span className="text-brand-muted">{PAYMENT_METHOD_LABELS[p.method] ?? p.method}</span>
+                    <span className="font-semibold text-emerald-400">{formatCurrency(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Nouveau paiement */}
+          {remaining > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-2">
+                {payments.length > 0 ? 'Paiement supplémentaire' : 'Mode de paiement'}
+              </p>
+              {/* Méthode */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {(['CASH', 'CARD', 'VOUCHER'] as const).map(m => (
+                  <button key={m} onClick={() => setMethod(m)}
+                    className={`py-2.5 rounded-xl text-xs font-semibold transition-all border ${method === m ? 'bg-brand-orange/20 border-brand-orange text-brand-orange' : 'bg-black/20 border-brand-border text-brand-muted'}`}>
+                    {PAYMENT_METHOD_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+              {/* Montant */}
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="number" min="0" placeholder="Montant"
+                  value={payAmount} onChange={e => setPayAmount(e.target.value)}
+                  className="flex-1 bg-black/30 border border-brand-border rounded-xl px-3 py-2.5 text-sm text-white"
+                />
+                <button onClick={handlePayAll}
+                  className="px-3 py-2.5 rounded-xl bg-white/10 text-xs font-semibold text-brand-muted hover:text-white border border-brand-border">
+                  Tout
+                </button>
+              </div>
+              <input
+                type="text" placeholder="Notes (optionnel)"
+                value={notes} onChange={e => setNotes(e.target.value)}
+                className="w-full bg-black/30 border border-brand-border rounded-xl px-3 py-2.5 text-sm text-white mb-3"
+              />
+              <button
+                onClick={handlePay} disabled={!payAmount || addPayment.isPending}
+                className="w-full py-3.5 rounded-xl bg-brand-orange text-white font-bold text-base disabled:opacity-40 hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-5 h-5" />
+                {addPayment.isPending ? 'Traitement...' : `Encaisser ${payAmount ? formatCurrency(parseFloat(payAmount)) : ''}`}
+              </button>
+            </div>
+          )}
+
+          {remaining <= 0 && (
+            <div className="text-center py-4">
+              <p className="text-emerald-400 font-bold text-lg">✓ Commande entièrement réglée</p>
+              <button onClick={onDone} className="mt-3 px-6 py-2 rounded-xl bg-emerald-500/20 text-emerald-400 text-sm font-semibold border border-emerald-500/30">
+                Fermer
+              </button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  )
+}
 
 // ─── New Order Modal (mobile-first) ──────────────────────────────────────────
 
@@ -355,7 +559,7 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 
 // ─── Order card ───────────────────────────────────────────────────────────────
 
-function OrderCard({ order, onStatusChange }: { order: any; onStatusChange: (id: string, status: string) => void }) {
+function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChange: (id: string, status: string) => void; onPay: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false)
   const statusConf = ORDER_STATUSES.find(s => s.value === order.status) ?? ORDER_STATUSES[0]!
   const nextAction = STATUS_NEXT[order.status]
@@ -432,6 +636,13 @@ function OrderCard({ order, onStatusChange }: { order: any; onStatusChange: (id:
               {nextAction.label}
             </button>
           )}
+          {!['COMPLETED', 'CANCELLED'].includes(order.status) && (
+            <button
+              onClick={() => onPay(order.id)}
+              className="flex items-center gap-1.5 px-3 py-3 rounded-xl bg-emerald-500/15 text-emerald-400 text-sm font-semibold active:bg-emerald-500/25">
+              <Banknote className="w-4 h-4" /> Payer
+            </button>
+          )}
           {order.status === 'PENDING' && (
             <button
               onClick={() => onStatusChange(order.id, 'CANCELLED')}
@@ -454,6 +665,7 @@ function OrderCard({ order, onStatusChange }: { order: any; onStatusChange: (id:
 export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [showNew, setShowNew] = useState(false)
+  const [payingOrderId, setPayingOrderId] = useState<string | null>(null)
   const qc = useQueryClient()
 
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
@@ -485,6 +697,13 @@ export default function OrdersPage() {
           <NewOrderModal
             onClose={() => setShowNew(false)}
             onCreated={() => qc.invalidateQueries({ queryKey: ['orders'] })}
+          />
+        )}
+        {payingOrderId && (
+          <PaymentModal
+            orderId={payingOrderId}
+            onClose={() => setPayingOrderId(null)}
+            onDone={() => { setPayingOrderId(null); qc.invalidateQueries({ queryKey: ['orders'] }) }}
           />
         )}
       </AnimatePresence>
@@ -545,7 +764,8 @@ export default function OrdersPage() {
           ) : (
             orders.map((order: any) => (
               <OrderCard key={order.id} order={order}
-                onStatusChange={(id, status) => updateStatus.mutate({ id, status })} />
+                onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
+                onPay={(id) => setPayingOrderId(id)} />
             ))
           )}
         </AnimatePresence>

@@ -424,6 +424,41 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
   }
 })
 
+// PATCH /api/orders/:id/tip — ajouter/modifier le pourboire
+orderRouter.patch('/:id/tip', async (req: AuthRequest, res, next) => {
+  try {
+    const { tip } = z.object({ tip: z.number().min(0) }).parse(req.body)
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!order) throw new AppError('Commande introuvable', 404)
+    const newTotal = order.subtotal + order.taxAmount - order.discountAmount + order.deliveryFee + tip
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { tipAmount: tip, totalAmount: newTotal },
+    })
+    res.json({ success: true, data: updated })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/orders/:id/payments — paiements d'une commande avec solde restant
+orderRouter.get('/:id/payments', async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+      include: { payments: { orderBy: { createdAt: 'asc' } } },
+    })
+    if (!order) throw new AppError('Commande introuvable', 404)
+    const paid = order.payments.filter(p => p.status === 'COMPLETED').reduce((s, p) => s + p.amount, 0)
+    const remaining = Math.max(0, order.totalAmount - paid)
+    res.json({ success: true, data: { order, payments: order.payments, paid, remaining } })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // DELETE /api/orders/:id
 orderRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {

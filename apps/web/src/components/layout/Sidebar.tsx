@@ -9,7 +9,7 @@ import {
   Package, Users, Calendar, BarChart3, Settings, ChefHat,
   Monitor, LogOut, ChevronLeft, ChevronRight,
   CreditCard, Tag, UserCog, X, Truck, TrendingUp, Printer,
-  Warehouse, Landmark, Building2,
+  Warehouse, Landmark, Building2, FileText,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/lib/api'
@@ -31,7 +31,10 @@ const navItems = [
   { href: '/customers', label: 'Clients', icon: Users, roles: ['manager', 'superadmin', 'caissier'] },
   { href: '/employees', label: 'Employés', icon: UserCog, roles: ['manager', 'superadmin'] },
   { href: '/coupons', label: 'Promotions', icon: Tag, roles: ['manager', 'superadmin'] },
+  { href: '/caisse', label: 'Caisse', icon: Landmark, roles: ['manager', 'superadmin', 'caissier'] },
+  { href: '/bank', label: 'Banque', icon: Building2, roles: ['manager', 'superadmin'] },
   { href: '/finances', label: 'Finances', icon: TrendingUp, roles: ['manager', 'superadmin'] },
+  { href: '/rapport', label: 'Rapport journalier', icon: FileText, roles: ['manager', 'superadmin'] },
   { href: '/analytics', label: 'Analytics', icon: BarChart3, roles: ['manager', 'superadmin'] },
   { href: '/settings/printer', label: 'Imprimante', icon: Printer, roles: ['manager', 'superadmin'] },
   { href: '/settings', label: 'Paramètres', icon: Settings, roles: ['manager', 'superadmin'] },
