@@ -1340,11 +1340,13 @@ model BankAccount {
   balance       Float    @default(0)
   currency      String   @default("MGA")
   isActive      Boolean  @default(true)
+  paymentMethod String?  // CASH, CARD, STRIPE, PAYPAL, VOUCHER, WALLET — auto-wires payments
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   transactions BankTransaction[]
 
+  @@unique([restaurantId, paymentMethod])
   @@index([restaurantId])
   @@map("bank_accounts")
 }

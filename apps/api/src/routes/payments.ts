@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
+import { autoPostPaymentToBank } from './bank'
 
 export const paymentRouter = Router()
 paymentRouter.use(authenticate)
@@ -17,8 +18,9 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       notes: z.string().optional(),
     }).parse(req.body)
 
+    const restaurantId = req.user!.restaurantId
     const order = await prisma.order.findFirst({
-      where: { id: data.orderId, restaurantId: req.user!.restaurantId },
+      where: { id: data.orderId, restaurantId },
     })
     if (!order) throw new AppError('Commande introuvable', 404)
 
@@ -38,6 +40,16 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       })
     }
 
+    // Auto-credit the bank account linked to this payment method
+    await autoPostPaymentToBank(
+      restaurantId,
+      data.method,
+      data.amount,
+      'CREDIT',
+      `Paiement commande ${order.orderNumber}`,
+      payment.id,
+    ).catch(() => { /* non-bloquant */ })
+
     res.status(201).json({ success: true, data: payment })
   } catch (error) {
     next(error)
@@ -53,6 +65,7 @@ paymentRouter.post('/:id/refund', authorize('manager', 'superadmin'), async (req
 
     const payment = await prisma.payment.findFirst({
       where: { id: req.params.id, order: { restaurantId: req.user!.restaurantId } },
+      include: { order: { select: { restaurantId: true, orderNumber: true } } },
     })
     if (!payment) throw new AppError('Paiement introuvable', 404)
     if (amount > payment.amount) throw new AppError('Le montant du remboursement dépasse le paiement', 400)
@@ -66,6 +79,16 @@ paymentRouter.post('/:id/refund', authorize('manager', 'superadmin'), async (req
     } else {
       await prisma.payment.update({ where: { id: payment.id }, data: { status: 'PARTIAL_REFUND' } })
     }
+
+    // Auto-debit the linked bank account for the refund
+    await autoPostPaymentToBank(
+      payment.order.restaurantId,
+      payment.method,
+      amount,
+      'DEBIT',
+      `Remboursement commande ${payment.order.orderNumber}${reason ? ` — ${reason}` : ''}`,
+      refund.id,
+    ).catch(() => { /* non-bloquant */ })
 
     res.status(201).json({ success: true, data: refund })
   } catch (error) {

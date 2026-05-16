@@ -17,6 +17,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 type AccountType = 'CHECKING' | 'SAVINGS'
 type TransactionType = 'CREDIT' | 'DEBIT'
 
+const PAYMENT_METHODS = [
+  { value: 'CASH',    label: '💵 Espèces' },
+  { value: 'CARD',    label: '💳 Carte bancaire' },
+  { value: 'STRIPE',  label: '🌐 Stripe' },
+  { value: 'PAYPAL',  label: '🅿️ PayPal' },
+  { value: 'VOUCHER', label: '🎟️ Bon / Chèque' },
+  { value: 'WALLET',  label: '👜 Wallet' },
+]
+
 type BankAccount = {
   id: string
   name: string
@@ -26,6 +35,7 @@ type BankAccount = {
   balance: number
   currency: string
   isActive: boolean
+  paymentMethod?: string | null
   transactionCount?: number
 }
 
@@ -70,14 +80,15 @@ function AccountModal({
     initialBalance: account?.balance?.toString() ?? '0',
     currency: account?.currency ?? 'MGA',
     isActive: account?.isActive ?? true,
+    paymentMethod: account?.paymentMethod ?? '',
   })
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name.trim()) { toast.error('Le nom est requis'); return }
-    if (!form.bankName.trim()) { toast.error('La banque est requise'); return }
     onSave({
       ...form,
+      paymentMethod: form.paymentMethod || null,
       initialBalance: parseFloat(form.initialBalance) || 0,
     })
   }
@@ -109,13 +120,12 @@ function AccountModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-brand-muted mb-1 block">Banque *</label>
+              <label className="text-xs text-brand-muted mb-1 block">Banque</label>
               <input
                 value={form.bankName}
                 onChange={e => setForm(f => ({ ...f, bankName: e.target.value }))}
                 className="input-field"
                 placeholder="Ex: BNI Madagascar"
-                required
               />
             </div>
             <div>
@@ -162,6 +172,25 @@ function AccountModal({
                 placeholder="MGA"
               />
             </div>
+          </div>
+          <div>
+            <label className="text-xs text-brand-muted mb-1 block">
+              Mode de paiement lié
+              <span className="ml-1 text-brand-orange">(flux automatique)</span>
+            </label>
+            <select
+              value={form.paymentMethod}
+              onChange={e => setForm(f => ({ ...f, paymentMethod: e.target.value }))}
+              className="input-field"
+            >
+              <option value="">— Aucun (manuel uniquement) —</option>
+              {PAYMENT_METHODS.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-brand-muted mt-1">
+              Si défini, chaque paiement avec ce mode sera automatiquement enregistré ici.
+            </p>
           </div>
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
@@ -455,13 +484,18 @@ export default function BankPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold truncate">{account.name}</p>
+                      {account.paymentMethod && (
+                        <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-xs border bg-brand-orange/15 text-brand-orange border-brand-orange/30">
+                          {PAYMENT_METHODS.find(m => m.value === account.paymentMethod)?.label ?? account.paymentMethod}
+                        </span>
+                      )}
                       {!account.isActive && (
                         <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-xs border bg-gray-500/15 text-gray-400 border-gray-500/30">
                           Inactif
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-brand-muted">{account.bankName} · {accountTypeLabel(account.type)}</p>
+                    <p className="text-xs text-brand-muted">{account.bankName ?? '—'} · {accountTypeLabel(account.type)}</p>
                     {account.accountNumber && (
                       <p className="text-xs text-brand-muted font-mono mt-0.5">{account.accountNumber}</p>
                     )}

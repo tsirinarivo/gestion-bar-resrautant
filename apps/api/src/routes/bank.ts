@@ -8,6 +8,8 @@ export const bankRouter = Router()
 bankRouter.use(authenticate)
 bankRouter.use(authorize('manager', 'superadmin'))
 
+const VALID_PAYMENT_METHODS = ['CASH', 'CARD', 'STRIPE', 'PAYPAL', 'VOUCHER', 'WALLET'] as const
+
 const accountSchema = z.object({
   name: z.string().min(1),
   bankName: z.string().optional(),
@@ -16,7 +18,30 @@ const accountSchema = z.object({
   balance: z.number().default(0),
   currency: z.string().default('MGA'),
   isActive: z.boolean().default(true),
+  paymentMethod: z.enum(VALID_PAYMENT_METHODS).nullable().optional(),
 })
+
+// Called by payments route to auto-wire a payment to the matching bank account
+export async function autoPostPaymentToBank(
+  restaurantId: string,
+  paymentMethod: string,
+  amount: number,
+  type: 'CREDIT' | 'DEBIT',
+  description: string,
+  reference?: string,
+) {
+  const account = await prisma.bankAccount.findFirst({
+    where: { restaurantId, paymentMethod, isActive: true },
+  })
+  if (!account) return // no linked account — silently skip
+  const newBalance = type === 'CREDIT' ? account.balance + amount : account.balance - amount
+  await prisma.$transaction([
+    prisma.bankAccount.update({ where: { id: account.id }, data: { balance: newBalance } }),
+    prisma.bankTransaction.create({
+      data: { accountId: account.id, restaurantId, type, amount, balanceAfter: newBalance, description, reference },
+    }),
+  ])
+}
 
 // GET /api/bank/accounts
 bankRouter.get('/accounts', async (req: AuthRequest, res, next) => {
@@ -45,10 +70,16 @@ bankRouter.post('/accounts', async (req: AuthRequest, res, next) => {
 bankRouter.put('/accounts/:id', async (req: AuthRequest, res, next) => {
   try {
     const data = accountSchema.partial().parse(req.body)
-    const existing = await prisma.bankAccount.findFirst({
-      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
-    })
+    const restaurantId = req.user!.restaurantId
+    const existing = await prisma.bankAccount.findFirst({ where: { id: req.params.id, restaurantId } })
     if (!existing) throw new AppError('Compte introuvable', 404)
+    // Ensure no other account already claims this paymentMethod
+    if (data.paymentMethod) {
+      const conflict = await prisma.bankAccount.findFirst({
+        where: { restaurantId, paymentMethod: data.paymentMethod, id: { not: req.params.id } },
+      })
+      if (conflict) throw new AppError(`Le mode "${data.paymentMethod}" est déjà lié au compte "${conflict.name}"`, 409)
+    }
     const account = await prisma.bankAccount.update({ where: { id: req.params.id }, data })
     res.json({ success: true, data: account })
   } catch (error) { next(error) }
