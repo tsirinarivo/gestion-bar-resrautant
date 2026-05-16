@@ -13,7 +13,7 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
     const data = z.object({
       orderId: z.string(),
       amount: z.number().positive(),
-      method: z.enum(['CASH', 'CARD', 'STRIPE', 'PAYPAL', 'VOUCHER', 'WALLET']),
+      method: z.enum(['CASH', 'CARD', 'MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY', 'BNI_MOBILE', 'BOA_MOBILE', 'VIREMENT', 'CHEQUE', 'VOUCHER', 'WALLET']),
       reference: z.string().optional(),
       notes: z.string().optional(),
     }).parse(req.body)

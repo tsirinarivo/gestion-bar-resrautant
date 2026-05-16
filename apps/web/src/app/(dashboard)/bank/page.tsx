@@ -18,12 +18,17 @@ type AccountType = 'CHECKING' | 'SAVINGS'
 type TransactionType = 'CREDIT' | 'DEBIT'
 
 const PAYMENT_METHODS = [
-  { value: 'CASH',    label: '💵 Espèces' },
-  { value: 'CARD',    label: '💳 Carte bancaire' },
-  { value: 'STRIPE',  label: '🌐 Stripe' },
-  { value: 'PAYPAL',  label: '🅿️ PayPal' },
-  { value: 'VOUCHER', label: '🎟️ Bon / Chèque' },
-  { value: 'WALLET',  label: '👜 Wallet' },
+  { value: 'CASH',         label: '💵 Espèces' },
+  { value: 'MVOLA',        label: '📱 MVola (Telma)' },
+  { value: 'ORANGE_MONEY', label: '🟠 Orange Money' },
+  { value: 'AIRTEL_MONEY', label: '🔴 Airtel Money' },
+  { value: 'CARD',         label: '💳 Carte bancaire' },
+  { value: 'BNI_MOBILE',   label: '🏦 BNI Mobile' },
+  { value: 'BOA_MOBILE',   label: '🏦 BOA Mobile' },
+  { value: 'VIREMENT',     label: '🔁 Virement bancaire' },
+  { value: 'CHEQUE',       label: '📄 Chèque' },
+  { value: 'VOUCHER',      label: '🎟️ Bon / Coupon' },
+  { value: 'WALLET',       label: '👜 Wallet' },
 ]
 
 type BankAccount = {

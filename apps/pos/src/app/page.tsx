@@ -40,7 +40,22 @@ async function fetchProducts(token: string, categoryId?: string): Promise<Produc
   return data.data ?? [];
 }
 
-async function createOrder(token: string, cart: CartItem[], note: string, method: 'CASH' | 'CARD') {
+type PaymentMethod = 'CASH' | 'MVOLA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'CARD' | 'BNI_MOBILE' | 'BOA_MOBILE' | 'VIREMENT' | 'CHEQUE' | 'VOUCHER'
+
+const POS_PAYMENT_METHODS: { value: PaymentMethod; label: string; color: string }[] = [
+  { value: 'CASH',         label: '💵 Espèces',      color: 'bg-green-600 hover:bg-green-500' },
+  { value: 'MVOLA',        label: '📱 MVola',         color: 'bg-red-600 hover:bg-red-500' },
+  { value: 'ORANGE_MONEY', label: '🟠 Orange Money',  color: 'bg-orange-500 hover:bg-orange-400' },
+  { value: 'AIRTEL_MONEY', label: '🔴 Airtel Money',  color: 'bg-red-700 hover:bg-red-600' },
+  { value: 'CARD',         label: '💳 Carte',         color: 'bg-blue-600 hover:bg-blue-500' },
+  { value: 'BNI_MOBILE',   label: '🏦 BNI Mobile',    color: 'bg-indigo-600 hover:bg-indigo-500' },
+  { value: 'BOA_MOBILE',   label: '🏦 BOA Mobile',    color: 'bg-violet-600 hover:bg-violet-500' },
+  { value: 'VIREMENT',     label: '🔁 Virement',      color: 'bg-cyan-600 hover:bg-cyan-500' },
+  { value: 'CHEQUE',       label: '📄 Chèque',        color: 'bg-gray-500 hover:bg-gray-400' },
+  { value: 'VOUCHER',      label: '🎟️ Bon',           color: 'bg-yellow-600 hover:bg-yellow-500' },
+]
+
+async function createOrder(token: string, cart: CartItem[], note: string, method: PaymentMethod) {
   const items = cart.map(i => ({
     productId: i.product.id,
     quantity: i.quantity,
@@ -130,7 +145,7 @@ function CartPanel({
 }: {
   cart: CartItem[]; total: number; orderNote: string; status: string; statusMsg: string;
   onAdd: (p: Product) => void; onRemove: (id: string) => void;
-  onNoteChange: (v: string) => void; onPay: (m: 'CASH' | 'CARD') => void;
+  onNoteChange: (v: string) => void; onPay: (m: PaymentMethod) => void;
   onClear: () => void; onClose?: () => void; isMobile?: boolean;
 }) {
   return (
@@ -189,27 +204,24 @@ function CartPanel({
         <div className="mx-4 mb-2 bg-red-900/60 text-red-300 text-sm rounded-xl px-4 py-3">{statusMsg}</div>
       )}
 
-      <div className="p-4 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => onPay('CASH')}
-            disabled={cart.length === 0 || status === 'processing'}
-            className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white py-4 rounded-xl font-bold transition-colors"
-          >
-            {status === 'processing' ? '...' : '💵 Espèces'}
-          </button>
-          <button
-            onClick={() => onPay('CARD')}
-            disabled={cart.length === 0 || status === 'processing'}
-            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-4 rounded-xl font-bold transition-colors"
-          >
-            {status === 'processing' ? '...' : '💳 Carte'}
-          </button>
+      <div className="p-4 space-y-2">
+        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Mode de paiement</p>
+        <div className="grid grid-cols-2 gap-2">
+          {POS_PAYMENT_METHODS.map(m => (
+            <button
+              key={m.value}
+              onClick={() => onPay(m.value)}
+              disabled={cart.length === 0 || status === 'processing'}
+              className={`${m.color} disabled:opacity-40 text-white py-3 rounded-xl text-sm font-bold transition-colors`}
+            >
+              {status === 'processing' ? '...' : m.label}
+            </button>
+          ))}
         </div>
         <button
           onClick={onClear}
           disabled={cart.length === 0}
-          className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 py-3 rounded-xl text-sm"
+          className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 py-3 rounded-xl text-sm mt-1"
         >
           Annuler
         </button>
@@ -254,7 +266,7 @@ export default function POSPage() {
   const total = cart.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
-  const handlePay = async (method: 'CASH' | 'CARD') => {
+  const handlePay = async (method: PaymentMethod) => {
     if (cart.length === 0 || !token) return;
     setStatus('processing');
     setStatusMsg('');

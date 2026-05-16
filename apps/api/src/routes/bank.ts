@@ -8,7 +8,13 @@ export const bankRouter = Router()
 bankRouter.use(authenticate)
 bankRouter.use(authorize('manager', 'superadmin'))
 
-const VALID_PAYMENT_METHODS = ['CASH', 'CARD', 'STRIPE', 'PAYPAL', 'VOUCHER', 'WALLET'] as const
+const VALID_PAYMENT_METHODS = [
+  'CASH', 'CARD',
+  'MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY',
+  'BNI_MOBILE', 'BOA_MOBILE',
+  'VIREMENT', 'CHEQUE',
+  'VOUCHER', 'WALLET',
+] as const
 
 const accountSchema = z.object({
   name: z.string().min(1),

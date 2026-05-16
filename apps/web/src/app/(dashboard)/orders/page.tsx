@@ -49,9 +49,22 @@ const ORDER_TYPES = {
 
 interface CartItem { productId: string; name: string; price: number; quantity: number; notes: string }
 
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: '💵 Espèces', CARD: '💳 Carte', STRIPE: 'Stripe', PAYPAL: 'PayPal', VOUCHER: '🎟️ Bon', WALLET: '👜 Wallet',
-}
+const PAYMENT_METHODS_MG = [
+  { value: 'CASH',         label: '💵 Espèces' },
+  { value: 'MVOLA',        label: '📱 MVola' },
+  { value: 'ORANGE_MONEY', label: '🟠 Orange Money' },
+  { value: 'AIRTEL_MONEY', label: '🔴 Airtel Money' },
+  { value: 'CARD',         label: '💳 Carte bancaire' },
+  { value: 'BNI_MOBILE',   label: '🏦 BNI Mobile' },
+  { value: 'BOA_MOBILE',   label: '🏦 BOA Mobile' },
+  { value: 'VIREMENT',     label: '🔁 Virement' },
+  { value: 'CHEQUE',       label: '📄 Chèque' },
+  { value: 'VOUCHER',      label: '🎟️ Bon' },
+]
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = Object.fromEntries(
+  PAYMENT_METHODS_MG.map(m => [m.value, m.label])
+)
 
 // ─── Payment Modal (tip + split bill) ────────────────────────────────────────
 
@@ -200,11 +213,11 @@ function PaymentModal({ orderId, onClose, onDone }: { orderId: string; onClose: 
                 {payments.length > 0 ? 'Paiement supplémentaire' : 'Mode de paiement'}
               </p>
               {/* Méthode */}
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {(['CASH', 'CARD', 'VOUCHER'] as const).map(m => (
-                  <button key={m} onClick={() => setMethod(m)}
-                    className={`py-2.5 rounded-xl text-xs font-semibold transition-all border ${method === m ? 'bg-brand-orange/20 border-brand-orange text-brand-orange' : 'bg-black/20 border-brand-border text-brand-muted'}`}>
-                    {PAYMENT_METHOD_LABELS[m]}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {PAYMENT_METHODS_MG.map(m => (
+                  <button key={m.value} onClick={() => setMethod(m.value)}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold transition-all border text-left ${method === m.value ? 'bg-brand-orange/20 border-brand-orange text-brand-orange' : 'bg-black/20 border-brand-border text-brand-muted hover:border-white/20'}`}>
+                    {m.label}
                   </button>
                 ))}
               </div>
