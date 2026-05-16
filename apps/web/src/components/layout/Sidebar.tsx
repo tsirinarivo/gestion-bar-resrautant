@@ -8,7 +8,8 @@ import {
   LayoutDashboard, UtensilsCrossed, ShoppingCart, Table2,
   Package, Users, Calendar, BarChart3, Settings, ChefHat,
   Monitor, LogOut, ChevronLeft, ChevronRight,
-  CreditCard, Tag, UserCog, X, Truck, TrendingUp, Printer
+  CreditCard, Tag, UserCog, X, Truck, TrendingUp, Printer,
+  Warehouse, Landmark, Building2,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/lib/api'
@@ -25,6 +26,7 @@ const navItems = [
   { href: '/pos', label: 'Caisse', icon: CreditCard, roles: ['*'], highlight: true },
   { href: '/kds', label: 'Cuisine (KDS)', icon: Monitor, roles: ['cuisinier', 'manager', 'superadmin'] },
   { href: '/stock', label: 'Stock', icon: Package, roles: ['manager', 'superadmin'] },
+  { href: '/warehouses', label: 'Entrepôts', icon: Warehouse, roles: ['manager', 'superadmin'] },
   { href: '/suppliers', label: 'Fournisseurs', icon: Truck, roles: ['manager', 'superadmin'] },
   { href: '/customers', label: 'Clients', icon: Users, roles: ['manager', 'superadmin', 'caissier'] },
   { href: '/employees', label: 'Employés', icon: UserCog, roles: ['manager', 'superadmin'] },
