@@ -41,7 +41,7 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [search, setSearch]                     = useState('')
   const [showPayment, setShowPayment]           = useState(false)
-  const [paymentMethod, setPaymentMethod]       = useState<'CASH' | 'CARD'>('CASH')
+  const [paymentMethod, setPaymentMethod]       = useState<string>('CASH')
   const [sending, setSending]                   = useState(false)
   const [paying, setPaying]                     = useState(false)
   const [mobileView, setMobileView]             = useState<'products' | 'cart'>('products')
@@ -447,12 +447,24 @@ export default function POSPage() {
                   <p className="text-xs text-brand-muted mt-1">{(openOrders as any[]).length} commande(s) soldée(s)</p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                {([['CASH', '💵', 'Espèces'], ['CARD', '💳', 'Carte']] as const).map(([m, icon, label]) => (
+              <div className="grid grid-cols-3 gap-2 mb-6 max-h-48 overflow-y-auto">
+                {([
+                  ['CASH',         '💵', 'Espèces'],
+                  ['MVOLA',        '📱', 'MVola'],
+                  ['ORANGE_MONEY', '🟠', 'Orange Money'],
+                  ['AIRTEL_MONEY', '🔴', 'Airtel Money'],
+                  ['CARD',         '💳', 'Carte'],
+                  ['BNI_MOBILE',   '🏦', 'BNI Mobile'],
+                  ['BOA_MOBILE',   '🏦', 'BOA Mobile'],
+                  ['VIREMENT',     '🔁', 'Virement'],
+                  ['CHEQUE',       '📄', 'Chèque'],
+                  ['VOUCHER',      '🎟️', 'Bon'],
+                  ['WALLET',       '👜', 'Wallet'],
+                ] as const).map(([m, icon, label]) => (
                   <button key={m} onClick={() => setPaymentMethod(m)}
-                    className={`p-4 rounded-xl border-2 text-center transition-all ${paymentMethod === m ? 'border-brand-orange bg-brand-orange/10' : 'border-brand-border'}`}>
-                    <p className="text-2xl mb-1">{icon}</p>
-                    <p className="text-sm font-medium">{label}</p>
+                    className={`p-2.5 rounded-xl border-2 text-center transition-all ${paymentMethod === m ? 'border-brand-orange bg-brand-orange/10' : 'border-brand-border hover:border-brand-orange/40'}`}>
+                    <p className="text-xl mb-0.5">{icon}</p>
+                    <p className="text-xs font-medium leading-tight">{label}</p>
                   </button>
                 ))}
               </div>
