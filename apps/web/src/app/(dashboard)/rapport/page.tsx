@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Calendar, TrendingUp, ShoppingCart, Banknote, CreditCard,
-  AlertTriangle, ChefHat, Printer, RefreshCw, ArrowUpRight, ArrowDownRight,
+  AlertTriangle, ChefHat, Printer, RefreshCw, ArrowUpRight, ArrowDownRight, FileText,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
@@ -87,11 +87,18 @@ export default function RapportPage() {
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
           </button>
           <button
+            onClick={() => window.open(`/rapport-print?date=${date}`, '_blank')}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-card border border-brand-border text-sm hover:border-brand-orange transition-colors"
+          >
+            <FileText className="w-4 h-4" />
+            Format A4
+          </button>
+          <button
             onClick={handlePrint}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-orange text-white text-sm hover:bg-orange-600 transition-colors"
           >
             <Printer className="w-4 h-4" />
-            Imprimer
+            Ticket
           </button>
         </div>
       </div>
