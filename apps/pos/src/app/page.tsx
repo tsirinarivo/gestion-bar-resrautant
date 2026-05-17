@@ -253,44 +253,195 @@ function ReceiptModal({
   );
 }
 
-// ─── Payment modal ─────────────────────────────────────────────────────────────
+// ─── Payment modal (multi-méthode) ────────────────────────────────────────────
 
 function PaymentModal({
-  total, tableLabel, orderCount, paying,
-  onConfirm, onClose,
+  token, grandTotal, tableLabel, openOrders, cart, orderType, activeTable, orderNote,
+  onComplete, onClose,
 }: {
-  total: number; tableLabel: string; orderCount: number; paying: boolean;
-  onConfirm: (method: string) => void; onClose: () => void;
+  token: string; grandTotal: number; tableLabel: string;
+  openOrders: Order[]; cart: CartItem[]; orderType: 'DINE_IN' | 'TAKEAWAY';
+  activeTable: Table | null; orderNote: string;
+  onComplete: () => void; onClose: () => void;
 }) {
-  const [selected, setSelected] = useState('CASH');
+  // Queue of orders to pay: {id, remaining}
+  const [orderQueue, setOrderQueue] = useState<{id: string; remaining: number}[]>([]);
+  const [ready, setReady]           = useState(false);   // orders created
+  const [done, setDone]             = useState(false);
+  const [busy, setBusy]             = useState(false);
+  const [method, setMethod]         = useState('CASH');
+  const [amountStr, setAmountStr]   = useState('');
+  const [payments, setPayments]     = useState<{method: string; amount: number}[]>([]);
+  const [error, setError]           = useState('');
+
+  const totalPaid  = payments.reduce((s, p) => s + p.amount, 0);
+  const remaining  = Math.max(0, grandTotal - totalPaid);
+
+  // On mount: create order from cart if needed, then build queue
+  useState(() => {
+    (async () => {
+      setBusy(true);
+      try {
+        const queue: {id: string; remaining: number}[] = [];
+
+        if (cart.length > 0) {
+          const newOrder = await apiPost<{id: string; totalAmount: number}>(token, '/orders', {
+            type: orderType, status: 'CONFIRMED',
+            tableId: activeTable?.id,
+            notes: orderNote || undefined,
+            items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price })),
+          });
+          queue.push({ id: newOrder.id, remaining: newOrder.totalAmount });
+        }
+
+        for (const o of openOrders) {
+          queue.push({ id: o.id, remaining: o.totalAmount });
+        }
+
+        setOrderQueue(queue);
+        setAmountStr(String(grandTotal));
+        setReady(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur création commande');
+      } finally {
+        setBusy(false);
+      }
+    })();
+  });
+
+  async function addPayment() {
+    const amount = parseFloat(amountStr);
+    if (isNaN(amount) || amount <= 0) { setError('Montant invalide'); return; }
+    if (amount > remaining + 0.01) { setError(`Maximum restant : ${formatCurrency(remaining)}`); return; }
+
+    setBusy(true); setError('');
+    try {
+      let toDistribute = amount;
+      const newQueue = [...orderQueue];
+
+      for (let i = 0; i < newQueue.length && toDistribute > 0.01; i++) {
+        if (newQueue[i]!.remaining <= 0.01) continue;
+        const pay = Math.min(newQueue[i]!.remaining, toDistribute);
+        await apiPost(token, '/payments', { orderId: newQueue[i]!.id, amount: pay, method });
+        newQueue[i] = { ...newQueue[i]!, remaining: newQueue[i]!.remaining - pay };
+        toDistribute -= pay;
+      }
+
+      setOrderQueue(newQueue);
+      setPayments(prev => [...prev, { method, amount }]);
+      const newRemaining = remaining - amount;
+      setAmountStr(newRemaining > 0.01 ? String(Math.round(newRemaining)) : '');
+      if (newRemaining <= 0.01) setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur paiement');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const methodLabel = (v: string) => POS_PAYMENT_METHODS.find(m => m.value === v)?.label ?? v;
+
+  if (done) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div className="absolute inset-0 bg-black/70" />
+        <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-6 z-10 text-center">
+          <p className="text-5xl mb-3">✅</p>
+          <p className="text-xl font-bold mb-1">Addition soldée</p>
+          <p className="text-gray-400 text-sm mb-4">{formatCurrency(grandTotal)} encaissé</p>
+          <div className="bg-gray-700/50 rounded-xl p-3 mb-5 text-left space-y-1">
+            {payments.map((p, i) => (
+              <div key={i} className="flex justify-between text-sm">
+                <span className="text-gray-300">{methodLabel(p.method)}</span>
+                <span className="font-semibold">{formatCurrency(p.amount)}</span>
+              </div>
+            ))}
+          </div>
+          <button onClick={onComplete} className="w-full bg-orange-500 hover:bg-orange-400 text-white py-3 rounded-xl font-bold">
+            Fermer
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
       <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-5 z-10">
         <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-4 sm:hidden" />
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-bold">L'addition</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-bold">L'addition — {tableLabel}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">&times;</button>
         </div>
-        <p className="text-gray-400 text-sm mb-1">{tableLabel}{orderCount > 0 ? ` · ${orderCount} commande(s)` : ''}</p>
-        <p className="text-4xl font-bold text-orange-400 mb-5">{formatCurrency(total)}</p>
-        <div className="grid grid-cols-4 gap-2 mb-5">
-          {POS_PAYMENT_METHODS.map(m => (
-            <button key={m.value} onClick={() => setSelected(m.value)}
-              className={`py-3 px-1 rounded-xl border-2 text-center text-xs font-semibold transition-all ${
-                selected === m.value
-                  ? 'border-orange-500 bg-orange-500/20 text-white'
-                  : 'border-gray-600 text-gray-300 hover:border-gray-500'
-              }`}>
-              <span className="block text-lg mb-0.5">{m.label.split(' ')[0]}</span>
-              {m.label.split(' ').slice(1).join(' ')}
-            </button>
-          ))}
+
+        {/* Totals */}
+        <div className="bg-gray-700/50 rounded-xl p-3 mb-4 grid grid-cols-3 gap-2 text-center text-sm">
+          <div>
+            <p className="text-gray-400 text-xs mb-0.5">Total</p>
+            <p className="font-bold">{formatCurrency(grandTotal)}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 text-xs mb-0.5">Payé</p>
+            <p className="font-bold text-green-400">{formatCurrency(totalPaid)}</p>
+          </div>
+          <div>
+            <p className="text-gray-400 text-xs mb-0.5">Reste</p>
+            <p className="font-bold text-orange-400">{formatCurrency(remaining)}</p>
+          </div>
         </div>
-        <button onClick={() => onConfirm(selected)} disabled={paying}
-          className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white py-4 rounded-xl font-bold text-base transition-colors">
-          {paying ? 'Traitement...' : `✅ Confirmer — ${formatCurrency(total)}`}
-        </button>
+
+        {/* Payments added */}
+        {payments.length > 0 && (
+          <div className="bg-gray-700/30 rounded-xl p-2 mb-3 space-y-1">
+            {payments.map((p, i) => (
+              <div key={i} className="flex justify-between text-xs px-1">
+                <span className="text-gray-300">{methodLabel(p.method)}</span>
+                <span className="text-green-400 font-semibold">{formatCurrency(p.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {error && <p className="text-red-400 text-sm mb-3 bg-red-900/30 rounded-xl px-3 py-2">{error}</p>}
+
+        {!ready ? (
+          <p className="text-center text-gray-400 py-4">{busy ? '⏳ Préparation…' : ''}</p>
+        ) : (
+          <>
+            {/* Amount input */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 mb-1 block">Montant à encaisser (Ar)</label>
+              <input
+                type="number" min="1" step="1"
+                value={amountStr}
+                onChange={e => setAmountStr(e.target.value)}
+                placeholder={String(Math.round(remaining))}
+                className="w-full bg-gray-700 rounded-xl px-4 py-3 text-lg font-bold outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+
+            {/* Method grid */}
+            <div className="grid grid-cols-4 gap-1.5 mb-4">
+              {POS_PAYMENT_METHODS.map(m => (
+                <button key={m.value} onClick={() => setMethod(m.value)}
+                  className={`py-2.5 px-1 rounded-xl border-2 text-center text-xs font-semibold transition-all ${
+                    method === m.value
+                      ? 'border-orange-500 bg-orange-500/20 text-white'
+                      : 'border-gray-600 text-gray-300 hover:border-gray-500'
+                  }`}>
+                  <span className="block text-base mb-0.5">{m.label.split(' ')[0]}</span>
+                  {m.label.split(' ').slice(1).join(' ')}
+                </button>
+              ))}
+            </div>
+
+            <button onClick={addPayment} disabled={busy || remaining <= 0}
+              className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white py-4 rounded-xl font-bold text-base transition-colors">
+              {busy ? '⏳ Traitement…' : `➕ Encaisser ${amountStr ? formatCurrency(parseFloat(amountStr) || 0) : '…'} en ${methodLabel(method)}`}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -461,7 +612,6 @@ export default function POSPage() {
   const [activeTable,      setActiveTable]      = useState<Table | null>(null);
   const [orderType,        setOrderType]        = useState<'DINE_IN' | 'TAKEAWAY'>('DINE_IN');
   const [sending,          setSending]          = useState(false);
-  const [paying,           setPaying]           = useState(false);
   const [showPayModal,     setShowPayModal]      = useState(false);
   const [showReceipt,      setShowReceipt]       = useState(false);
   const [cartOpen,         setCartOpen]          = useState(false);
@@ -552,43 +702,18 @@ export default function POSPage() {
     }
   }
 
-  async function handlePayment(method: string) {
-    setPaying(true);
-    try {
-      // If cart has items, create & confirm them first
-      if (cart.length > 0) {
-        const order = await apiPost<{ id: string; totalAmount: number }>(token!, '/orders', {
-          type: orderType,
-          status: 'CONFIRMED',
-          tableId: activeTable?.id,
-          notes: orderNote || undefined,
-          items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price })),
-        });
-        await apiPost(token!, '/payments', { orderId: order.id, amount: order.totalAmount, method });
-        await apiPatch(token!, `/orders/${order.id}/status`, { status: 'COMPLETED' });
-      }
-      // Pay all open orders
-      for (const order of openOrders) {
-        await apiPost(token!, '/payments', { orderId: order.id, amount: order.totalAmount, method });
-        await apiPatch(token!, `/orders/${order.id}/status`, { status: 'COMPLETED' });
-      }
-      const total = openOrders.reduce((s, o) => s + o.totalAmount, 0)
-                  + cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
-      showToast(`${activeTable ? `Table ${activeTable.number}` : 'Emporté'} — ${formatCurrency(total)} encaissé`);
-      setCart([]);
-      setOrderNote('');
-      setShowPayModal(false);
-      setCartOpen(false);
-      if (activeTable) {
-        setActiveTable(null);
-        qc.invalidateQueries({ queryKey: ['pos-tables'] });
-      }
-      await refetchOrders();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Erreur paiement', false);
-    } finally {
-      setPaying(false);
+  function handlePaymentComplete() {
+    const total = grandTotal;
+    showToast(`${activeTable ? `Table ${activeTable.number}` : 'Emporté'} — ${formatCurrency(total)} encaissé`);
+    setCart([]);
+    setOrderNote('');
+    setShowPayModal(false);
+    setCartOpen(false);
+    if (activeTable) {
+      setActiveTable(null);
+      qc.invalidateQueries({ queryKey: ['pos-tables'] });
     }
+    refetchOrders();
   }
 
   const existingTotal = openOrders.reduce((s, o) => s + o.totalAmount, 0);
@@ -633,9 +758,16 @@ export default function POSPage() {
       {/* Payment modal */}
       {showPayModal && (
         <PaymentModal
-          total={grandTotal} tableLabel={tableLabel}
-          orderCount={openOrders.length} paying={paying}
-          onConfirm={handlePayment} onClose={() => setShowPayModal(false)}
+          token={token!}
+          grandTotal={grandTotal}
+          tableLabel={tableLabel}
+          openOrders={openOrders as Order[]}
+          cart={cart}
+          orderType={orderType}
+          activeTable={activeTable}
+          orderNote={orderNote}
+          onComplete={handlePaymentComplete}
+          onClose={() => setShowPayModal(false)}
         />
       )}
 
