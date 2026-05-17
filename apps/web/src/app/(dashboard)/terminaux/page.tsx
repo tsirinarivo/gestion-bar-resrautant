@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Monitor, Plus, Pencil, Trash2, Warehouse, Users, CheckCircle,
@@ -46,6 +46,13 @@ export default function TerminauxPage() {
     queryKey: ['pos-terminals'],
     queryFn: () => api.get('/pos-terminals').then(r => r.data.data),
   })
+
+  // Auto-ouvrir le modal de création si aucun terminal n'existe
+  useEffect(() => {
+    if (!isLoading && terminals.length === 0) {
+      setShowModal(true)
+    }
+  }, [isLoading, terminals.length])
 
   const { data: warehouses = [] } = useQuery({
     queryKey: ['warehouses-list'],

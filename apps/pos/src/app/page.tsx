@@ -852,7 +852,41 @@ export default function POSPage() {
 
   if (!token) return <LoginScreen onLogin={(t) => { localStorage.setItem('pos_token', t); setToken(t); setTerminal(null); setTerminalsList(null); }} />;
 
-  // Terminal selection required
+  // Aucun terminal configuré → inviter l'admin à en créer un
+  if (terminalsList !== null && terminalsList.length === 0 && !terminalId) {
+    const adminUrl = process.env['NEXT_PUBLIC_ADMIN_URL'] || 'https://admin.restaurant.dago-it.com';
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6 text-center">
+        <p className="text-5xl mb-4">🖥️</p>
+        <h1 className="text-2xl font-bold text-white mb-2">Aucun terminal configuré</h1>
+        <p className="text-gray-400 text-sm max-w-xs mb-6">
+          Vous devez créer au moins un terminal POS dans l'interface d'administration avant de pouvoir utiliser la caisse.
+        </p>
+        <a
+          href={`${adminUrl}/terminaux`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-orange-500 hover:bg-orange-400 text-white font-bold px-6 py-3 rounded-2xl transition-colors text-sm"
+        >
+          ➕ Créer un terminal dans l'administration
+        </a>
+        <button
+          onClick={() => { setTerminalsList(null); }}
+          className="mt-4 text-xs text-gray-600 hover:text-gray-400 underline"
+        >
+          Réessayer
+        </button>
+        <button
+          onClick={() => { localStorage.removeItem('pos_token'); setToken(null); }}
+          className="mt-2 text-xs text-gray-600 hover:text-gray-400"
+        >
+          Déconnexion
+        </button>
+      </div>
+    );
+  }
+
+  // Sélection de terminal si plusieurs disponibles
   if (terminalsList !== null && terminalsList.length > 0 && !terminalId) {
     return <TerminalSelector terminals={terminalsList} onSelect={(t) => {
       localStorage.setItem('pos_terminal_id', t.id);
