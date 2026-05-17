@@ -746,9 +746,9 @@ export default function POSPage() {
     staleTime: 600_000,
   });
 
-  // Attendre que le terminal soit chargé avant de fetcher les produits
-  // (sinon le filtre warehouseId n'est pas encore connu)
-  const terminalReady = !terminalId || terminal !== null;
+  // Attendre initialized ET le terminal chargé avant de fetcher les produits
+  // initialized=false → terminalId est encore null (pas lu du localStorage)
+  const terminalReady = initialized && (!terminalId || terminal !== null);
 
   const { data: products = [], error: productsError, isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ['pos-products', token, selectedCategory, terminal?.warehouseId ?? null],
@@ -758,7 +758,7 @@ export default function POSPage() {
         `/products?isAvailable=true&limit=200${selectedCategory ? `&categoryId=${selectedCategory}` : ''}${wf}`);
     },
     enabled: !!token && terminalReady,
-    staleTime: 300_000,
+    staleTime: 0,
   });
 
   const { data: openOrders = [], refetch: refetchOrders } = useQuery<Order[]>({
@@ -953,11 +953,20 @@ export default function POSPage() {
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700 flex-shrink-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-lg font-bold">🍽️ Caisse POS</h1>
           {terminal && (
             <span className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-lg font-medium">
               🖥️ {terminal.name}
+            </span>
+          )}
+          {terminal?.warehouse ? (
+            <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-lg font-medium">
+              📦 {terminal.warehouse.name}
+            </span>
+          ) : terminal && (
+            <span className="text-xs bg-gray-600/40 text-gray-400 border border-gray-600 px-2 py-0.5 rounded-lg">
+              Tous les produits
             </span>
           )}
         </div>
