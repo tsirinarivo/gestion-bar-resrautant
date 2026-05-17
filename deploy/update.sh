@@ -25,7 +25,7 @@ set -a; source .env.prod; set +a
 DC="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 
 header "2. Build des images"
-$DC build \
+$DC build --no-cache \
   --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
   --build-arg NEXT_PUBLIC_SOCKET_URL="$NEXT_PUBLIC_SOCKET_URL"
 

@@ -30,17 +30,17 @@ const TABLE_LABEL: Record<string, string> = {
 }
 
 const POS_PAYMENT_METHODS = [
-  { value: 'CASH',         label: '💵 Espèces',      color: 'bg-green-700  hover:bg-green-600' },
-  { value: 'MVOLA',        label: '📱 MVola',         color: 'bg-red-700    hover:bg-red-600' },
-  { value: 'ORANGE_MONEY', label: '🟠 Orange Money',  color: 'bg-orange-600 hover:bg-orange-500' },
-  { value: 'AIRTEL_MONEY', label: '🔴 Airtel Money',  color: 'bg-red-800    hover:bg-red-700' },
-  { value: 'CARD',         label: '💳 Carte',         color: 'bg-blue-700   hover:bg-blue-600' },
-  { value: 'BNI_MOBILE',   label: '🏦 BNI Mobile',    color: 'bg-indigo-700 hover:bg-indigo-600' },
-  { value: 'BOA_MOBILE',   label: '🏦 BOA Mobile',    color: 'bg-violet-700 hover:bg-violet-600' },
-  { value: 'VIREMENT',     label: '🔁 Virement',      color: 'bg-cyan-700   hover:bg-cyan-600' },
-  { value: 'CHEQUE',       label: '📄 Chèque',        color: 'bg-gray-600   hover:bg-gray-500' },
-  { value: 'VOUCHER',      label: '🎟️ Bon',           color: 'bg-yellow-700 hover:bg-yellow-600' },
-  { value: 'WALLET',       label: '👜 Wallet',        color: 'bg-pink-700   hover:bg-pink-600' },
+  { value: 'CASH',         label: '💵 Cash' },
+  { value: 'MVOLA',        label: '📱 MVola' },
+  { value: 'ORANGE_MONEY', label: '🟠 Orange' },
+  { value: 'AIRTEL_MONEY', label: '🔴 Airtel' },
+  { value: 'CARD',         label: '💳 Carte' },
+  { value: 'BNI_MOBILE',   label: '🏦 BNI' },
+  { value: 'BOA_MOBILE',   label: '🏦 BOA' },
+  { value: 'VIREMENT',     label: '🔁 Virement' },
+  { value: 'CHEQUE',       label: '📄 Chèque' },
+  { value: 'VOUCHER',      label: '🎟️ Bon' },
+  { value: 'WALLET',       label: '👜 Wallet' },
 ]
 
 // ─── API helpers ───────────────────────────────────────────────────────────────
@@ -345,11 +345,11 @@ function PaymentModal({
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
         <div className="absolute inset-0 bg-black/70" />
-        <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-6 z-10 text-center">
-          <p className="text-5xl mb-3">✅</p>
-          <p className="text-xl font-bold mb-1">Addition soldée</p>
-          <p className="text-gray-400 text-sm mb-4">{formatCurrency(grandTotal)} encaissé</p>
-          <div className="bg-gray-700/50 rounded-xl p-3 mb-5 text-left space-y-1">
+        <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-5 z-10 text-center">
+          <p className="text-4xl mb-2">✅</p>
+          <p className="text-lg font-bold mb-0.5">Addition soldée</p>
+          <p className="text-gray-400 text-sm mb-3">{formatCurrency(grandTotal)} encaissé</p>
+          <div className="bg-gray-700/50 rounded-xl p-3 mb-4 text-left space-y-1">
             {payments.map((p, i) => (
               <div key={i} className="flex justify-between text-sm">
                 <span className="text-gray-300">{methodLabel(p.method)}</span>
@@ -368,80 +368,81 @@ function PaymentModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-5 z-10">
-        <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-4 sm:hidden" />
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-bold">L'addition — {tableLabel}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">&times;</button>
-        </div>
-
-        {/* Totals */}
-        <div className="bg-gray-700/50 rounded-xl p-3 mb-4 grid grid-cols-3 gap-2 text-center text-sm">
-          <div>
-            <p className="text-gray-400 text-xs mb-0.5">Total</p>
-            <p className="font-bold">{formatCurrency(grandTotal)}</p>
+      <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl z-10 max-h-[95vh] overflow-y-auto">
+        <div className="p-4">
+          <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-3 sm:hidden" />
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-bold">L'addition — {tableLabel}</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">&times;</button>
           </div>
-          <div>
-            <p className="text-gray-400 text-xs mb-0.5">Payé</p>
-            <p className="font-bold text-green-400">{formatCurrency(totalPaid)}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-xs mb-0.5">Reste</p>
-            <p className="font-bold text-orange-400">{formatCurrency(remaining)}</p>
-          </div>
-        </div>
 
-        {/* Payments added */}
-        {payments.length > 0 && (
-          <div className="bg-gray-700/30 rounded-xl p-2 mb-3 space-y-1">
-            {payments.map((p, i) => (
-              <div key={i} className="flex justify-between text-xs px-1">
-                <span className="text-gray-300">{methodLabel(p.method)}</span>
-                <span className="text-green-400 font-semibold">{formatCurrency(p.amount)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {error && <p className="text-red-400 text-sm mb-3 bg-red-900/30 rounded-xl px-3 py-2">{error}</p>}
-
-        {!ready ? (
-          <p className="text-center text-gray-400 py-4">{busy ? '⏳ Préparation…' : ''}</p>
-        ) : (
-          <>
-            {/* Amount input */}
-            <div className="mb-3">
-              <label className="text-xs text-gray-400 mb-1 block">Montant à encaisser (Ar)</label>
-              <input
-                type="number" min="1" step="1"
-                value={amountStr}
-                onChange={e => setAmountStr(e.target.value)}
-                placeholder={String(Math.round(remaining))}
-                className="w-full bg-gray-700 rounded-xl px-4 py-3 text-lg font-bold outline-none focus:ring-2 focus:ring-orange-500"
-              />
+          {/* Totals */}
+          <div className="bg-gray-700/50 rounded-xl px-3 py-2 mb-3 grid grid-cols-3 gap-1 text-center">
+            <div>
+              <p className="text-gray-400 text-[10px]">Total</p>
+              <p className="font-bold text-sm">{formatCurrency(grandTotal)}</p>
             </div>
+            <div>
+              <p className="text-gray-400 text-[10px]">Payé</p>
+              <p className="font-bold text-sm text-green-400">{formatCurrency(totalPaid)}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-[10px]">Reste</p>
+              <p className="font-bold text-sm text-orange-400">{formatCurrency(remaining)}</p>
+            </div>
+          </div>
 
-            {/* Method grid */}
-            <div className="grid grid-cols-4 gap-1.5 mb-4">
-              {POS_PAYMENT_METHODS.map(m => (
-                <button key={m.value} onClick={() => setMethod(m.value)}
-                  className={`py-2.5 px-1 rounded-xl border-2 text-center text-xs font-semibold transition-all ${
-                    method === m.value
-                      ? 'border-orange-500 bg-orange-500/20 text-white'
-                      : 'border-gray-600 text-gray-300 hover:border-gray-500'
-                  }`}>
-                  <span className="block text-base mb-0.5">{m.label.split(' ')[0]}</span>
-                  {m.label.split(' ').slice(1).join(' ')}
-                </button>
+          {/* Payments added */}
+          {payments.length > 0 && (
+            <div className="bg-gray-700/30 rounded-xl px-2 py-1.5 mb-2 space-y-1">
+              {payments.map((p, i) => (
+                <div key={i} className="flex justify-between text-xs px-1">
+                  <span className="text-gray-300">{methodLabel(p.method)}</span>
+                  <span className="text-green-400 font-semibold">{formatCurrency(p.amount)}</span>
+                </div>
               ))}
             </div>
+          )}
 
-            <button onClick={addPayment} disabled={busy || remaining <= 0}
-              className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white py-4 rounded-xl font-bold text-base transition-colors">
-              {busy ? '⏳ Traitement…' : `➕ Encaisser ${amountStr ? formatCurrency(parseFloat(amountStr) || 0) : '…'} en ${methodLabel(method)}`}
-            </button>
-          </>
-        )}
+          {error && <p className="text-red-400 text-xs mb-2 bg-red-900/30 rounded-xl px-3 py-1.5">{error}</p>}
+
+          {!ready ? (
+            <p className="text-center text-gray-400 py-4 text-sm">{busy ? '⏳ Préparation…' : ''}</p>
+          ) : (
+            <>
+              {/* Amount input */}
+              <div className="mb-2">
+                <label className="text-[10px] text-gray-400 mb-0.5 block">Montant (Ar)</label>
+                <input
+                  type="number" min="1" step="1"
+                  value={amountStr}
+                  onChange={e => setAmountStr(e.target.value)}
+                  placeholder={String(Math.round(remaining))}
+                  className="w-full bg-gray-700 rounded-xl px-4 py-2.5 text-lg font-bold outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* Method grid — 4 colonnes, 3 rangées, tout visible d'un coup */}
+              <div className="grid grid-cols-4 gap-1 mb-3">
+                {POS_PAYMENT_METHODS.map(m => (
+                  <button key={m.value} onClick={() => setMethod(m.value)}
+                    className={`py-2 px-1 rounded-lg border text-center text-[11px] font-semibold transition-all leading-tight ${
+                      method === m.value
+                        ? 'border-orange-500 bg-orange-500/20 text-white'
+                        : 'border-gray-600 text-gray-300 hover:border-gray-500'
+                    }`}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
+              <button onClick={addPayment} disabled={busy || remaining <= 0}
+                className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white py-3.5 rounded-xl font-bold text-sm transition-colors">
+                {busy ? '⏳ Traitement…' : `➕ Encaisser ${amountStr ? formatCurrency(parseFloat(amountStr) || 0) : '…'} en ${methodLabel(method)}`}
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
