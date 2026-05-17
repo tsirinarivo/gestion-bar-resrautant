@@ -68,6 +68,7 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
         include: {
           category: true,
           variants: true,
+          warehouse: { select: { id: true, name: true } },
           modifierGroups: { include: { modifierGroup: { include: { modifiers: true } } } },
           recipeItems: { include: { ingredient: true } },
         },
