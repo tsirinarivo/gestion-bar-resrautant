@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { autoPostPaymentToBank } from './bank'
-import { autoPrintSaleReceipt } from '../lib/printer'
+import { autoPrintReceiptWithTable } from '../lib/printer'
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Especes', MVOLA: 'MVola', ORANGE_MONEY: 'Orange Money',
@@ -108,27 +108,26 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
         const cashier = req.user
           ? `${req.user.email}`
           : null
-        autoPrintSaleReceipt(restaurantId, {
-          id:            completedOrder.id,
-          code:          completedOrder.orderNumber,
-          date:          completedOrder.createdAt,
-          shopName:      completedOrder.restaurant.name,
-          shopAddr:      tableLabel
-                           ? `${completedOrder.restaurant.address} | ${tableLabel}`
-                           : completedOrder.restaurant.address,
-          shopPhone:     completedOrder.restaurant.phone,
-          cashierName:   cashier,
-          items:         completedOrder.items.map((i: any) => ({
+        autoPrintReceiptWithTable(restaurantId, {
+          id:           completedOrder.id,
+          code:         completedOrder.orderNumber,
+          date:         completedOrder.createdAt,
+          shopName:     completedOrder.restaurant.name,
+          shopAddr:     completedOrder.restaurant.address,
+          shopPhone:    completedOrder.restaurant.phone,
+          cashierName:  cashier,
+          table:        tableLabel,
+          items:        completedOrder.items.map((i: any) => ({
             name:      i.product?.name ?? 'Article',
             qty:       i.quantity,
             unitPrice: i.unitPrice,
             total:     i.totalPrice,
           })),
-          subtotal:      completedOrder.subtotal,
-          discount:      completedOrder.discountAmount ?? 0,
-          total:         completedOrder.totalAmount,
+          subtotal:     completedOrder.subtotal,
+          discount:     completedOrder.discountAmount ?? 0,
+          total:        completedOrder.totalAmount,
           paymentMethod: formatPaymentLabel(completedOrder.payments),
-          currency:      'MGA',
+          currency:     'MGA',
         }).catch(() => { /* non-bloquant */ })
       }
     }

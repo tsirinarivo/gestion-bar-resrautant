@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { generateOrderNumber } from '@restaurant/utils'
-import { autoPrintSaleReceipt } from '../lib/printer'
+import { autoPrintReceiptWithTable } from '../lib/printer'
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Especes', MVOLA: 'MVola', ORANGE_MONEY: 'Orange Money',
@@ -35,12 +35,11 @@ function buildReceiptPayload(updatedOrder: any, originalOrder: any, cashierEmail
     id:            updatedOrder.id,
     code:          updatedOrder.orderNumber,
     date:          originalOrder.createdAt,
-    shopName:      restaurant?.name ?? '',
-    shopAddr:      tableLabel
-                     ? `${restaurant?.address ?? ''} | ${tableLabel}`
-                     : (restaurant?.address ?? null),
-    shopPhone:     restaurant?.phone ?? null,
-    cashierName:   cashierEmail ?? null,
+    shopName:    restaurant?.name ?? '',
+    shopAddr:    restaurant?.address ?? null,
+    shopPhone:   restaurant?.phone ?? null,
+    cashierName: cashierEmail ?? null,
+    table:       tableLabel,
     items:         (updatedOrder.items ?? []).map((i: any) => ({
       name:      i.product?.name ?? 'Article',
       qty:       i.quantity,
@@ -439,7 +438,7 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     // ── Impression automatique ticket (uniquement au paiement) ──────────────
     if (status === 'COMPLETED') {
-      autoPrintSaleReceipt(req.user!.restaurantId, buildReceiptPayload(updatedOrder, order, req.user!.email)).catch(() => {})
+      autoPrintReceiptWithTable(req.user!.restaurantId, buildReceiptPayload(updatedOrder, order, req.user!.email)).catch(() => {})
     }
 
     const io = req.app.get('io')
