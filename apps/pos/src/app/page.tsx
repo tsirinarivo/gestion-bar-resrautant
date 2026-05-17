@@ -1105,6 +1105,15 @@ export default function POSPage() {
                 Chargement...
               </div>
             )}
+            {!productsLoading && filteredProducts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-600 gap-2">
+                <p className="text-3xl">📦</p>
+                {terminal?.warehouseId
+                  ? <p className="text-sm text-center">Aucun article disponible dans cet entrepôt.<br/><span className="text-xs text-gray-700">Assignez des articles à l'entrepôt dans l'admin.</span></p>
+                  : <p className="text-sm">Aucun article disponible.</p>
+                }
+              </div>
+            )}
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-1.5">
               {filteredProducts.map(product => {
                 const inCart = cart.find(i => i.product.id === product.id);
