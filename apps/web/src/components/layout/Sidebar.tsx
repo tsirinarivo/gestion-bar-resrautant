@@ -64,9 +64,14 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     !item.roles || item.roles.includes(userRole)
   )
 
-  const posHref = accessToken
-    ? `${POS_URL}/?token=${encodeURIComponent(accessToken)}`
-    : POS_URL
+  // Lire le token au clic (pas au rendu) pour éviter les problèmes d'hydration Zustand
+  function handlePosClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    const token = localStorage.getItem('accessToken')
+    if (token) {
+      e.currentTarget.href = `${POS_URL}/?token=${encodeURIComponent(token)}`
+    }
+    onClose()
+  }
 
   const sidebarContent = (
     <>
@@ -94,10 +99,10 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
       {/* Bouton POS — ouvre pos.restaurant.dago-it.com avec auth auto */}
       <div className="px-2 py-2 border-b border-brand-border">
         <a
-          href={posHref}
+          href={POS_URL}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={onClose}
+          onClick={handlePosClick}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-orange/10 border border-brand-orange/40 hover:bg-brand-orange/20 transition-colors text-brand-orange font-semibold text-sm w-full"
         >
           <CreditCard className="w-5 h-5 flex-shrink-0" />
