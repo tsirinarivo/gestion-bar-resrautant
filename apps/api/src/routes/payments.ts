@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { autoPostPaymentToBank } from './bank'
+import { autoPrintSaleReceipt } from '../lib/printer'
 
 async function autoPostToCaisse(
   restaurantId: string,
@@ -70,6 +71,37 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
             data: { status: 'AVAILABLE' },
           })
         }
+      }
+
+      // Impression automatique du reçu
+      const completedOrder = await prisma.order.findUnique({
+        where: { id: order.id },
+        include: {
+          items: { include: { product: true } },
+          payments: true,
+        },
+      })
+      if (completedOrder) {
+        autoPrintSaleReceipt(restaurantId, {
+          id:            completedOrder.id,
+          code:          completedOrder.orderNumber,
+          date:          completedOrder.createdAt,
+          shopName:      '',
+          shopAddr:      null,
+          shopPhone:     null,
+          cashierName:   null,
+          items:         completedOrder.items.map((i: any) => ({
+            name:      i.product?.name ?? 'Article',
+            qty:       i.quantity,
+            unitPrice: i.unitPrice,
+            total:     i.totalPrice,
+          })),
+          subtotal:      completedOrder.subtotal,
+          discount:      completedOrder.discountAmount ?? 0,
+          total:         completedOrder.totalAmount,
+          paymentMethod: completedOrder.payments[0]?.method ?? null,
+          currency:      'MGA',
+        }).catch(() => { /* non-bloquant */ })
       }
     }
 
