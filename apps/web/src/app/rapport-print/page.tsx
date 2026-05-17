@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
@@ -25,6 +25,8 @@ function PrintContent() {
   const date = params.get('date') || new Date().toISOString().slice(0, 10)
   const [data, setData] = useState<any>(null)
   const [error, setError] = useState('')
+  const [isExporting, setIsExporting] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken')
@@ -40,9 +42,47 @@ function PrintContent() {
       .catch(() => setError('Erreur de connexion'))
   }, [date])
 
-  useEffect(() => {
-    if (data) setTimeout(() => window.print(), 400)
-  }, [data])
+  async function downloadPDF() {
+    if (!contentRef.current || !data) return
+    setIsExporting(true)
+    try {
+      const html2canvas = (await import('html2canvas')).default
+      const { jsPDF } = await import('jspdf')
+
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 794,
+      })
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = pdf.internal.pageSize.getHeight()
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width
+
+      let heightLeft = imgHeight
+      let position = 0
+
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight)
+      heightLeft -= pdfHeight
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight)
+        heightLeft -= pdfHeight
+      }
+
+      pdf.save(`Rapport_${date}.pdf`)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
@@ -106,18 +146,33 @@ function PrintContent() {
         .negative { color: #dc2626; font-weight: 700; }
       `}</style>
 
-      {/* Bouton fermer (masqué à l'impression) */}
-      <div className="no-print" style={{ background: '#1a1a2e', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>Aperçu avant impression — Rapport journalier</span>
-        <button onClick={() => window.print()} style={{ background: '#FF6B00', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 16px', cursor: 'pointer', fontWeight: 700 }}>
+      {/* Barre d'outils masquée à l'impression */}
+      <div className="no-print" style={{ background: '#1a1a2e', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ color: '#fff', fontWeight: 700, fontSize: 14, flex: 1 }}>
+          Rapport journalier — {dateLabel}
+        </span>
+        <button
+          onClick={downloadPDF}
+          disabled={isExporting}
+          style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 18px', cursor: isExporting ? 'wait' : 'pointer', fontWeight: 700, fontSize: 13, opacity: isExporting ? 0.7 : 1 }}
+        >
+          {isExporting ? '⏳ Export en cours…' : '📥 Télécharger PDF'}
+        </button>
+        <button
+          onClick={() => window.print()}
+          style={{ background: '#FF6B00', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 18px', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
+        >
           🖨️ Imprimer
         </button>
-        <button onClick={() => window.close()} style={{ background: '#444', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 16px', cursor: 'pointer' }}>
+        <button
+          onClick={() => window.close()}
+          style={{ background: '#444', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 14px', cursor: 'pointer', fontSize: 13 }}
+        >
           ✕ Fermer
         </button>
       </div>
 
-      <div style={{ padding: '20px 0' }}>
+      <div ref={contentRef} style={{ padding: '20px 24px' }}>
 
         {/* En-tête */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, paddingBottom: 16, borderBottom: '3px solid #1a1a2e' }}>
