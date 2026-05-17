@@ -141,11 +141,11 @@ function ProductModal({
               <div className="col-span-2">
                 <label className="text-sm text-brand-muted mb-1 block">
                   Entrepôt / Terminal
-                  <span className="text-xs text-brand-muted ml-2">(vide = visible sur tous les terminaux)</span>
+                  <span className="text-xs text-brand-muted ml-2">(non assigné = visible sur TOUS les terminaux)</span>
                 </label>
                 <select value={form.warehouseId} onChange={e => setForm(f => ({ ...f, warehouseId: e.target.value }))}
                   className="input-field">
-                  <option value="">— Tous les terminaux —</option>
+                  <option value="">— Visible sur tous les terminaux —</option>
                   {warehouses.map(w => (
                     <option key={w.id} value={w.id}>{w.name}</option>
                   ))}

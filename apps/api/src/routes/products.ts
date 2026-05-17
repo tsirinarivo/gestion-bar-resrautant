@@ -49,8 +49,11 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
     if (isActive !== undefined) where.isActive = isActive === 'true'
     if (isAvailable !== undefined) where.isAvailable = isAvailable === 'true'
     if (isFeatured !== undefined) where.isFeatured = isFeatured === 'true'
-    // Si warehouseId fourni : uniquement les produits de cet entrepôt
-    if (warehouseId) where.warehouseId = warehouseId as string
+    // warehouseId=X → produits de cet entrepôt + produits sans entrepôt (visibles partout)
+    // warehouseId non fourni → tous les produits
+    if (warehouseId) {
+      where.OR = [{ warehouseId: warehouseId as string }, { warehouseId: null }]
+    }
     if (search) {
       where.OR = [
         { name: { contains: search as string, mode: 'insensitive' } },
