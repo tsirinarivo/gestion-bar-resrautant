@@ -54,6 +54,23 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
         where: { id: order.id },
         data: { status: 'COMPLETED', completedAt: new Date() },
       })
+
+      // Libérer la table si plus aucune commande active dessus
+      if (order.tableId) {
+        const activeOrders = await prisma.order.count({
+          where: {
+            tableId: order.tableId,
+            status: { notIn: ['COMPLETED', 'CANCELLED'] },
+            id: { not: order.id },
+          },
+        })
+        if (activeOrders === 0) {
+          await prisma.diningTable.update({
+            where: { id: order.tableId },
+            data: { status: 'AVAILABLE' },
+          })
+        }
+      }
     }
 
     // Auto-enregistre dans la session de caisse ouverte
