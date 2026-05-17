@@ -106,7 +106,7 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
           ? `Table ${completedOrder.table.number}`
           : completedOrder.type === 'TAKEAWAY' ? 'Emporte' : null
         const cashier = req.user
-          ? `${req.user.email}`
+          ? `${req.user.firstName} ${req.user.lastName}`.trim()
           : null
         autoPrintReceiptWithTable(restaurantId, {
           id:           completedOrder.id,

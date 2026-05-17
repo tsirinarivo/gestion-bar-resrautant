@@ -6,6 +6,8 @@ export interface AuthRequest extends Request {
   user?: {
     id: string
     email: string
+    firstName: string
+    lastName: string
     restaurantId: string
     roleId: string
     roleName: string
@@ -39,6 +41,8 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     req.user = {
       id: user.id,
       email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
       restaurantId: user.restaurantId,
       roleId: user.roleId,
       roleName: user.role.name,

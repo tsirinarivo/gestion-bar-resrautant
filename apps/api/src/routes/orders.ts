@@ -26,7 +26,7 @@ function formatPaymentLabel(payments: { method: string; amount: number }[]): str
 }
 
 // Build receipt payload for autoPrintSaleReceipt (uses transaction date from original order)
-function buildReceiptPayload(updatedOrder: any, originalOrder: any, cashierEmail?: string) {
+function buildReceiptPayload(updatedOrder: any, originalOrder: any, cashierName?: string) {
   const tableLabel = updatedOrder.table
     ? `Table ${updatedOrder.table.number}`
     : updatedOrder.type === 'TAKEAWAY' ? 'Emporte' : null
@@ -38,7 +38,7 @@ function buildReceiptPayload(updatedOrder: any, originalOrder: any, cashierEmail
     shopName:    restaurant?.name ?? '',
     shopAddr:    restaurant?.address ?? null,
     shopPhone:   restaurant?.phone ?? null,
-    cashierName: cashierEmail ?? null,
+    cashierName: cashierName ?? null,
     table:       tableLabel,
     items:         (updatedOrder.items ?? []).map((i: any) => ({
       name:      i.product?.name ?? 'Article',
@@ -438,7 +438,7 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     // ── Impression automatique ticket (uniquement au paiement) ──────────────
     if (status === 'COMPLETED') {
-      autoPrintReceiptWithTable(req.user!.restaurantId, buildReceiptPayload(updatedOrder, order, req.user!.email)).catch(() => {})
+      autoPrintReceiptWithTable(req.user!.restaurantId, buildReceiptPayload(updatedOrder, order, `${req.user!.firstName} ${req.user!.lastName}`.trim())).catch(() => {})
     }
 
     const io = req.app.get('io')
