@@ -6,6 +6,24 @@ import { AppError } from '../middleware/errorHandler'
 import { autoPostPaymentToBank } from './bank'
 import { autoPrintSaleReceipt } from '../lib/printer'
 
+const PAYMENT_LABELS: Record<string, string> = {
+  CASH: 'Especes', MVOLA: 'MVola', ORANGE_MONEY: 'Orange Money',
+  AIRTEL_MONEY: 'Airtel Money', CARD: 'Carte', BNI_MOBILE: 'BNI Mobile',
+  BOA_MOBILE: 'BOA Mobile', VIREMENT: 'Virement', CHEQUE: 'Cheque',
+  VOUCHER: 'Bon', WALLET: 'Wallet',
+}
+
+function formatPaymentLabel(payments: { method: string; amount: number }[]): string {
+  return payments
+    .map(p => {
+      const label = PAYMENT_LABELS[p.method] ?? p.method
+      const amount = new Intl.NumberFormat('fr-FR').format(p.amount)
+        .replace(/[  ]/g, '.') + ' MGA'
+      return `${label} ${amount}`
+    })
+    .join(' / ')
+}
+
 async function autoPostToCaisse(
   restaurantId: string,
   type: 'SALE' | 'REFUND',
@@ -99,7 +117,7 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
           subtotal:      completedOrder.subtotal,
           discount:      completedOrder.discountAmount ?? 0,
           total:         completedOrder.totalAmount,
-          paymentMethod: completedOrder.payments[0]?.method ?? null,
+          paymentMethod: formatPaymentLabel(completedOrder.payments),
           currency:      'MGA',
         }).catch(() => { /* non-bloquant */ })
       }

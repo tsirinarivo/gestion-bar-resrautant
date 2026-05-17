@@ -6,13 +6,32 @@ import { AppError } from '../middleware/errorHandler'
 import { generateOrderNumber } from '@restaurant/utils'
 import { autoPrintSaleReceipt } from '../lib/printer'
 
+const PAYMENT_LABELS: Record<string, string> = {
+  CASH: 'Especes', MVOLA: 'MVola', ORANGE_MONEY: 'Orange Money',
+  AIRTEL_MONEY: 'Airtel Money', CARD: 'Carte', BNI_MOBILE: 'BNI Mobile',
+  BOA_MOBILE: 'BOA Mobile', VIREMENT: 'Virement', CHEQUE: 'Cheque',
+  VOUCHER: 'Bon', WALLET: 'Wallet',
+}
+
+function formatPaymentLabel(payments: { method: string; amount: number }[]): string {
+  if (!payments?.length) return ''
+  return payments
+    .map(p => {
+      const label = PAYMENT_LABELS[p.method] ?? p.method
+      const amount = new Intl.NumberFormat('fr-FR').format(p.amount)
+        .replace(/[  ]/g, '.') + ' MGA'
+      return `${label} ${amount}`
+    })
+    .join(' / ')
+}
+
 // Build receipt payload for autoPrintSaleReceipt (uses transaction date from original order)
 function buildReceiptPayload(updatedOrder: any, originalOrder: any) {
   return {
     id:            updatedOrder.id,
     code:          updatedOrder.orderNumber,
     date:          originalOrder.createdAt,
-    shopName:      '',   // enrichi dynamiquement si besoin — le module peut lire depuis la config
+    shopName:      '',
     shopAddr:      null,
     shopPhone:     null,
     cashierName:   null,
@@ -25,7 +44,7 @@ function buildReceiptPayload(updatedOrder: any, originalOrder: any) {
     subtotal:      updatedOrder.subtotal,
     discount:      updatedOrder.discountAmount ?? 0,
     total:         updatedOrder.totalAmount,
-    paymentMethod: (updatedOrder.payments?.[0]?.method) ?? null,
+    paymentMethod: formatPaymentLabel(updatedOrder.payments ?? []),
     currency:      'MGA',
   }
 }
