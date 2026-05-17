@@ -18,25 +18,25 @@ import { toast } from 'sonner'
 import { initials } from '@restaurant/utils'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['*'] },
-  { href: '/orders', label: 'Commandes', icon: ShoppingCart, roles: ['*'] },
-  { href: '/menu', label: 'Menu', icon: UtensilsCrossed, roles: ['manager', 'superadmin'] },
-  { href: '/tables', label: 'Plan de salle', icon: Table2, roles: ['*'] },
-  { href: '/reservations', label: 'Réservations', icon: Calendar, roles: ['manager', 'superadmin', 'serveur'] },
-  { href: '/kds', label: 'Cuisine (KDS)', icon: Monitor, roles: ['cuisinier', 'manager', 'superadmin'] },
-  { href: '/stock', label: 'Stock', icon: Package, roles: ['manager', 'superadmin'] },
-  { href: '/warehouses', label: 'Entrepôts', icon: Warehouse, roles: ['manager', 'superadmin'] },
-  { href: '/suppliers', label: 'Fournisseurs', icon: Truck, roles: ['manager', 'superadmin'] },
-  { href: '/customers', label: 'Clients', icon: Users, roles: ['manager', 'superadmin', 'caissier'] },
-  { href: '/employees', label: 'Employés', icon: UserCog, roles: ['manager', 'superadmin'] },
-  { href: '/coupons', label: 'Promotions', icon: Tag, roles: ['manager', 'superadmin'] },
-  { href: '/caisse', label: 'Caisse', icon: Landmark, roles: ['manager', 'superadmin', 'caissier'] },
-  { href: '/bank', label: 'Banque', icon: Building2, roles: ['manager', 'superadmin'] },
-  { href: '/finances', label: 'Finances', icon: TrendingUp, roles: ['manager', 'superadmin'] },
-  { href: '/rapport', label: 'Rapport journalier', icon: FileText, roles: ['manager', 'superadmin'] },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3, roles: ['manager', 'superadmin'] },
-  { href: '/settings/printer', label: 'Imprimante', icon: Printer, roles: ['manager', 'superadmin'] },
-  { href: '/settings', label: 'Paramètres', icon: Settings, roles: ['manager', 'superadmin'] },
+  { href: '/dashboard', label: 'Dashboard',         icon: LayoutDashboard },
+  { href: '/orders',    label: 'Commandes',          icon: ShoppingCart },
+  { href: '/menu',      label: 'Menu',               icon: UtensilsCrossed,  roles: ['manager', 'superadmin'] },
+  { href: '/tables',    label: 'Plan de salle',      icon: Table2 },
+  { href: '/reservations', label: 'Réservations',   icon: Calendar,         roles: ['manager', 'superadmin', 'serveur'] },
+  { href: '/kds',       label: 'Cuisine (KDS)',      icon: Monitor,          roles: ['cuisinier', 'manager', 'superadmin'] },
+  { href: '/stock',     label: 'Stock',              icon: Package,          roles: ['manager', 'superadmin'] },
+  { href: '/warehouses',label: 'Entrepôts',          icon: Warehouse,        roles: ['manager', 'superadmin'] },
+  { href: '/suppliers', label: 'Fournisseurs',       icon: Truck,            roles: ['manager', 'superadmin'] },
+  { href: '/customers', label: 'Clients',            icon: Users,            roles: ['manager', 'superadmin', 'caissier'] },
+  { href: '/employees', label: 'Employés',           icon: UserCog,          roles: ['manager', 'superadmin'] },
+  { href: '/coupons',   label: 'Promotions',         icon: Tag,              roles: ['manager', 'superadmin'] },
+  { href: '/caisse',    label: 'Caisse',             icon: Landmark,         roles: ['manager', 'superadmin', 'caissier'] },
+  { href: '/bank',      label: 'Banque',             icon: Building2,        roles: ['manager', 'superadmin'] },
+  { href: '/finances',  label: 'Finances',           icon: TrendingUp,       roles: ['manager', 'superadmin'] },
+  { href: '/rapport',   label: 'Rapport journalier', icon: FileText,         roles: ['manager', 'superadmin'] },
+  { href: '/analytics', label: 'Analytics',          icon: BarChart3,        roles: ['manager', 'superadmin'] },
+  { href: '/settings/printer', label: 'Imprimante', icon: Printer,          roles: ['manager', 'superadmin'] },
+  { href: '/settings',  label: 'Paramètres',         icon: Settings,         roles: ['manager', 'superadmin'] },
 ]
 
 const POS_URL = process.env.NEXT_PUBLIC_POS_URL || 'https://pos.restaurant.dago-it.com'
@@ -49,7 +49,7 @@ interface SidebarProps {
 export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
-  const { user, logout } = useAuthStore()
+  const { user, logout, accessToken } = useAuthStore()
   const router = useRouter()
 
   async function handleLogout() {
@@ -61,14 +61,12 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
 
   const userRole = (user as any)?.role?.name || 'caissier'
   const filteredItems = navItems.filter(item =>
-    item.roles.includes('*') || item.roles.includes(userRole)
+    !item.roles || item.roles.includes(userRole)
   )
 
-  function openPOS() {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null
-    const url = token ? `${POS_URL}/?token=${encodeURIComponent(token)}` : POS_URL
-    window.open(url, '_blank', 'noopener')
-  }
+  const posHref = accessToken
+    ? `${POS_URL}/?token=${encodeURIComponent(accessToken)}`
+    : POS_URL
 
   const sidebarContent = (
     <>
@@ -88,21 +86,25 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
             </motion.span>
           )}
         </AnimatePresence>
-        {/* Mobile close */}
         <button onClick={onClose} className="md:hidden ml-auto text-brand-muted hover:text-white p-1">
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Bouton POS — raccourci vers pos.restaurant.dago-it.com */}
+      {/* Bouton POS — ouvre pos.restaurant.dago-it.com avec auth auto */}
       <div className="px-2 py-2 border-b border-brand-border">
-        <button onClick={openPOS}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-orange/10 border border-brand-orange/40 hover:bg-brand-orange/20 transition-colors text-brand-orange font-semibold text-sm">
+        <a
+          href={posHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={onClose}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-orange/10 border border-brand-orange/40 hover:bg-brand-orange/20 transition-colors text-brand-orange font-semibold text-sm w-full"
+        >
           <CreditCard className="w-5 h-5 flex-shrink-0" />
           <AnimatePresence>
             {!collapsed && (
               <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="flex-1 text-left">
+                className="flex-1">
                 Ouvrir le POS
               </motion.span>
             )}
@@ -110,7 +112,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
           {!collapsed && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-brand-orange text-white">↗</span>
           )}
-        </button>
+        </a>
       </div>
 
       {/* Navigation */}
@@ -121,9 +123,9 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
             <Link key={item.href} href={item.href} onClick={onClose}>
               <motion.div
                 whileHover={{ x: collapsed ? 0 : 4 }}
-                className={`sidebar-item ${isActive ? 'active' : ''} ${item.highlight ? 'border border-brand-orange/30 bg-brand-orange/5' : ''}`}
+                className={`sidebar-item ${isActive ? 'active' : ''}`}
               >
-                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-orange' : ''} ${item.highlight ? 'text-brand-orange' : ''}`} />
+                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-orange' : ''}`} />
                 <AnimatePresence>
                   {!collapsed && (
                     <motion.span
@@ -134,9 +136,6 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
                     </motion.span>
                   )}
                 </AnimatePresence>
-                {item.highlight && !collapsed && (
-                  <span className="ml-auto text-xs px-1.5 py-0.5 rounded bg-brand-orange text-white">POS</span>
-                )}
               </motion.div>
             </Link>
           )
@@ -193,7 +192,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         {sidebarContent}
       </motion.aside>
 
-      {/* Mobile sidebar — slide-in drawer */}
+      {/* Mobile sidebar */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.aside
