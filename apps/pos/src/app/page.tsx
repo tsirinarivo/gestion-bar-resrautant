@@ -778,12 +778,9 @@ export default function POSPage() {
 
   const { data: products = [], error: productsError, isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ['pos-products', token, selectedCategory, terminal?.warehouseId ?? null],
-    queryFn: () => {
-      const wf = terminal?.warehouseId ? `&warehouseId=${terminal.warehouseId}` : '';
-      return apiFetch<Product[]>(token!,
-        `/products?isAvailable=true&limit=200${selectedCategory ? `&categoryId=${selectedCategory}` : ''}${wf}`);
-    },
-    enabled: !!token && terminalReady,
+    queryFn: () => apiFetch<Product[]>(token!,
+      `/products?isAvailable=true&limit=200${selectedCategory ? `&categoryId=${selectedCategory}` : ''}&warehouseId=${terminal!.warehouseId}`),
+    enabled: !!token && terminalReady && !!terminal?.warehouseId,
     staleTime: 0,
   });
 
@@ -1108,9 +1105,9 @@ export default function POSPage() {
             {!productsLoading && filteredProducts.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-gray-600 gap-2">
                 <p className="text-3xl">📦</p>
-                {terminal?.warehouseId
-                  ? <p className="text-sm text-center">Aucun article disponible dans cet entrepôt.<br/><span className="text-xs text-gray-700">Assignez des articles à l'entrepôt dans l'admin.</span></p>
-                  : <p className="text-sm">Aucun article disponible.</p>
+                {!terminal?.warehouseId
+                  ? <p className="text-sm text-center">Ce terminal n'a pas d'entrepôt configuré.<br/><span className="text-xs text-gray-700">Assignez un entrepôt dans Admin → Terminaux POS.</span></p>
+                  : <p className="text-sm text-center">Aucun article dans cet entrepôt.<br/><span className="text-xs text-gray-700">Assignez des articles à l'entrepôt dans Admin → Menu.</span></p>
                 }
               </div>
             )}
