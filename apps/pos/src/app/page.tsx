@@ -746,10 +746,11 @@ export default function POSPage() {
     staleTime: 600_000,
   });
 
+  const warehouseFilter = terminal?.warehouseId ? `&warehouseId=${terminal.warehouseId}` : '';
   const { data: products = [], error: productsError, isLoading: productsLoading } = useQuery<Product[]>({
-    queryKey: ['pos-products', token, selectedCategory],
+    queryKey: ['pos-products', token, selectedCategory, terminal?.warehouseId],
     queryFn: () => apiFetch<Product[]>(token!,
-      `/products?isAvailable=true&limit=200${selectedCategory ? `&categoryId=${selectedCategory}` : ''}`),
+      `/products?isAvailable=true&limit=200${selectedCategory ? `&categoryId=${selectedCategory}` : ''}${warehouseFilter}`),
     enabled: !!token,
     staleTime: 300_000,
   });

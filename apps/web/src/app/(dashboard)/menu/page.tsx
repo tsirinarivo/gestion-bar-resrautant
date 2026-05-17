@@ -22,6 +22,7 @@ type Product = {
   requiresPreparation: boolean
   prepTime?: number; allergens: string[]; tags: string[]
   categoryId: string; category?: { name: string; icon?: string }
+  warehouseId?: string | null; warehouse?: { id: string; name: string }
   recipeItems?: RecipeItem[]
 }
 type Category = { id: string; name: string; icon?: string; color?: string; _count?: { products: number } }
@@ -38,10 +39,11 @@ const CATEGORY_ICONS = ['🍽️', '🥩', '🍔', '🍕', '🍝', '🥗', '🍰
 // ─── Product Form Modal ───────────────────────────────────────────────────────
 
 function ProductModal({
-  product, categories, onClose, onSave
+  product, categories, warehouses, onClose, onSave
 }: {
   product: Product | null
   categories: Category[]
+  warehouses: { id: string; name: string }[]
   onClose: () => void
   onSave: (data: any) => void
 }) {
@@ -53,6 +55,7 @@ function ProductModal({
     costPrice: product?.costPrice?.toString() ?? '',
     prepTime: product?.prepTime?.toString() ?? '10',
     categoryId: product?.categoryId ?? (categories[0]?.id ?? ''),
+    warehouseId: product?.warehouseId ?? '',
     isAvailable: product?.isAvailable ?? true,
     isFeatured: product?.isFeatured ?? false,
     isNew: product?.isNew ?? false,
@@ -92,6 +95,7 @@ function ProductModal({
       costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
       prepTime: form.prepTime ? parseInt(form.prepTime) : 10,
       categoryId: form.categoryId,
+      warehouseId: form.warehouseId || null,
       isAvailable: form.isAvailable,
       isFeatured: form.isFeatured,
       isNew: form.isNew,
@@ -133,6 +137,21 @@ function ProductModal({
                 ))}
               </select>
             </div>
+            {warehouses.length > 0 && (
+              <div className="col-span-2">
+                <label className="text-sm text-brand-muted mb-1 block">
+                  Entrepôt / Terminal
+                  <span className="text-xs text-brand-muted ml-2">(vide = visible sur tous les terminaux)</span>
+                </label>
+                <select value={form.warehouseId} onChange={e => setForm(f => ({ ...f, warehouseId: e.target.value }))}
+                  className="input-field">
+                  <option value="">— Tous les terminaux —</option>
+                  {warehouses.map(w => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Description */}
@@ -992,12 +1011,18 @@ export default function MenuPage() {
     queryFn: () => api.get('/categories').then(r => r.data.data),
   })
 
+  const { data: warehousesData } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['warehouses-list'],
+    queryFn: () => api.get('/warehouses').then(r => r.data.data),
+  })
+
   const { data: productsData, isLoading } = useQuery<Product[]>({
     queryKey: ['products', selectedCategory, search],
     queryFn: () => api.get(`/products?${selectedCategory ? `categoryId=${selectedCategory}&` : ''}${search ? `search=${encodeURIComponent(search)}&` : ''}limit=100`).then(r => r.data.data),
   })
 
   const categories = categoriesData ?? []
+  const warehouses = warehousesData ?? []
   const products = productsData ?? []
 
   // ── Product mutations
@@ -1288,6 +1313,7 @@ export default function MenuPage() {
         <ProductModal
           product={productModal.product}
           categories={categories}
+          warehouses={warehouses}
           onClose={() => setProductModal({ open: false, product: null })}
           onSave={handleProductSave}
         />

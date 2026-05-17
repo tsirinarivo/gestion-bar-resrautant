@@ -33,6 +33,7 @@ const productSchema = z.object({
   tags: z.array(z.string()).default([]),
   prepTime: z.number().default(10),
   categoryId: z.string(),
+  warehouseId: z.string().nullable().optional(),
 })
 
 // GET /api/products
@@ -40,7 +41,7 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
     const {
       categoryId, isActive, isAvailable, isFeatured,
-      search, page = '1', limit = '50',
+      search, page = '1', limit = '50', warehouseId,
     } = req.query
 
     const where: any = { restaurantId: req.user!.restaurantId }
@@ -48,6 +49,8 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
     if (isActive !== undefined) where.isActive = isActive === 'true'
     if (isAvailable !== undefined) where.isAvailable = isAvailable === 'true'
     if (isFeatured !== undefined) where.isFeatured = isFeatured === 'true'
+    // Si warehouseId fourni : uniquement les produits de cet entrepôt
+    if (warehouseId) where.warehouseId = warehouseId as string
     if (search) {
       where.OR = [
         { name: { contains: search as string, mode: 'insensitive' } },

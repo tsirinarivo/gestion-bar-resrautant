@@ -243,6 +243,10 @@ model Product {
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
 
+  // Entrepôt auquel ce produit appartient (null = disponible sur tous les terminaux)
+  warehouseId String?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+
   variants       ProductVariant[]
   modifierGroups ProductModifierGroup[]
   recipeItems    RecipeItem[]
@@ -255,6 +259,7 @@ model Product {
   @@unique([restaurantId, slug])
   @@index([restaurantId])
   @@index([categoryId])
+  @@index([warehouseId])
   @@map("products")
 }
 
@@ -495,6 +500,7 @@ model Warehouse {
   updatedAt    DateTime @updatedAt
 
   stockItems    StockItem[]
+  products      Product[]
   transfersFrom StockTransfer[] @relation("TransferFrom")
   transfersTo   StockTransfer[] @relation("TransferTo")
   posTerminals  PosTerminal[]
