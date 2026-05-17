@@ -137,21 +137,26 @@ function ProductModal({
                 ))}
               </select>
             </div>
-            {warehouses.length > 0 && (
-              <div className="col-span-2">
-                <label className="text-sm text-brand-muted mb-1 block">
-                  Entrepôt / Terminal
-                  <span className="text-xs text-brand-muted ml-2">(non assigné = visible sur TOUS les terminaux)</span>
-                </label>
+            <div className="col-span-2">
+              <label className="text-sm text-brand-muted mb-1 block">
+                Entrepôt / Terminal
+                <span className="text-xs text-brand-muted ml-2">(vide = visible sur tous les terminaux)</span>
+              </label>
+              {warehouses.length === 0 ? (
+                <div className="input-field text-brand-muted text-xs">
+                  Aucun entrepôt configuré —{' '}
+                  <a href="/warehouses" className="text-brand-orange underline">créer un entrepôt</a>
+                </div>
+              ) : (
                 <select value={form.warehouseId} onChange={e => setForm(f => ({ ...f, warehouseId: e.target.value }))}
                   className="input-field">
-                  <option value="">— Visible sur tous les terminaux —</option>
+                  <option value="">— Tous les terminaux —</option>
                   {warehouses.map(w => (
                     <option key={w.id} value={w.id}>{w.name}</option>
                   ))}
                 </select>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Description */}
