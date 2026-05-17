@@ -47,6 +47,7 @@ const POS_PAYMENT_METHODS = [
 
 async function apiFetch<T>(token: string, path: string): Promise<T> {
   const res = await fetch(`${API_URL}/api${path}`, { headers: authHeaders(token) });
+  if (res.status === 401) throw Object.assign(new Error('Session expirée, reconnectez-vous'), { status: 401 });
   const data = await res.json() as { success: boolean; data: T; error?: string };
   if (!data.success) throw new Error(data.error ?? 'Erreur API');
   return data.data;
@@ -640,21 +641,21 @@ export default function POSPage() {
     setTimeout(() => setToast(null), 4000);
   }
 
-  const { data: tables = [] } = useQuery<Table[]>({
+  const { data: tables = [], error: tablesError, isLoading: tablesLoading } = useQuery<Table[]>({
     queryKey: ['pos-tables', token],
     queryFn: () => apiFetch<Table[]>(token!, '/tables'),
     enabled: !!token,
     refetchInterval: 60_000,
   });
 
-  const { data: categories = [] } = useQuery<Category[]>({
+  const { data: categories = [], error: categoriesError } = useQuery<Category[]>({
     queryKey: ['pos-categories', token],
     queryFn: () => apiFetch<Category[]>(token!, '/categories'),
     enabled: !!token,
     staleTime: 600_000,
   });
 
-  const { data: products = [] } = useQuery<Product[]>({
+  const { data: products = [], error: productsError, isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ['pos-products', token, selectedCategory],
     queryFn: () => apiFetch<Product[]>(token!,
       `/products?isAvailable=true&limit=200${selectedCategory ? `&categoryId=${selectedCategory}` : ''}`),
@@ -732,6 +733,19 @@ export default function POSPage() {
     }
     refetchOrders();
   }
+
+  // Auto-logout si token expiré (401), sinon affiche l'erreur
+  const apiError = tablesError || categoriesError || productsError;
+  useEffect(() => {
+    if (!apiError) return;
+    if ((apiError as any).status === 401) {
+      localStorage.removeItem('pos_token');
+      setToken(null);
+    } else {
+      setToast({ msg: `Erreur chargement: ${apiError.message}`, ok: false });
+      setTimeout(() => setToast(null), 6000);
+    }
+  }, [apiError]);
 
   const existingTotal = openOrders.reduce((s, o) => s + o.totalAmount, 0);
   const cartTotal     = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
@@ -857,6 +871,12 @@ export default function POSPage() {
 
           {/* Product grid */}
           <div className="flex-1 overflow-y-auto px-3 pb-24 md:pb-3">
+            {(productsLoading || tablesLoading) && (
+              <div className="flex items-center justify-center py-10 text-gray-500 text-sm gap-2">
+                <div className="w-4 h-4 border-2 border-gray-600 border-t-orange-500 rounded-full animate-spin" />
+                Chargement...
+              </div>
+            )}
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-1.5">
               {filteredProducts.map(product => {
                 const inCart = cart.find(i => i.product.id === product.id);
