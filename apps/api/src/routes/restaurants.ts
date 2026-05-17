@@ -48,3 +48,19 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
     next(error)
   }
 })
+
+restaurantRouter.get('/users', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: { restaurantId: req.user!.restaurantId, isActive: true },
+      select: {
+        id: true, firstName: true, lastName: true, email: true, avatar: true,
+        role: { select: { displayName: true } },
+      },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    })
+    res.json({ success: true, data: users })
+  } catch {
+    res.status(500).json({ success: false, error: 'Erreur serveur' })
+  }
+})

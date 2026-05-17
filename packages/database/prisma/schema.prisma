@@ -69,6 +69,7 @@ model Restaurant {
   stockTransfers StockTransfer[]
   caisseSessions CaisseSession[]
   bankAccounts   BankAccount[]
+  posTerminals   PosTerminal[]
 
   @@map("restaurants")
 }
@@ -96,6 +97,7 @@ model User {
   refreshTokens RefreshToken[]
   employee      Employee?
   auditLogs     AuditLog[]
+  posTerminals  PosTerminalUser[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -495,6 +497,7 @@ model Warehouse {
   stockItems    StockItem[]
   transfersFrom StockTransfer[] @relation("TransferFrom")
   transfersTo   StockTransfer[] @relation("TransferTo")
+  posTerminals  PosTerminal[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId])
@@ -1292,6 +1295,8 @@ model CaisseSession {
   id            String    @id @default(cuid())
   restaurantId  String
   restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  terminalId    String?
+  terminal      PosTerminal? @relation(fields: [terminalId], references: [id], onDelete: SetNull)
   status        String    @default("OPEN")   // OPEN, CLOSED
   openedAt      DateTime  @default(now())
   closedAt      DateTime?
@@ -1309,6 +1314,7 @@ model CaisseSession {
 
   @@index([restaurantId, status])
   @@index([restaurantId, openedAt])
+  @@index([terminalId])
   @@map("caisse_sessions")
 }
 
@@ -1442,4 +1448,53 @@ model AuditLog {
   @@index([userId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ─── POS TERMINAUX ────────────────────────────────────────────────────────────
+
+model PosTerminal {
+  id            String   @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name          String
+  code          String?
+  description   String?
+  status        String   @default("ACTIVE") // ACTIVE, INACTIVE, MAINTENANCE
+  isDefault     Boolean  @default(false)
+
+  warehouseId   String?
+  warehouse     Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+
+  // JSON array of allowed payment methods, null = all allowed
+  allowedPaymentMethods Json?
+
+  // Optional XPyun printer serial override for this terminal
+  printerSn     String?
+
+  // Optional table floor section filter
+  tableSection  String?
+
+  assignedUsers  PosTerminalUser[]
+  caisseSessions CaisseSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+  @@map("pos_terminals")
+}
+
+model PosTerminalUser {
+  terminalId String
+  userId     String
+
+  terminal   PosTerminal @relation(fields: [terminalId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+
+  @@id([terminalId, userId])
+  @@map("pos_terminal_users")
 }

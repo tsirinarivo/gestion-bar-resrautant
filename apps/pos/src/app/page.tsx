@@ -258,11 +258,12 @@ function ReceiptModal({
 
 function PaymentModal({
   token, grandTotal, tableLabel, openOrders, cart, orderType, activeTable, orderNote,
-  onComplete, onClose,
+  allowedMethods, onComplete, onClose,
 }: {
   token: string; grandTotal: number; tableLabel: string;
   openOrders: Order[]; cart: CartItem[]; orderType: 'DINE_IN' | 'TAKEAWAY';
   activeTable: Table | null; orderNote: string;
+  allowedMethods: typeof POS_PAYMENT_METHODS;
   onComplete: () => void; onClose: () => void;
 }) {
   // Queue of orders to pay: {id, remaining}
@@ -270,7 +271,7 @@ function PaymentModal({
   const [ready, setReady]           = useState(false);   // orders created
   const [done, setDone]             = useState(false);
   const [busy, setBusy]             = useState(false);
-  const [method, setMethod]         = useState('CASH');
+  const [method, setMethod]         = useState(() => allowedMethods[0]?.value ?? 'CASH');
   const [amountStr, setAmountStr]   = useState('');
   const [payments, setPayments]     = useState<{method: string; amount: number}[]>([]);
   const [error, setError]           = useState('');
@@ -340,7 +341,7 @@ function PaymentModal({
     }
   }
 
-  const methodLabel = (v: string) => POS_PAYMENT_METHODS.find(m => m.value === v)?.label ?? v;
+  const methodLabel = (v: string) => allowedMethods.find(m => m.value === v)?.label ?? POS_PAYMENT_METHODS.find(m => m.value === v)?.label ?? v;
 
   if (done) {
     return (
@@ -425,7 +426,7 @@ function PaymentModal({
 
               {/* Method grid — 4 colonnes, 3 rangées, tout visible d'un coup */}
               <div className="grid grid-cols-4 gap-1 mb-3">
-                {POS_PAYMENT_METHODS.map(m => (
+                {allowedMethods.map(m => (
                   <button key={m.value} onClick={() => setMethod(m.value)}
                     className={`py-2 px-1 rounded-lg border text-center text-[11px] font-semibold transition-all leading-tight ${
                       method === m.value
@@ -603,16 +604,58 @@ function CartPanel({
   );
 }
 
+// ─── Terminal selector ────────────────────────────────────────────────────────
+
+function TerminalSelector({ terminals, onSelect }: {
+  terminals: any[];
+  onSelect: (t: any) => void;
+}) {
+  return (
+    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <p className="text-4xl mb-2">🖥️</p>
+          <h1 className="text-2xl font-bold text-white">Choisir un terminal</h1>
+          <p className="text-gray-400 text-sm mt-1">Sélectionnez votre poste de caisse</p>
+        </div>
+        <div className="space-y-3">
+          {terminals.map((t: any) => (
+            <button key={t.id} onClick={() => onSelect(t)}
+              className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-orange-500 rounded-2xl p-4 text-left transition-all group">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-500/30">
+                  <span className="text-xl">🖥️</span>
+                </div>
+                <div>
+                  <p className="font-bold text-white">{t.name}</p>
+                  {t.description && <p className="text-gray-400 text-xs">{t.description}</p>}
+                  {t.warehouse && <p className="text-gray-500 text-xs mt-0.5">📦 {t.warehouse.name}</p>}
+                </div>
+                {t.code && <span className="ml-auto text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded-lg">{t.code}</span>}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main POS ─────────────────────────────────────────────────────────────────
 
 export default function POSPage() {
   const [token,            setToken]           = useState<string | null>(null);
   const [initialized,      setInitialized]     = useState(false);
+  const [terminalId,       setTerminalId]      = useState<string | null>(null);
+  const [terminal,         setTerminal]        = useState<any>(null);
+  const [terminalsList,    setTerminalsList]   = useState<any[] | null>(null);  // null=loading, []=no terminals
 
-  // SSO depuis admin : token URL → localStorage → affichage direct sans login
+  // SSO depuis admin : token URL → localStorage, terminal URL → localStorage
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get('token');
+    const urlTerminal = params.get('terminal');
+
     if (urlToken) {
       window.history.replaceState({}, '', window.location.pathname);
       localStorage.setItem('pos_token', urlToken);
@@ -621,8 +664,56 @@ export default function POSPage() {
       const saved = localStorage.getItem('pos_token');
       if (saved) setToken(saved);
     }
+
+    if (urlTerminal) {
+      localStorage.setItem('pos_terminal_id', urlTerminal);
+      setTerminalId(urlTerminal);
+    } else {
+      const saved = localStorage.getItem('pos_terminal_id');
+      if (saved) setTerminalId(saved);
+    }
+
     setInitialized(true);
   }, []);
+
+  // Fetch terminals list when token is available but no terminal selected
+  useEffect(() => {
+    if (!token || terminalId) return;
+    fetch(`${API_URL}/api/pos-terminals`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then((d: any) => {
+        const active = (d.data ?? []).filter((t: any) => t.status === 'ACTIVE');
+        if (active.length === 1) {
+          // Auto-select single terminal
+          const t = active[0];
+          localStorage.setItem('pos_terminal_id', t.id);
+          setTerminalId(t.id);
+          setTerminal(t);
+          setTerminalsList(null);
+        } else {
+          setTerminalsList(active);
+        }
+      })
+      .catch(() => setTerminalsList([]));
+  }, [token, terminalId]);
+
+  // Fetch terminal details when terminalId known
+  useEffect(() => {
+    if (!token || !terminalId || terminal) return;
+    fetch(`${API_URL}/api/pos-terminals/${terminalId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then((d: any) => { if (d.success) setTerminal(d.data); })
+      .catch(() => {});
+  }, [token, terminalId, terminal]);
+
+  // Payment methods filtered by terminal config (null = all)
+  const allowedMethods: typeof POS_PAYMENT_METHODS = terminal?.allowedPaymentMethods
+    ? POS_PAYMENT_METHODS.filter(m => (terminal.allowedPaymentMethods as string[]).includes(m.value))
+    : POS_PAYMENT_METHODS;
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [search,           setSearch]           = useState('');
   const [cart,             setCart]             = useState<CartItem[]>([]);
@@ -759,7 +850,17 @@ export default function POSPage() {
     </div>
   );
 
-  if (!token) return <LoginScreen onLogin={(t) => { localStorage.setItem('pos_token', t); setToken(t); }} />;
+  if (!token) return <LoginScreen onLogin={(t) => { localStorage.setItem('pos_token', t); setToken(t); setTerminal(null); setTerminalsList(null); }} />;
+
+  // Terminal selection required
+  if (terminalsList !== null && terminalsList.length > 0 && !terminalId) {
+    return <TerminalSelector terminals={terminalsList} onSelect={(t) => {
+      localStorage.setItem('pos_terminal_id', t.id);
+      setTerminalId(t.id);
+      setTerminal(t);
+      setTerminalsList(null);
+    }} />;
+  }
 
   const cartPanelProps = {
     token: token!, cart, orderNote, activeTable, orderType,
@@ -803,6 +904,7 @@ export default function POSPage() {
           orderType={orderType}
           activeTable={activeTable}
           orderNote={orderNote}
+          allowedMethods={allowedMethods}
           onComplete={handlePaymentComplete}
           onClose={() => setShowPayModal(false)}
         />
@@ -810,10 +912,24 @@ export default function POSPage() {
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700 flex-shrink-0">
-        <h1 className="text-lg font-bold">🍽️ Caisse POS</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold">🍽️ Caisse POS</h1>
+          {terminal && (
+            <span className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-lg font-medium">
+              🖥️ {terminal.name}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] text-gray-600">v3.0</span>
-          <button onClick={() => { localStorage.removeItem('pos_token'); setToken(null); }} className="text-xs text-gray-500 hover:text-gray-300">Déconnexion</button>
+          {terminal && (
+            <button
+              onClick={() => { localStorage.removeItem('pos_terminal_id'); setTerminalId(null); setTerminal(null); setTerminalsList(null); }}
+              className="text-xs text-gray-500 hover:text-gray-300"
+            >
+              Changer terminal
+            </button>
+          )}
+          <button onClick={() => { localStorage.removeItem('pos_token'); localStorage.removeItem('pos_terminal_id'); setToken(null); setTerminalId(null); setTerminal(null); }} className="text-xs text-gray-500 hover:text-gray-300">Déconnexion</button>
         </div>
       </div>
 

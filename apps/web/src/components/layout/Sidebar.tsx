@@ -31,6 +31,7 @@ const navItems = [
   { href: '/employees', label: 'Employés',           icon: UserCog,          roles: ['manager', 'superadmin'] },
   { href: '/coupons',   label: 'Promotions',         icon: Tag,              roles: ['manager', 'superadmin'] },
   { href: '/caisse',    label: 'Caisse',             icon: Landmark,         roles: ['manager', 'superadmin', 'caissier'] },
+  { href: '/terminaux', label: 'Terminaux POS',      icon: Monitor,          roles: ['manager', 'superadmin'] },
   { href: '/bank',      label: 'Banque',             icon: Building2,        roles: ['manager', 'superadmin'] },
   { href: '/finances',  label: 'Finances',           icon: TrendingUp,       roles: ['manager', 'superadmin'] },
   { href: '/rapport',   label: 'Rapport journalier', icon: FileText,         roles: ['manager', 'superadmin'] },
@@ -64,11 +65,14 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     !item.roles || item.roles.includes(userRole)
   )
 
-  // Lire le token au clic (pas au rendu) pour éviter les problèmes d'hydration Zustand
+  // Lire token + terminal au clic pour éviter les problèmes d'hydration Zustand
   function handlePosClick(e: React.MouseEvent<HTMLAnchorElement>) {
     const token = localStorage.getItem('accessToken')
+    const terminalId = localStorage.getItem('pos_terminal_id')
     if (token) {
-      e.currentTarget.href = `${POS_URL}/?token=${encodeURIComponent(token)}`
+      const params = new URLSearchParams({ token })
+      if (terminalId) params.set('terminal', terminalId)
+      e.currentTarget.href = `${POS_URL}/?${params.toString()}`
     }
     onClose()
   }
