@@ -653,6 +653,16 @@ export default function POSPage() {
   // SSO depuis admin : token URL → localStorage, terminal URL → localStorage
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
+    // ?reset=1 → vide le cache et recharge proprement
+    if (params.get('reset') === '1') {
+      localStorage.removeItem('pos_token');
+      localStorage.removeItem('pos_terminal_id');
+      window.history.replaceState({}, '', window.location.pathname);
+      window.location.reload();
+      return;
+    }
+
     const urlToken = params.get('token');
     const urlTerminal = params.get('terminal');
 
@@ -706,8 +716,21 @@ export default function POSPage() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
-      .then((d: any) => { if (d.success) setTerminal(d.data); })
-      .catch(() => {});
+      .then((d: any) => {
+        if (d.success) {
+          setTerminal(d.data);
+        } else {
+          // Terminal ID invalide (supprimé?) → on repart sans terminal
+          localStorage.removeItem('pos_terminal_id');
+          setTerminalId(null);
+          setTerminal(null);
+          setTerminalsList(null); // Relance la sélection
+        }
+      })
+      .catch(() => {
+        // Erreur réseau → on charge quand même sans filtre entrepôt
+        setTerminal({});
+      });
   }, [token, terminalId, terminal]);
 
   // Payment methods filtered by terminal config (null = all)
@@ -852,8 +875,18 @@ export default function POSPage() {
   const tableLabel    = activeTable ? `Table ${activeTable.number}` : orderType === 'TAKEAWAY' ? 'Emporté' : '';
 
   if (!initialized) return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-4">
       <div className="text-gray-400 text-sm">Chargement...</div>
+      <button
+        onClick={() => {
+          localStorage.removeItem('pos_token');
+          localStorage.removeItem('pos_terminal_id');
+          window.location.reload();
+        }}
+        className="text-xs text-gray-700 hover:text-gray-500 underline"
+      >
+        Réinitialiser la session
+      </button>
     </div>
   );
 
