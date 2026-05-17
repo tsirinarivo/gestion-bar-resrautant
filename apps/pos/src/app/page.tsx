@@ -686,9 +686,10 @@ export default function POSPage() {
     setInitialized(true);
   }, []);
 
-  // Fetch terminals list when token is available but no terminal selected
+  // Fetch terminals list when token is available but no terminal selected.
+  // terminalsList in deps so "Réessayer" (setTerminalsList(null)) re-triggers this.
   useEffect(() => {
-    if (!token || terminalId) return;
+    if (!token || terminalId || terminalsList !== null) return;
     fetch(`${API_URL}/api/pos-terminals`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -707,7 +708,7 @@ export default function POSPage() {
         }
       })
       .catch(() => setTerminalsList([]));
-  }, [token, terminalId]);
+  }, [token, terminalId, terminalsList]);
 
   // Fetch terminal details when terminalId known
   useEffect(() => {
@@ -734,9 +735,11 @@ export default function POSPage() {
   }, [token, terminalId, terminal]);
 
   // Payment methods filtered by terminal config (null = all)
-  const allowedMethods: typeof POS_PAYMENT_METHODS = terminal?.allowedPaymentMethods
-    ? POS_PAYMENT_METHODS.filter(m => (terminal.allowedPaymentMethods as string[]).includes(m.value))
-    : POS_PAYMENT_METHODS;
+  const allowedMethods: typeof POS_PAYMENT_METHODS = useMemo(() => {
+    const ap = terminal?.allowedPaymentMethods
+    if (!ap || !Array.isArray(ap) || (ap as string[]).length === 0) return POS_PAYMENT_METHODS
+    return POS_PAYMENT_METHODS.filter(m => (ap as string[]).includes(m.value))
+  }, [terminal])
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [search,           setSearch]           = useState('');
   const [cart,             setCart]             = useState<CartItem[]>([]);
@@ -891,6 +894,32 @@ export default function POSPage() {
   );
 
   if (!token) return <LoginScreen onLogin={(t) => { localStorage.setItem('pos_token', t); setToken(t); setTerminal(null); setTerminalsList(null); }} />;
+
+  // En attente de la liste des terminaux
+  if (!terminalId && terminalsList === null) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-4">
+        <div className="flex items-center gap-2 text-gray-400 text-sm">
+          <div className="w-4 h-4 border-2 border-gray-600 border-t-orange-500 rounded-full animate-spin" />
+          Chargement des terminaux...
+        </div>
+        <button onClick={() => { localStorage.removeItem('pos_token'); setToken(null); }} className="text-xs text-gray-700 hover:text-gray-500">Déconnexion</button>
+      </div>
+    );
+  }
+
+  // En attente des détails du terminal sélectionné
+  if (terminalId && !terminal) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-4">
+        <div className="flex items-center gap-2 text-gray-400 text-sm">
+          <div className="w-4 h-4 border-2 border-gray-600 border-t-orange-500 rounded-full animate-spin" />
+          Connexion au terminal...
+        </div>
+        <button onClick={() => { localStorage.removeItem('pos_token'); localStorage.removeItem('pos_terminal_id'); setToken(null); setTerminalId(null); }} className="text-xs text-gray-700 hover:text-gray-500">Réinitialiser</button>
+      </div>
+    );
+  }
 
   // Aucun terminal configuré → inviter l'admin à en créer un
   if (terminalsList !== null && terminalsList.length === 0 && !terminalId) {

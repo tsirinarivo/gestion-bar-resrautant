@@ -49,18 +49,21 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
     if (isActive !== undefined) where.isActive = isActive === 'true'
     if (isAvailable !== undefined) where.isAvailable = isAvailable === 'true'
     if (isFeatured !== undefined) where.isFeatured = isFeatured === 'true'
-    // warehouseId=X → produits de cet entrepôt + produits sans entrepôt (visibles partout)
-    // warehouseId non fourni → tous les produits
+
+    // Build AND conditions so warehouseId filter and search can coexist
+    const andConditions: any[] = []
     if (warehouseId) {
-      where.OR = [{ warehouseId: warehouseId as string }, { warehouseId: null }]
+      // produits de cet entrepôt + produits sans entrepôt (visibles partout)
+      andConditions.push({ OR: [{ warehouseId: warehouseId as string }, { warehouseId: null }] })
     }
     if (search) {
-      where.OR = [
+      andConditions.push({ OR: [
         { name: { contains: search as string, mode: 'insensitive' } },
         { description: { contains: search as string, mode: 'insensitive' } },
         { sku: { contains: search as string, mode: 'insensitive' } },
-      ]
+      ]})
     }
+    if (andConditions.length > 0) where.AND = andConditions
 
     const [products, total] = await Promise.all([
       prisma.product.findMany({
