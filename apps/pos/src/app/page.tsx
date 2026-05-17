@@ -606,16 +606,21 @@ function CartPanel({
 
 export default function POSPage() {
   const [token,            setToken]           = useState<string | null>(null);
+  const [initialized,      setInitialized]     = useState(false);
 
-  // Auto-authentification depuis le dashboard admin (token passé en paramètre URL)
+  // SSO depuis admin : token URL → localStorage → affichage direct sans login
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get('token');
     if (urlToken) {
       window.history.replaceState({}, '', window.location.pathname);
+      localStorage.setItem('pos_token', urlToken);
       setToken(urlToken);
+    } else {
+      const saved = localStorage.getItem('pos_token');
+      if (saved) setToken(saved);
     }
+    setInitialized(true);
   }, []);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [search,           setSearch]           = useState('');
@@ -734,7 +739,13 @@ export default function POSPage() {
   const cartCount     = cart.reduce((s, i) => s + i.quantity, 0);
   const tableLabel    = activeTable ? `Table ${activeTable.number}` : orderType === 'TAKEAWAY' ? 'Emporté' : '';
 
-  if (!token) return <LoginScreen onLogin={setToken} />;
+  if (!initialized) return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="text-gray-400 text-sm">Chargement...</div>
+    </div>
+  );
+
+  if (!token) return <LoginScreen onLogin={(t) => { localStorage.setItem('pos_token', t); setToken(t); }} />;
 
   const cartPanelProps = {
     token: token!, cart, orderNote, activeTable, orderType,
@@ -788,7 +799,7 @@ export default function POSPage() {
         <h1 className="text-lg font-bold">🍽️ Caisse POS</h1>
         <div className="flex items-center gap-3">
           <span className="text-[10px] text-gray-600">v3.0</span>
-          <button onClick={() => setToken(null)} className="text-xs text-gray-500 hover:text-gray-300">Déconnexion</button>
+          <button onClick={() => { localStorage.removeItem('pos_token'); setToken(null); }} className="text-xs text-gray-500 hover:text-gray-300">Déconnexion</button>
         </div>
       </div>
 
