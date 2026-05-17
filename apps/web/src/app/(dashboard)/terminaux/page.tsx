@@ -305,7 +305,7 @@ export default function TerminauxPage() {
                       onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                       placeholder="Ex: Caisse principale, Bar, Terrasse"
                       required
-                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm"
+                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-brand-muted"
                     />
                   </div>
                   <div>
@@ -314,7 +314,7 @@ export default function TerminauxPage() {
                       value={form.code}
                       onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
                       placeholder="Ex: C1, BAR"
-                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm"
+                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-brand-muted"
                     />
                   </div>
                   <div className="col-span-2">
@@ -323,7 +323,7 @@ export default function TerminauxPage() {
                       value={form.description}
                       onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                       placeholder="Description optionnelle"
-                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm"
+                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-brand-muted"
                     />
                   </div>
                 </div>
@@ -338,7 +338,7 @@ export default function TerminauxPage() {
                     <select
                       value={form.status}
                       onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm"
+                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-brand-muted"
                     >
                       <option value="ACTIVE">Actif</option>
                       <option value="INACTIVE">Inactif</option>
@@ -368,7 +368,7 @@ export default function TerminauxPage() {
                 <select
                   value={form.warehouseId}
                   onChange={e => setForm(f => ({ ...f, warehouseId: e.target.value }))}
-                  className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm"
+                  className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-brand-muted"
                 >
                   <option value="">— Aucun entrepôt spécifique —</option>
                   {warehouses.map((w: any) => (
@@ -455,7 +455,7 @@ export default function TerminauxPage() {
                       value={form.printerSn}
                       onChange={e => setForm(f => ({ ...f, printerSn: e.target.value }))}
                       placeholder="XPyun SN optionnel"
-                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm"
+                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-brand-muted"
                     />
                   </div>
                   <div>
@@ -464,7 +464,7 @@ export default function TerminauxPage() {
                       value={form.tableSection}
                       onChange={e => setForm(f => ({ ...f, tableSection: e.target.value }))}
                       placeholder="Ex: terrasse, salle, bar"
-                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm"
+                      className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-brand-muted"
                     />
                   </div>
                 </div>
