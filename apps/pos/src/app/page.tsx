@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { formatCurrency } from '@restaurant/utils';
 
 interface Category  { id: string; name: string; icon?: string }
@@ -278,7 +278,7 @@ function PaymentModal({
   const remaining  = Math.max(0, grandTotal - totalPaid);
 
   // On mount: create order from cart if needed, then build queue
-  useState(() => {
+  useEffect(() => {
     (async () => {
       setBusy(true);
       try {
@@ -307,7 +307,7 @@ function PaymentModal({
         setBusy(false);
       }
     })();
-  });
+  }, []);
 
   async function addPayment() {
     const amount = parseFloat(amountStr);
