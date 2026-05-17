@@ -26,15 +26,21 @@ function formatPaymentLabel(payments: { method: string; amount: number }[]): str
 }
 
 // Build receipt payload for autoPrintSaleReceipt (uses transaction date from original order)
-function buildReceiptPayload(updatedOrder: any, originalOrder: any) {
+function buildReceiptPayload(updatedOrder: any, originalOrder: any, cashierEmail?: string) {
+  const tableLabel = updatedOrder.table
+    ? `Table ${updatedOrder.table.number}`
+    : updatedOrder.type === 'TAKEAWAY' ? 'Emporte' : null
+  const restaurant = updatedOrder.restaurant
   return {
     id:            updatedOrder.id,
     code:          updatedOrder.orderNumber,
     date:          originalOrder.createdAt,
-    shopName:      '',
-    shopAddr:      null,
-    shopPhone:     null,
-    cashierName:   null,
+    shopName:      restaurant?.name ?? '',
+    shopAddr:      tableLabel
+                     ? `${restaurant?.address ?? ''} | ${tableLabel}`
+                     : (restaurant?.address ?? null),
+    shopPhone:     restaurant?.phone ?? null,
+    cashierName:   cashierEmail ?? null,
     items:         (updatedOrder.items ?? []).map((i: any) => ({
       name:      i.product?.name ?? 'Article',
       qty:       i.quantity,
@@ -323,9 +329,11 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
         },
       },
       include: {
-        items: { include: { product: true } },
-        table: true,
-        customer: true,
+        items:      { include: { product: true } },
+        table:      true,
+        customer:   true,
+        payments:   true,
+        restaurant: true,
       },
     })
 
@@ -431,7 +439,7 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     // ── Impression automatique ticket (uniquement au paiement) ──────────────
     if (status === 'COMPLETED') {
-      autoPrintSaleReceipt(req.user!.restaurantId, buildReceiptPayload(updatedOrder, order)).catch(() => {})
+      autoPrintSaleReceipt(req.user!.restaurantId, buildReceiptPayload(updatedOrder, order, req.user!.email)).catch(() => {})
     }
 
     const io = req.app.get('io')

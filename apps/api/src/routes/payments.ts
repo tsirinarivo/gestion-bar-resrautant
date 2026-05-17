@@ -95,19 +95,29 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       const completedOrder = await prisma.order.findUnique({
         where: { id: order.id },
         include: {
-          items: { include: { product: true } },
-          payments: true,
+          items:      { include: { product: true } },
+          payments:   true,
+          table:      true,
+          restaurant: true,
         },
       })
       if (completedOrder) {
+        const tableLabel = completedOrder.table
+          ? `Table ${completedOrder.table.number}`
+          : completedOrder.type === 'TAKEAWAY' ? 'Emporte' : null
+        const cashier = req.user
+          ? `${req.user.email}`
+          : null
         autoPrintSaleReceipt(restaurantId, {
           id:            completedOrder.id,
           code:          completedOrder.orderNumber,
           date:          completedOrder.createdAt,
-          shopName:      '',
-          shopAddr:      null,
-          shopPhone:     null,
-          cashierName:   null,
+          shopName:      completedOrder.restaurant.name,
+          shopAddr:      tableLabel
+                           ? `${completedOrder.restaurant.address} | ${tableLabel}`
+                           : completedOrder.restaurant.address,
+          shopPhone:     completedOrder.restaurant.phone,
+          cashierName:   cashier,
           items:         completedOrder.items.map((i: any) => ({
             name:      i.product?.name ?? 'Article',
             qty:       i.quantity,
