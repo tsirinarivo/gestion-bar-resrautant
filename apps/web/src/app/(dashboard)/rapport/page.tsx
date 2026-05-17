@@ -51,7 +51,7 @@ export default function RapportPage() {
   async function handlePrint() {
     if (!data) return
     try {
-      await api.post('/printer/test')
+      await api.post(`/finances/rapport-journalier/print?date=${date}`)
       toast.success('Rapport envoyé à l\'imprimante')
     } catch {
       toast.error('Imprimante non disponible')

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
+import { loadPrinterCfg, sendPrintAndLog, escapeXprint } from '../lib/printer'
 
 export const financesRouter = Router()
 financesRouter.use(authenticate)
@@ -434,6 +435,177 @@ financesRouter.get('/rapport-journalier', async (req: AuthRequest, res, next) =>
         stockAlerts,
       },
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/finances/rapport-journalier/print?date=YYYY-MM-DD
+financesRouter.post('/rapport-journalier/print', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const dateStr = (req.query.date as string) || new Date().toISOString().slice(0, 10)
+    const day = new Date(dateStr)
+    const start = new Date(day); start.setHours(0, 0, 0, 0)
+    const end   = new Date(day); end.setHours(23, 59, 59, 999)
+
+    const cfg = await loadPrinterCfg(restaurantId)
+    if (!cfg) throw new AppError('Imprimante non configurée', 404)
+
+    const [restaurant, orders, expenses, caisse, stockAlerts, topProducts] = await Promise.all([
+      prisma.restaurant.findUnique({ where: { id: restaurantId } }),
+      prisma.order.findMany({
+        where: { restaurantId, status: { in: ['COMPLETED', 'DELIVERED'] }, createdAt: { gte: start, lte: end } },
+        include: { payments: true, items: { include: { product: { select: { name: true, costPrice: true } } } } },
+      }),
+      prisma.expense.findMany({ where: { restaurantId, date: { gte: start, lte: end } } }),
+      prisma.caisseSession.findFirst({
+        where: { restaurantId, openedAt: { gte: start, lte: end } },
+        include: { transactions: true },
+        orderBy: { openedAt: 'desc' },
+      }),
+      prisma.stockAlert.count({ where: { stockItem: { restaurantId }, isRead: false } }),
+      prisma.orderItem.groupBy({
+        by: ['productId'],
+        where: { order: { restaurantId, status: { in: ['COMPLETED', 'DELIVERED'] }, createdAt: { gte: start, lte: end } } },
+        _sum: { quantity: true, totalPrice: true },
+        orderBy: { _sum: { totalPrice: 'desc' } },
+        take: 5,
+      }),
+    ])
+
+    // Calculs
+    const totalRevenue  = orders.reduce((s, o) => s + o.totalAmount, 0)
+    const totalDiscount = orders.reduce((s, o) => s + o.discountAmount, 0)
+    const totalTip      = orders.reduce((s, o) => s + (o.tipAmount || 0), 0)
+    const totalCOGS     = orders.reduce((s, o) => s + o.items.reduce((si, i) => si + (i.product?.costPrice || 0) * i.quantity, 0), 0)
+    const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
+    const grossMargin   = totalRevenue - totalCOGS
+    const netMargin     = grossMargin - totalExpenses
+
+    const byMethod: Record<string, number> = {}
+    for (const order of orders)
+      for (const p of order.payments)
+        if (p.status === 'COMPLETED') byMethod[p.method] = (byMethod[p.method] || 0) + p.amount
+
+    let caisseExpected = 0, caisseDiff: number | null = null
+    if (caisse) {
+      caisseExpected = caisse.openingFloat
+      for (const t of caisse.transactions) {
+        if (['SALE', 'WITHDRAWAL'].includes(t.type)) caisseExpected += t.amount
+        else if (['REFUND', 'EXPENSE', 'DEPOSIT'].includes(t.type)) caisseExpected -= t.amount
+        else if (t.type === 'ADJUSTMENT') caisseExpected += t.amount
+      }
+      if (caisse.closingFloat !== null) caisseDiff = caisse.closingFloat - caisseExpected
+    }
+
+    const productIds  = topProducts.map(p => p.productId)
+    const productNames = await prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true } })
+    const nameMap = Object.fromEntries(productNames.map(p => [p.id, p.name]))
+
+    const PAYMENT_LABELS: Record<string, string> = {
+      CASH: 'Especes', MVOLA: 'MVola', ORANGE_MONEY: 'Orange Money',
+      AIRTEL_MONEY: 'Airtel Money', CARD: 'Carte', BNI_MOBILE: 'BNI Mobile',
+      BOA_MOBILE: 'BOA Mobile', VIREMENT: 'Virement', CHEQUE: 'Cheque',
+      VOUCHER: 'Bon', WALLET: 'Wallet',
+    }
+
+    // ── Formatage XPyun 48 chars ───────────────────────────────────────────
+    const W = 48
+    const div  = (c = '-') => c.repeat(W)
+    const esc  = (s: string) => escapeXprint(String(s))
+    const fmt  = (n: number) =>
+      new Intl.NumberFormat('fr-FR').format(Math.round(n))
+        .replace(/[   ]/g, '.') + ' MGA'
+    function row(label: string, value: string): string {
+      const pad = W - label.length - value.length
+      if (pad > 0) return label + ' '.repeat(pad) + value
+      return label.slice(0, Math.max(0, W - value.length - 1)) + ' ' + value
+    }
+
+    const L = (s: string) => `<L>${esc(s)}</L>`
+    const C = (s: string) => `<C>${esc(s)}</C>`
+    const B = (s: string) => `<C><B>${esc(s)}</B></C>`
+
+    const lines: string[] = []
+    const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+
+    // En-tête
+    lines.push(B(restaurant?.name?.toUpperCase() ?? 'RESTAURANT'))
+    if (restaurant?.address) lines.push(C(restaurant.address))
+    if (restaurant?.phone)   lines.push(C(restaurant.phone))
+    lines.push(div('='))
+    lines.push(B('RAPPORT JOURNALIER'))
+    lines.push(C(dateLabel))
+    lines.push(div('='))
+
+    // Ventes
+    lines.push(L('<B>VENTES</B>'))
+    lines.push(div())
+    lines.push(L(row(`Commandes`, String(orders.length))))
+    lines.push(L(row('Chiffre d\'affaires', fmt(totalRevenue))))
+    if (totalDiscount > 0) lines.push(L(row('Remises accordees', fmt(totalDiscount))))
+    if (totalTip > 0)      lines.push(L(row('Pourboires', fmt(totalTip))))
+
+    // Marge
+    lines.push(div())
+    lines.push(L('<B>MARGE</B>'))
+    lines.push(div())
+    lines.push(L(row('COGS (cout matieres)', fmt(totalCOGS))))
+    lines.push(L(row('Marge brute', fmt(grossMargin))))
+    if (totalExpenses > 0) lines.push(L(row('Depenses', fmt(totalExpenses))))
+    lines.push(L(row('Marge nette', fmt(netMargin))))
+
+    // Paiements par mode
+    if (Object.keys(byMethod).length > 0) {
+      lines.push(div())
+      lines.push(L('<B>ENCAISSEMENTS</B>'))
+      lines.push(div())
+      for (const [method, amount] of Object.entries(byMethod)) {
+        lines.push(L(row(PAYMENT_LABELS[method] ?? method, fmt(amount))))
+      }
+      lines.push(div())
+      lines.push(L(row('TOTAL ENCAISSE', fmt(Object.values(byMethod).reduce((s, v) => s + v, 0)))))
+    }
+
+    // Top produits
+    if (topProducts.length > 0) {
+      lines.push(div())
+      lines.push(L('<B>TOP PRODUITS</B>'))
+      lines.push(div())
+      topProducts.forEach((p, i) => {
+        const name = (nameMap[p.productId] ?? 'Inconnu').slice(0, 28)
+        const qty  = `${p._sum.quantity ?? 0} pcs`
+        lines.push(L(row(`${i + 1}. ${name}`, qty)))
+        lines.push(L(row('   ' + fmt(p._sum.totalPrice ?? 0), '')))
+      })
+    }
+
+    // Caisse
+    if (caisse) {
+      lines.push(div())
+      lines.push(L('<B>CAISSE</B>'))
+      lines.push(div())
+      lines.push(L(row('Statut', caisse.status === 'OPEN' ? 'Ouverte' : 'Fermee')))
+      lines.push(L(row('Fond d\'ouverture', fmt(caisse.openingFloat))))
+      lines.push(L(row('Especes attendues', fmt(caisseExpected))))
+      if (caisse.closingFloat !== null) {
+        lines.push(L(row('Fond de fermeture', fmt(caisse.closingFloat))))
+        const ecart = caisseDiff ?? 0
+        lines.push(L(row('Ecart', (ecart >= 0 ? '+' : '') + fmt(ecart))))
+      }
+    }
+
+    // Alertes & pied de page
+    lines.push(div('='))
+    if (stockAlerts > 0) lines.push(C(`! ${stockAlerts} alerte(s) stock en cours`))
+    lines.push(C(`Imprime le ${new Date().toLocaleString('fr-FR')}`))
+    lines.push(C(`Par ${req.user!.firstName} ${req.user!.lastName}`.trim()))
+
+    const content = lines.join('<BR>')
+    await sendPrintAndLog(restaurantId, content, { kind: 'rapport_journalier', relatedId: dateStr })
+
+    res.json({ success: true, message: 'Rapport envoyé à l\'imprimante' })
   } catch (error) {
     next(error)
   }
