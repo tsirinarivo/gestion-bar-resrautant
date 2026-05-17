@@ -74,6 +74,9 @@ reservationRouter.get('/:id', async (req: AuthRequest, res, next) => {
 reservationRouter.post('/', async (req: AuthRequest, res, next) => {
   try {
     const data = reservationSchema.parse(req.body)
+    if (new Date(data.date) <= new Date()) {
+      throw new AppError('La date de réservation doit être dans le futur', 400)
+    }
     const restaurantId = req.user!.restaurantId
 
     const reservation = await prisma.reservation.create({

@@ -83,7 +83,7 @@ caisseRouter.post('/sessions/:id/transaction', async (req: AuthRequest, res, nex
     const data = z
       .object({
         type: z.enum(['SALE', 'REFUND', 'EXPENSE', 'DEPOSIT', 'WITHDRAWAL', 'ADJUSTMENT']),
-        amount: z.number().positive(),
+        amount: z.number().refine(v => v !== 0, 'Le montant ne peut pas être zéro'),
         description: z.string().optional(),
         reference: z.string().optional(),
       })
@@ -122,10 +122,7 @@ caisseRouter.post('/sessions/:id/close', async (req: AuthRequest, res, next) => 
       } else if (['REFUND', 'EXPENSE', 'DEPOSIT'].includes(t.type)) {
         expectedCash -= t.amount
       } else if (t.type === 'ADJUSTMENT') {
-        // Adjustments can be positive or negative; amount is stored as positive,
-        // so we treat them as additions (caller uses negative amounts for deductions
-        // by creating negative-context ADJUSTMENT entries — but since amount is
-        // validated positive, here we just add them as increments).
+        // amount peut être négatif (correction à la baisse) ou positif (correction à la hausse)
         expectedCash += t.amount
       }
     }

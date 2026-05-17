@@ -23,7 +23,7 @@ const navItems = [
   { href: '/menu', label: 'Menu', icon: UtensilsCrossed, roles: ['manager', 'superadmin'] },
   { href: '/tables', label: 'Plan de salle', icon: Table2, roles: ['*'] },
   { href: '/reservations', label: 'Réservations', icon: Calendar, roles: ['manager', 'superadmin', 'serveur'] },
-  { href: '/pos', label: 'Caisse', icon: CreditCard, roles: ['*'], highlight: true },
+  { href: '/pos', label: 'POS', icon: CreditCard, roles: ['*'], highlight: true },
   { href: '/kds', label: 'Cuisine (KDS)', icon: Monitor, roles: ['cuisinier', 'manager', 'superadmin'] },
   { href: '/stock', label: 'Stock', icon: Package, roles: ['manager', 'superadmin'] },
   { href: '/warehouses', label: 'Entrepôts', icon: Warehouse, roles: ['manager', 'superadmin'] },

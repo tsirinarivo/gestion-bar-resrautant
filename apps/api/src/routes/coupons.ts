@@ -41,7 +41,7 @@ couponRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthReque
     const coupon = await prisma.coupon.create({
       data: {
         ...data,
-        code: data.code || generateCouponCode(),
+        code: (data.code || generateCouponCode()).toUpperCase(),
         restaurantId: req.user!.restaurantId,
         startDate: data.startDate ? new Date(data.startDate) : undefined,
         endDate: data.endDate ? new Date(data.endDate) : undefined,

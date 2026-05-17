@@ -47,7 +47,7 @@ stockRouter.get('/', async (req: AuthRequest, res, next) => {
     const where: any = { restaurantId: req.user!.restaurantId }
     if (location) where.location = location
     if (search) where.name = { contains: search as string, mode: 'insensitive' }
-    if (lowStock === 'true') where.currentQuantity = { lte: prisma.stockItem.fields.minQuantity }
+    // lowStock filter handled post-query via stockStatus field
 
     // Try with supplierPrices first; fall back without if table doesn't exist yet
     let items: any[]
@@ -88,7 +88,11 @@ stockRouter.get('/', async (req: AuthRequest, res, next) => {
         : 'OK',
     }))
 
-    res.json({ success: true, data: itemsWithStatus })
+    const result = lowStock === 'true'
+      ? itemsWithStatus.filter((i: any) => i.stockStatus === 'LOW_STOCK' || i.stockStatus === 'OUT_OF_STOCK')
+      : itemsWithStatus
+
+    res.json({ success: true, data: result })
   } catch (error) {
     next(error)
   }
@@ -198,9 +202,11 @@ stockRouter.post('/:id/movements', async (req: AuthRequest, res, next) => {
     })
     if (!item) throw new AppError('Article introuvable', 404)
 
-    const newQuantity = data.type === 'IN' || data.type === 'ADJUSTMENT'
+    const newQuantity = data.type === 'IN'
       ? item.currentQuantity + data.quantity
-      : item.currentQuantity - data.quantity
+      : data.type === 'ADJUSTMENT'
+        ? data.quantity  // Pour ADJUSTMENT, quantity = nouvelle valeur absolue du stock
+        : item.currentQuantity - data.quantity
 
     if (newQuantity < 0) throw new AppError('Quantité insuffisante en stock', 400)
 

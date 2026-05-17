@@ -61,6 +61,9 @@ const createOrderSchema = z.object({
   deliveryPostalCode: z.string().optional(),
   deliveryNotes: z.string().optional(),
   items: z.array(orderItemSchema).min(1),
+}).refine(d => d.type !== 'DELIVERY' || !!d.deliveryAddress, {
+  message: "L'adresse de livraison est requise pour une commande DELIVERY",
+  path: ['deliveryAddress'],
 })
 
 // GET /api/orders
@@ -193,8 +196,9 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
       }
     }
     const deliveryFee = data.type === 'DELIVERY' ? (restaurant?.deliveryFee || 0) : 0
-    const taxAmount = (subtotal - discountAmount) * 0.1
-    const totalAmount = subtotal - discountAmount + taxAmount + deliveryFee
+    // Pas de TVA pour DINE_IN/TAKEAWAY — les prix affichés sont TTC
+    const taxAmount = 0
+    const totalAmount = subtotal - discountAmount + deliveryFee
 
     const initialStatus = data.status ?? 'PENDING'
     const order = await prisma.order.create({
@@ -406,8 +410,8 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
       }
     }
 
-    // ── Impression automatique ticket ────────────────────────────────────────
-    if (status === 'CONFIRMED' || status === 'COMPLETED') {
+    // ── Impression automatique ticket (uniquement au paiement) ──────────────
+    if (status === 'COMPLETED') {
       autoPrintSaleReceipt(req.user!.restaurantId, buildReceiptPayload(updatedOrder, order)).catch(() => {})
     }
 
@@ -432,7 +436,7 @@ orderRouter.patch('/:id/tip', async (req: AuthRequest, res, next) => {
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },
     })
     if (!order) throw new AppError('Commande introuvable', 404)
-    const newTotal = order.subtotal + order.taxAmount - order.discountAmount + order.deliveryFee + tip
+    const newTotal = order.totalAmount - (order.tipAmount || 0) + tip
     const updated = await prisma.order.update({
       where: { id: order.id },
       data: { tipAmount: tip, totalAmount: newTotal },

@@ -48,7 +48,7 @@ async function loginKDS(email: string, password: string): Promise<string> {
 }
 
 async function fetchKDSOrders(token: string): Promise<KDSOrder[]> {
-  const res = await fetch(`${API_URL}/api/orders?status=CONFIRMED,PREPARING`, {
+  const res = await fetch(`${API_URL}/api/orders?status=PENDING,CONFIRMED,PREPARING`, {
     headers: authHeader(token),
   });
   if (res.status === 401) throw new Error('401');
@@ -171,7 +171,7 @@ function KDSPageInner() {
     return 'timer-danger';
   };
 
-  const pendingOrders = orders.filter(o => o.status === 'CONFIRMED');
+  const pendingOrders = orders.filter(o => o.status === 'PENDING' || o.status === 'CONFIRMED');
   const preparingOrders = orders.filter(o => o.status === 'PREPARING');
 
   return (
@@ -248,13 +248,13 @@ function KDSPageInner() {
                     </p>
                   )}
 
-                  {order.status === 'CONFIRMED' ? (
+                  {order.status === 'PENDING' || order.status === 'CONFIRMED' ? (
                     <button
                       onClick={() => preparingMutation.mutate(order.id)}
                       disabled={preparingMutation.isPending}
                       className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-xl text-sm font-bold transition-colors"
                     >
-                      Commencer la préparation
+                      {order.status === 'PENDING' ? '✅ Accepter & préparer' : 'Commencer la préparation'}
                     </button>
                   ) : (
                     <button
