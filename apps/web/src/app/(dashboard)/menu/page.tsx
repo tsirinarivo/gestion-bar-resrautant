@@ -51,6 +51,7 @@ function ProductModal({
     name: product?.name ?? '',
     shortDesc: product?.shortDesc ?? '',
     description: product?.description ?? '',
+    image: product?.image ?? '',
     price: product?.price?.toString() ?? '',
     costPrice: product?.costPrice?.toString() ?? '',
     prepTime: product?.prepTime?.toString() ?? '10',
@@ -91,6 +92,7 @@ function ProductModal({
       name: form.name.trim(),
       shortDesc: form.shortDesc.trim() || undefined,
       description: form.description.trim() || undefined,
+      image: form.image.trim() || undefined,
       price: parseFloat(form.price),
       costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
       prepTime: form.prepTime ? parseInt(form.prepTime) : 10,
@@ -157,6 +159,37 @@ function ProductModal({
                 </select>
               )}
             </div>
+          </div>
+
+          {/* Image */}
+          <div>
+            <label className="text-sm text-brand-muted mb-1 block">Image</label>
+            <div className="flex gap-2">
+              <input
+                value={form.image}
+                onChange={e => setForm(f => ({ ...f, image: e.target.value }))}
+                className="input-field flex-1"
+                placeholder="https://images.unsplash.com/..."
+              />
+              <button
+                type="button"
+                title="Chercher sur Unsplash"
+                onClick={() => form.name && window.open(`https://unsplash.com/s/photos/${encodeURIComponent(form.name + ' food')}`, '_blank')}
+                className="px-3 py-2 bg-gray-700 hover:bg-gray-600 border border-brand-border rounded-xl text-sm transition-colors flex-shrink-0"
+              >
+                🔍 Unsplash
+              </button>
+            </div>
+            {form.image && (
+              <div className="mt-2 relative w-24 h-24 rounded-xl overflow-hidden border border-brand-border">
+                <img
+                  src={form.image}
+                  alt="Aperçu"
+                  className="w-full h-full object-cover"
+                  onError={e => { (e.currentTarget as HTMLImageElement).src = ''; (e.currentTarget.parentElement as HTMLElement).innerHTML = '<div class="w-full h-full bg-gray-700 flex items-center justify-center text-2xl">❌</div>' }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Description */}
