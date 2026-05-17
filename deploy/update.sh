@@ -17,8 +17,10 @@ header() { echo -e "\n${BOLD}${CYAN}═══ $1 ═══${RESET}\n"; }
 header "RestaurantOS — Mise à jour"
 
 header "1. Récupération du code"
-git pull origin claude/restaurant-management-app-cFnVm
-log "Code mis à jour"
+git fetch origin claude/restaurant-management-app-cFnVm
+git checkout claude/restaurant-management-app-cFnVm
+git reset --hard origin/claude/restaurant-management-app-cFnVm
+log "Code mis à jour ($(git rev-parse --short HEAD))"
 
 set -a; source .env.prod; set +a
 

@@ -775,7 +775,10 @@ export default function POSPage() {
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700 flex-shrink-0">
         <h1 className="text-lg font-bold">🍽️ Caisse POS</h1>
-        <button onClick={() => setToken(null)} className="text-xs text-gray-500 hover:text-gray-300">Déconnexion</button>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-gray-600">v3.0</span>
+          <button onClick={() => setToken(null)} className="text-xs text-gray-500 hover:text-gray-300">Déconnexion</button>
+        </div>
       </div>
 
       {/* Table selector */}
