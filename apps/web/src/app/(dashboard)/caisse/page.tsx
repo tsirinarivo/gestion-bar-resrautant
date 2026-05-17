@@ -354,6 +354,7 @@ export default function CaissePage() {
   const [closeModal, setCloseModal] = useState(false)
   const [txModal, setTxModal] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
+  const [expandedSession, setExpandedSession] = useState<string | null>(null)
 
   // Current session
   const { data: currentSession, isLoading: loadingCurrent } = useQuery<CaisseSession | null>({
@@ -367,6 +368,13 @@ export default function CaissePage() {
     queryKey: ['caisse-sessions', historyPage],
     queryFn: () => api.get(`/caisse/sessions?page=${historyPage}&perPage=10`).then(r => r.data),
     placeholderData: prev => prev,
+  })
+
+  // Detail of expanded session
+  const { data: expandedDetail } = useQuery<CaisseSession>({
+    queryKey: ['caisse-session-detail', expandedSession],
+    queryFn: () => api.get(`/caisse/sessions/${expandedSession}`).then(r => r.data.data),
+    enabled: !!expandedSession,
   })
 
   const sessions = sessionsRes?.data ?? []
@@ -550,38 +558,100 @@ export default function CaissePage() {
                 <tbody>
                   {sessions.map(s => {
                     const diff = (s.closingFloat ?? 0) - (s.expectedCash ?? 0)
+                    const isExpanded = expandedSession === s.id
+                    const detail = isExpanded ? expandedDetail : null
+                    const totalSales = detail?.transactions.filter(t => t.type === 'SALE').reduce((sum, t) => sum + t.amount, 0) ?? 0
                     return (
-                      <tr key={s.id} className="border-b border-brand-border/30 hover:bg-white/2 transition-colors">
-                        <td className="px-4 py-3 text-xs">
-                          {new Date(s.openedAt).toLocaleString('fr-FR', {
-                            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-                          })}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-brand-muted">
-                          {s.closedAt
-                            ? new Date(s.closedAt).toLocaleString('fr-FR', {
-                                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-                              })
-                            : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-right">{formatCurrency(s.openingFloat)}</td>
-                        <td className="px-4 py-3 text-right">
-                          {s.closingFloat !== undefined ? formatCurrency(s.closingFloat) : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-right text-brand-muted">
-                          {s.expectedCash !== undefined ? formatCurrency(s.expectedCash) : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {s.status === 'CLOSED' ? (
-                            <span className={diff < 0 ? 'text-red-400 font-semibold' : diff > 0 ? 'text-yellow-400 font-semibold' : 'text-green-400'}>
-                              {diff >= 0 ? '+' : ''}{formatCurrency(diff)}
-                            </span>
-                          ) : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <SessionBadge status={s.status} />
-                        </td>
-                      </tr>
+                      <>
+                        <tr
+                          key={s.id}
+                          onClick={() => setExpandedSession(isExpanded ? null : s.id)}
+                          className="border-b border-brand-border/30 hover:bg-white/2 transition-colors cursor-pointer"
+                        >
+                          <td className="px-4 py-3 text-xs">
+                            <span className="mr-1 text-brand-muted">{isExpanded ? '▼' : '▶'}</span>
+                            {new Date(s.openedAt).toLocaleString('fr-FR', {
+                              day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-brand-muted">
+                            {s.closedAt
+                              ? new Date(s.closedAt).toLocaleString('fr-FR', {
+                                  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                                })
+                              : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right">{formatCurrency(s.openingFloat)}</td>
+                          <td className="px-4 py-3 text-right">
+                            {s.closingFloat !== undefined ? formatCurrency(s.closingFloat) : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right text-brand-muted">
+                            {s.expectedCash !== undefined ? formatCurrency(s.expectedCash) : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {s.status === 'CLOSED' ? (
+                              <span className={diff < 0 ? 'text-red-400 font-semibold' : diff > 0 ? 'text-yellow-400 font-semibold' : 'text-green-400'}>
+                                {diff >= 0 ? '+' : ''}{formatCurrency(diff)}
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <SessionBadge status={s.status} />
+                          </td>
+                        </tr>
+
+                        {/* Expanded transactions */}
+                        {isExpanded && (
+                          <tr key={`${s.id}-detail`} className="bg-white/2">
+                            <td colSpan={7} className="px-4 pb-4 pt-2">
+                              {!detail ? (
+                                <p className="text-xs text-brand-muted py-2">Chargement…</p>
+                              ) : detail.transactions.length === 0 ? (
+                                <p className="text-xs text-brand-muted py-2">Aucune transaction enregistrée pour cette session.</p>
+                              ) : (
+                                <div className="rounded-xl border border-brand-border overflow-hidden">
+                                  <div className="flex items-center justify-between px-3 py-2 bg-white/5 border-b border-brand-border">
+                                    <span className="text-xs font-semibold text-brand-muted uppercase tracking-wide">
+                                      {detail.transactions.length} transaction(s)
+                                    </span>
+                                    <span className="text-xs text-green-400 font-semibold">
+                                      Ventes : {formatCurrency(totalSales)}
+                                    </span>
+                                  </div>
+                                  <div className="divide-y divide-brand-border/30 max-h-72 overflow-y-auto">
+                                    {detail.transactions.map(tx => {
+                                      const sign = txSign(tx.type)
+                                      return (
+                                        <div key={tx.id} className="flex items-center justify-between px-3 py-2 hover:bg-white/3 transition-colors">
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            {sign > 0
+                                              ? <ArrowUpCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                                              : <ArrowDownCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-medium">{txLabel(tx.type)}</p>
+                                              {tx.description && (
+                                                <p className="text-[11px] text-brand-muted truncate">{tx.description}</p>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <div className="text-right flex-shrink-0 ml-4">
+                                            <p className={`text-xs font-semibold ${sign > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                              {sign > 0 ? '+' : '−'}{formatCurrency(tx.amount)}
+                                            </p>
+                                            <p className="text-[11px] text-brand-muted">
+                                              {new Date(tx.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     )
                   })}
                 </tbody>
