@@ -23,7 +23,6 @@ const navItems = [
   { href: '/menu', label: 'Menu', icon: UtensilsCrossed, roles: ['manager', 'superadmin'] },
   { href: '/tables', label: 'Plan de salle', icon: Table2, roles: ['*'] },
   { href: '/reservations', label: 'Réservations', icon: Calendar, roles: ['manager', 'superadmin', 'serveur'] },
-  { href: '/pos', label: 'POS', icon: CreditCard, roles: ['*'], highlight: true },
   { href: '/kds', label: 'Cuisine (KDS)', icon: Monitor, roles: ['cuisinier', 'manager', 'superadmin'] },
   { href: '/stock', label: 'Stock', icon: Package, roles: ['manager', 'superadmin'] },
   { href: '/warehouses', label: 'Entrepôts', icon: Warehouse, roles: ['manager', 'superadmin'] },
@@ -39,6 +38,8 @@ const navItems = [
   { href: '/settings/printer', label: 'Imprimante', icon: Printer, roles: ['manager', 'superadmin'] },
   { href: '/settings', label: 'Paramètres', icon: Settings, roles: ['manager', 'superadmin'] },
 ]
+
+const POS_URL = process.env.NEXT_PUBLIC_POS_URL || 'https://pos.restaurant.dago-it.com'
 
 interface SidebarProps {
   mobileOpen: boolean
@@ -63,6 +64,12 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     item.roles.includes('*') || item.roles.includes(userRole)
   )
 
+  function openPOS() {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null
+    const url = token ? `${POS_URL}/?token=${encodeURIComponent(token)}` : POS_URL
+    window.open(url, '_blank', 'noopener')
+  }
+
   const sidebarContent = (
     <>
       {/* Logo */}
@@ -84,6 +91,25 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         {/* Mobile close */}
         <button onClick={onClose} className="md:hidden ml-auto text-brand-muted hover:text-white p-1">
           <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Bouton POS — raccourci vers pos.restaurant.dago-it.com */}
+      <div className="px-2 py-2 border-b border-brand-border">
+        <button onClick={openPOS}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-orange/10 border border-brand-orange/40 hover:bg-brand-orange/20 transition-colors text-brand-orange font-semibold text-sm">
+          <CreditCard className="w-5 h-5 flex-shrink-0" />
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="flex-1 text-left">
+                Ouvrir le POS
+              </motion.span>
+            )}
+          </AnimatePresence>
+          {!collapsed && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-brand-orange text-white">↗</span>
+          )}
         </button>
       </div>
 

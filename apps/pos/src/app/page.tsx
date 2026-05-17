@@ -606,6 +606,17 @@ function CartPanel({
 
 export default function POSPage() {
   const [token,            setToken]           = useState<string | null>(null);
+
+  // Auto-authentification depuis le dashboard admin (token passé en paramètre URL)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    if (urlToken) {
+      window.history.replaceState({}, '', window.location.pathname);
+      setToken(urlToken);
+    }
+  }, []);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [search,           setSearch]           = useState('');
   const [cart,             setCart]             = useState<CartItem[]>([]);
