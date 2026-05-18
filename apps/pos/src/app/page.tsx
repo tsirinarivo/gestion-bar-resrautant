@@ -841,12 +841,24 @@ export default function POSPage() {
     [products, search]);
 
   const addToCart = useCallback((product: Product) => {
+    if (product.stockAvailable !== null && product.stockAvailable !== undefined) {
+      const currentQty = cart.find(i => i.product.id === product.id)?.quantity ?? 0;
+      if (currentQty + 1 > product.stockAvailable) {
+        showToast(
+          product.stockAvailable === 0
+            ? `"${product.name}" est épuisé`
+            : `Stock insuffisant pour "${product.name}" — max ${product.stockAvailable} disponible(s)`,
+          false,
+        );
+        return;
+      }
+    }
     setCart(prev => {
       const ex = prev.find(i => i.product.id === product.id);
       if (ex) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
       return [...prev, { product, quantity: 1 }];
     });
-  }, []);
+  }, [cart]);
 
   const removeFromCart = useCallback((productId: string) => {
     setCart(prev =>
