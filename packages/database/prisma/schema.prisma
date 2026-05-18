@@ -70,6 +70,7 @@ model Restaurant {
   caisseSessions CaisseSession[]
   bankAccounts   BankAccount[]
   posTerminals   PosTerminal[]
+  customerDebts  CustomerDebt[]
 
   @@map("restaurants")
 }
@@ -952,6 +953,7 @@ model Customer {
   reviews      Review[]
   addresses    CustomerAddress[]
   couponUsages CouponUsage[]
+  debts        CustomerDebt[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1509,4 +1511,46 @@ model PosTerminalUser {
 
   @@id([terminalId, userId])
   @@map("pos_terminal_users")
+}
+
+// ─── DETTES CLIENTS ───────────────────────────────────────────────────────────
+
+model CustomerDebt {
+  id         String    @id @default(cuid())
+  amount     Float     // montant total de la dette
+  paidAmount Float     @default(0)
+  status     String    @default("PENDING") // PENDING | PARTIAL | PAID | CANCELLED
+  dueDate    DateTime?
+  notes      String?
+  orderRef   String?   // numéro de commande ou référence libre
+
+  customerId   String
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  payments DebtPayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@index([customerId])
+  @@index([status])
+  @@map("customer_debts")
+}
+
+model DebtPayment {
+  id     String @id @default(cuid())
+  amount Float
+  method String @default("CASH")
+  notes  String?
+
+  debtId String
+  debt   CustomerDebt @relation(fields: [debtId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([debtId])
+  @@map("debt_payments")
 }

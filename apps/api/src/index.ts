@@ -30,6 +30,7 @@ import { warehouseRouter } from './routes/warehouses'
 import { caisseRouter } from './routes/caisse'
 import { bankRouter } from './routes/bank'
 import { posTerminalRouter } from './routes/pos-terminals'
+import { debtRouter } from './routes/debts'
 import { errorHandler } from './middleware/errorHandler'
 import { setupSocketHandlers } from './socket/handlers'
 import { prisma } from './lib/prisma'
@@ -96,6 +97,7 @@ app.use('/api/warehouses', warehouseRouter)
 app.use('/api/caisse', caisseRouter)
 app.use('/api/bank', bankRouter)
 app.use('/api/pos-terminals', posTerminalRouter)
+app.use('/api/debts', debtRouter)
 
 app.get('/api/health', async (req, res) => {
   try {

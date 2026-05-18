@@ -9,7 +9,7 @@ import {
   Package, Users, Calendar, BarChart3, Settings, ChefHat,
   Monitor, LogOut, ChevronLeft, ChevronRight,
   CreditCard, Tag, UserCog, X, Truck, TrendingUp, Printer,
-  Warehouse, Landmark, Building2, FileText,
+  Warehouse, Landmark, Building2, FileText, AlertCircle,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/lib/api'
@@ -28,6 +28,7 @@ const navItems = [
   { href: '/warehouses',label: 'Entrepôts',          icon: Warehouse,        roles: ['manager', 'superadmin'] },
   { href: '/suppliers', label: 'Fournisseurs',       icon: Truck,            roles: ['manager', 'superadmin'] },
   { href: '/customers', label: 'Clients',            icon: Users,            roles: ['manager', 'superadmin', 'caissier'] },
+  { href: '/dettes',    label: 'Dettes clients',     icon: AlertCircle,      roles: ['manager', 'superadmin', 'caissier'] },
   { href: '/employees', label: 'Employés',           icon: UserCog,          roles: ['manager', 'superadmin'] },
   { href: '/coupons',   label: 'Promotions',         icon: Tag,              roles: ['manager', 'superadmin'] },
   { href: '/caisse',    label: 'Caisse',             icon: Landmark,         roles: ['manager', 'superadmin', 'caissier'] },

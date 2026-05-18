@@ -15,7 +15,7 @@ const ROLE_HOME: Record<string, string> = {
 
 const ROLE_ALLOWED: Record<string, string[]> = {
   cuisinier: ['/kds', '/orders', '/tables', '/dashboard'],
-  caissier: ['/pos', '/orders', '/tables', '/customers', '/dashboard'],
+  caissier: ['/pos', '/orders', '/tables', '/customers', '/dettes', '/dashboard'],
   serveur: ['/orders', '/tables', '/reservations', '/dashboard'],
 }
 
