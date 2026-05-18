@@ -892,6 +892,7 @@ export default function POSPage() {
     setOrderNote('');
     setShowPayModal(false);
     setCartOpen(false);
+    qc.invalidateQueries({ queryKey: ['pos-products'] });
     if (activeTable) {
       setActiveTable(null);
       qc.invalidateQueries({ queryKey: ['pos-tables'] });
