@@ -41,7 +41,7 @@ caisseRouter.get('/sessions', async (req: AuthRequest, res, next) => {
         total,
         page: Number(page),
         perPage: Number(perPage),
-        pageCount: Math.ceil(total / Number(perPage)),
+        totalPages: Math.ceil(total / Number(perPage)),
       },
     })
   } catch (error) { next(error) }
@@ -114,14 +114,14 @@ caisseRouter.post('/sessions/:id/close', async (req: AuthRequest, res, next) => 
     if (!session) throw new AppError('Session introuvable ou déjà fermée', 404)
 
     // Compute expected cash:
-    // openingFloat + SALE + DEPOSIT - REFUND - EXPENSE - WITHDRAWAL + ADJUSTMENT
-    // DEPOSIT = entrée d'argent dans le tiroir (ex: appoint fonds)
-    // WITHDRAWAL = sortie d'argent du tiroir (ex: dépôt coffre, petite caisse)
+    // openingFloat + SALE + WITHDRAWAL(retrait banque = cash entrant) - REFUND - EXPENSE - DEPOSIT(dépôt banque = cash sortant) + ADJUSTMENT
+    // DEPOSIT  = "Dépôt en banque"  : le caissier envoie du cash à la banque → sort du tiroir → soustrait
+    // WITHDRAWAL = "Retrait banque" : le caissier reçoit du cash de la banque → entre dans le tiroir → ajoute
     let expectedCash = session.openingFloat
     for (const t of session.transactions) {
-      if (['SALE', 'DEPOSIT'].includes(t.type)) {
+      if (['SALE', 'WITHDRAWAL'].includes(t.type)) {
         expectedCash += t.amount
-      } else if (['REFUND', 'EXPENSE', 'WITHDRAWAL'].includes(t.type)) {
+      } else if (['REFUND', 'EXPENSE', 'DEPOSIT'].includes(t.type)) {
         expectedCash -= t.amount
       } else if (t.type === 'ADJUSTMENT') {
         expectedCash += t.amount

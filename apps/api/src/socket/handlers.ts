@@ -30,8 +30,10 @@ export function setupSocketHandlers(io: Server) {
       if (['manager', 'superadmin'].includes(roleName)) socket.join(`admin-${restaurantId}`)
     }
 
-    socket.on('join:kds', (data: { restaurantId: string }) => {
-      socket.join(`kds-${data.restaurantId}`)
+    // BUG 7 — accepter join:kds sans restaurantId (fallback sur socket.data depuis JWT)
+    socket.on('join:kds', (data?: { restaurantId?: string }) => {
+      const rId = data?.restaurantId || socket.data.restaurantId
+      if (rId) socket.join(`kds-${rId}`)
     })
 
     socket.on('kds:item_ready', (data: { orderId: string; itemId: string; restaurantId: string }) => {

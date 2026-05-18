@@ -145,6 +145,8 @@ function KDSPageInner() {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
+    // BUG 7 — rejoindre explicitement la room KDS (le serveur utilise restaurantId du JWT)
+    socket.on('connect', () => socket.emit('join:kds'));
     socket.on('kds:new_order', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
     socket.on('order:status_changed', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
     return () => { socket.disconnect(); };

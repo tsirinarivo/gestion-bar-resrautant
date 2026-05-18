@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { formatCurrency } from '@restaurant/utils';
 
 interface Category  { id: string; name: string; icon?: string }
@@ -269,6 +269,8 @@ function PaymentModal({
   // Queue of orders to pay: {id, remaining}
   const [orderQueue, setOrderQueue] = useState<{id: string; remaining: number}[]>([]);
   const [ready, setReady]           = useState(false);   // orders created
+  // BUG 2 — suivre l'ordre créé depuis le panier pour l'annuler si on ferme sans payer
+  const createdCartOrderId = useRef<string | null>(null);
   const [done, setDone]             = useState(false);
   const [busy, setBusy]             = useState(false);
   const [method, setMethod]         = useState(() => allowedMethods[0]?.value ?? 'CASH');
@@ -293,6 +295,7 @@ function PaymentModal({
             notes: orderNote || undefined,
             items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price })),
           });
+          createdCartOrderId.current = newOrder.id;
           queue.push({ id: newOrder.id, remaining: newOrder.totalAmount });
         }
 
@@ -343,6 +346,15 @@ function PaymentModal({
 
   const methodLabel = (v: string) => allowedMethods.find(m => m.value === v)?.label ?? POS_PAYMENT_METHODS.find(m => m.value === v)?.label ?? v;
 
+  // BUG 2 — annuler l'ordre créé depuis le panier si on ferme sans payer
+  async function handleClose() {
+    if (!done && createdCartOrderId.current) {
+      try { await apiPatch(token, `/orders/${createdCartOrderId.current}/status`, { status: 'CANCELLED', notes: 'Paiement annulé par le caissier' }); } catch {}
+      createdCartOrderId.current = null;
+    }
+    onClose();
+  }
+
   if (done) {
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -369,13 +381,13 @@ function PaymentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70" onClick={handleClose} />
       <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl z-10 max-h-[95vh] overflow-y-auto">
         <div className="p-4">
           <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-3 sm:hidden" />
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-bold">L'addition — {tableLabel}</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">&times;</button>
+            <button onClick={handleClose} className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">&times;</button>
           </div>
 
           {/* Totals */}
