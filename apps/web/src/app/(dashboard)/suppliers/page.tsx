@@ -339,15 +339,19 @@ function POModal({ suppliers, editOrder, onClose }: {
 
 // ─── Purchase Order Detail ────────────────────────────────────────────────────
 
-function PODetail({ order, onBack }: { order: PurchaseOrder; onBack: () => void }) {
+function PODetail({ order, onBack, onStatusChange }: {
+  order: PurchaseOrder; onBack: () => void; onStatusChange: (updated: PurchaseOrder) => void
+}) {
   const qc = useQueryClient()
   const st = PO_STATUS[order.status]!
 
   const changeStatus = useMutation({
     mutationFn: (status: string) => api.patch(`/suppliers/purchase-orders/${order.id}/status`, { status }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      const updated = res.data.data
       qc.invalidateQueries({ queryKey: ['purchase-orders'] })
       qc.invalidateQueries({ queryKey: ['stock'] })
+      onStatusChange(updated)
       toast.success('Statut mis à jour')
     },
     onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Erreur'),
@@ -504,7 +508,11 @@ export default function SuppliersPage() {
   if (selectedOrder) {
     return (
       <div className="space-y-6">
-        <PODetail order={selectedOrder} onBack={() => setSelectedOrder(null)} />
+        <PODetail
+          order={selectedOrder}
+          onBack={() => setSelectedOrder(null)}
+          onStatusChange={(updated) => setSelectedOrder(updated)}
+        />
       </div>
     )
   }
