@@ -9,7 +9,8 @@ interface Product   { id: string; name: string; price: number; categoryId: strin
 interface CartItem  { product: Product; quantity: number }
 interface Table     { id: string; number: number; status: string; capacity: number }
 interface OrderItem { id: string; quantity: number; totalPrice: number; product: { name: string } }
-interface Order     { id: string; orderNumber: string; status: string; totalAmount: number; items: OrderItem[] }
+interface OrderPayment { id: string; amount: number; status: string }
+interface Order     { id: string; orderNumber: string; status: string; totalAmount: number; items: OrderItem[]; payments?: OrderPayment[] }
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -300,7 +301,12 @@ function PaymentModal({
         }
 
         for (const o of openOrders) {
-          queue.push({ id: o.id, remaining: o.totalAmount });
+          // D4/G1 — utiliser le solde réel (totalAmount - paiements déjà encaissés)
+          const paid = (o.payments ?? [])
+            .filter(p => p.status === 'COMPLETED')
+            .reduce((s, p) => s + p.amount, 0)
+          const remaining = Math.max(0, o.totalAmount - paid)
+          if (remaining > 0.01) queue.push({ id: o.id, remaining })
         }
 
         setOrderQueue(queue);

@@ -63,6 +63,16 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
     if (order.status === 'COMPLETED') throw new AppError('Cette commande est déjà soldée', 400)
     if (order.status === 'CANCELLED') throw new AppError('Impossible d\'encaisser une commande annulée', 400)
 
+    // B1 — empêcher le sur-paiement
+    const existingPaid = await prisma.payment.aggregate({
+      where: { orderId: data.orderId, status: 'COMPLETED' },
+      _sum: { amount: true },
+    })
+    const alreadyPaid = existingPaid._sum.amount ?? 0
+    if (alreadyPaid + data.amount > order.totalAmount + 0.01) {
+      throw new AppError(`Sur-paiement refusé : reste dû ${order.totalAmount - alreadyPaid} MGA`, 400)
+    }
+
     const payment = await prisma.payment.create({
       data: { ...data, currency: 'MGA', status: 'COMPLETED' },
     })
@@ -73,8 +83,10 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
     })
 
     // BUG 3 — re-lire le statut frais depuis la DB pour éviter le double-COMPLETED sur race condition
+    // B2 — freshOrder peut être null si l'ordre a été supprimé entre-temps ; on traite null comme non-COMPLETED
     const freshOrder = await prisma.order.findUnique({ where: { id: order.id }, select: { status: true } })
-    if ((totalPaid._sum.amount || 0) >= order.totalAmount && freshOrder?.status !== 'COMPLETED') {
+    if (!freshOrder) throw new AppError('Commande introuvable après paiement', 404)
+    if ((totalPaid._sum.amount || 0) >= order.totalAmount && freshOrder.status !== 'COMPLETED') {
       await prisma.order.update({
         where: { id: order.id },
         data: {

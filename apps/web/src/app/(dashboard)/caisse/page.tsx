@@ -473,7 +473,7 @@ export default function CaissePage() {
             {[
               { label: 'Fond initial', value: formatCurrency(session.openingFloat) },
               { label: 'Transactions', value: session.transactions.length.toString() },
-              { label: 'Espèces attendues', value: formatCurrency(session.expectedCash ?? 0) },
+              { label: 'Espèces attendues', value: session.expectedCash != null ? formatCurrency(session.expectedCash) : '—' },
               { label: 'Ouverte à', value: new Date(session.openedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white/5 rounded-xl p-3 text-center">

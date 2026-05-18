@@ -428,14 +428,20 @@ function RecipeModal({
 
   useEffect(() => {
     if (existingItems.length > 0) {
-      setLines(existingItems.map(item => ({
-        stockItemId: item.ingredient.stockItem?.id ?? '',
-        name: item.ingredient.name,
-        unit: item.unit,
-        quantity: item.quantity,
-        yieldRate: item.yieldRate,
-        notes: item.notes ?? '',
-      })))
+      setLines(existingItems.map(item => {
+        const stockUnit = item.ingredient.stockItem?.unit
+        // H1 — si l'unité sauvegardée n'est plus compatible avec l'unité du stock, on repart sur l'unité stock
+        const compatible = stockUnit ? getCompatibleUnits(stockUnit) : [item.unit]
+        const unit = compatible.includes(item.unit) ? item.unit : (stockUnit ?? item.unit)
+        return {
+          stockItemId: item.ingredient.stockItem?.id ?? '',
+          name: item.ingredient.name,
+          unit,
+          quantity: item.quantity,
+          yieldRate: item.yieldRate,
+          notes: item.notes ?? '',
+        }
+      }))
     }
   }, [existingItems])
 

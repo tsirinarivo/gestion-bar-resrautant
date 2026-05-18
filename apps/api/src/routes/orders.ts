@@ -60,6 +60,12 @@ export async function deductStockForOrder(
   orderNumber: string,
   createdBy: string,
 ) {
+  // Idempotency: skip if stock already deducted for this order (prevents double deduction)
+  const alreadyDeducted = await prisma.stockMovement.count({
+    where: { reason: `Vente commande #${orderNumber}` },
+  })
+  if (alreadyDeducted > 0) return
+
   const orderWithItems = await prisma.order.findUnique({
     where: { id: orderId },
     select: {
@@ -136,15 +142,21 @@ export async function deductStockForOrder(
           }).catch(() => {})
         }
 
-        // Alerte stock faible / rupture normale
+        // Alerte stock faible / rupture — F2: ne pas créer de doublon si alerte active non résolue
         if (newQty <= stockItem.minQuantity && stockItem.currentQuantity > stockItem.minQuantity) {
-          await prisma.stockAlert.create({
-            data: {
-              type: newQty <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
-              message: `Stock faible : ${stockItem.name} (${newQty.toFixed(2)} ${stockItem.unit} restants)`,
-              stockItemId,
-            },
-          }).catch(() => {})
+          const alertType = newQty <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'
+          const existingAlert = await prisma.stockAlert.findFirst({
+            where: { stockItemId, type: alertType, resolvedAt: null },
+          })
+          if (!existingAlert) {
+            await prisma.stockAlert.create({
+              data: {
+                type: alertType,
+                message: `Stock faible : ${stockItem.name} (${newQty.toFixed(2)} ${stockItem.unit} restants)`,
+                stockItemId,
+              },
+            }).catch(() => {})
+          }
         }
       } catch { /* non-bloquant */ }
     }
@@ -406,11 +418,9 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     if (!order) throw new AppError('Commande introuvable', 404)
 
-    // BUG 3.1/3.2 — empêche les transitions depuis un état terminal
+    // BUG 3.1 — empêche les transitions depuis un état terminal
     if (order.status === 'COMPLETED') throw new AppError('La commande est déjà terminée', 400)
     if (order.status === 'CANCELLED') throw new AppError('La commande est annulée', 400)
-    // Empêche la double déduction si deux requêtes arrivent en même temps
-    if (status === 'COMPLETED' && order.status === 'COMPLETED') throw new AppError('Déjà complétée', 400)
 
     const timestamps: Record<string, Date> = {}
     if (status === 'CONFIRMED') timestamps.confirmedAt = new Date()
