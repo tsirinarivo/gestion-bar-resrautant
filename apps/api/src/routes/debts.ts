@@ -114,32 +114,38 @@ debtRouter.post('/:id/pay', authorize('manager', 'superadmin', 'caissier'), asyn
       notes: z.string().optional(),
     }).parse(req.body)
 
-    const debt = await prisma.customerDebt.findFirst({
-      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
-    })
-    if (!debt) throw new AppError('Dette introuvable', 404)
-    if (debt.status === 'PAID') throw new AppError('Cette dette est déjà soldée', 400)
-    if (debt.status === 'CANCELLED') throw new AppError('Cette dette est annulée', 400)
+    const restaurantId = req.user!.restaurantId
+    const debtId = req.params.id
 
-    const remaining = debt.amount - debt.paidAmount
-    if (amount > remaining + 0.01) {
-      throw new AppError(`Montant trop élevé — reste dû : ${remaining} MGA`, 400)
-    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const debt = await tx.customerDebt.findFirst({
+        where: { id: debtId, restaurantId },
+      })
+      if (!debt) throw new AppError('Dette introuvable', 404)
+      if (debt.status === 'PAID') throw new AppError('Cette dette est déjà soldée', 400)
+      if (debt.status === 'CANCELLED') throw new AppError('Cette dette est annulée', 400)
 
-    const newPaid = debt.paidAmount + amount
-    const newStatus = newPaid >= debt.amount - 0.01 ? 'PAID' : 'PARTIAL'
+      const remaining = debt.amount - debt.paidAmount
+      // MGA is integer — tolerate 1 MGA rounding
+      if (amount > remaining + 1) {
+        throw new AppError(`Montant trop élevé — reste dû : ${Math.round(remaining)} MGA`, 400)
+      }
 
-    const [, updated] = await prisma.$transaction([
-      prisma.debtPayment.create({ data: { debtId: debt.id, amount, method, notes } }),
-      prisma.customerDebt.update({
+      const newPaid = debt.paidAmount + amount
+      const newStatus = newPaid >= debt.amount - 1 ? 'PAID' : 'PARTIAL'
+
+      await tx.debtPayment.create({ data: { debtId: debt.id, amount, method, notes } })
+
+      return tx.customerDebt.update({
         where: { id: debt.id },
         data: { paidAmount: newPaid, status: newStatus },
         include: {
           customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
           payments: { orderBy: { createdAt: 'desc' } },
         },
-      }),
-    ])
+      })
+    })
+
     res.json({ success: true, data: updated })
   } catch (error) { next(error) }
 })

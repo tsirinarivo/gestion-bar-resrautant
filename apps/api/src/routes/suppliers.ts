@@ -238,36 +238,47 @@ supplierRouter.patch('/purchase-orders/:id/status', authorize('manager', 'supera
     })
     if (!order) throw new AppError('Bon de commande introuvable', 404)
 
+    // Enforce forward-only workflow: DRAFT→SENT→CONFIRMED→RECEIVED, or any→CANCELLED
+    const FLOW: Record<string, number> = { DRAFT: 0, SENT: 1, CONFIRMED: 2, RECEIVED: 3, CANCELLED: 4 }
+    const currentRank = FLOW[order.status] ?? -1
+    const newRank = FLOW[status] ?? -1
+    if (status !== 'CANCELLED' && newRank <= currentRank) {
+      throw new AppError(`Impossible de revenir à "${status}" depuis "${order.status}"`, 400)
+    }
+    if (order.status === 'RECEIVED' || order.status === 'CANCELLED') {
+      throw new AppError(`Ce bon de commande est déjà "${order.status}"`, 400)
+    }
+
     const updateData: any = { status }
     if (status === 'SENT') updateData.orderedAt = new Date()
     if (status === 'RECEIVED') updateData.receivedAt = new Date()
 
-    await prisma.purchaseOrder.update({ where: { id: order.id }, data: updateData })
+    const createdBy = req.user!.id
 
-    // When RECEIVED: update stock quantities and create movements
-    if (status === 'RECEIVED') {
-      for (const item of order.items) {
-        const qty = item.receivedQuantity > 0 ? item.receivedQuantity : item.quantity
-        await prisma.stockItem.update({
-          where: { id: item.stockItemId },
-          data: {
-            currentQuantity: { increment: qty },
-            costPerUnit: item.unitCost, // update unit cost from latest delivery
-          },
-        })
-        await prisma.stockMovement.create({
-          data: {
-            stockItemId: item.stockItemId,
-            type: 'IN',
-            quantity: qty,
-            unitCost: item.unitCost,
-            reason: `Réception BDC ${order.orderNumber}`,
-            reference: order.id,
-            createdBy: req.user!.id,
-          },
-        })
+    await prisma.$transaction(async (tx) => {
+      await tx.purchaseOrder.update({ where: { id: order.id }, data: updateData })
+
+      if (status === 'RECEIVED') {
+        for (const item of order.items) {
+          const qty = item.receivedQuantity > 0 ? item.receivedQuantity : item.quantity
+          const stockData: any = { currentQuantity: { increment: qty } }
+          // Only update costPerUnit if supplier actually provided a price
+          if (item.unitCost > 0) stockData.costPerUnit = item.unitCost
+          await tx.stockItem.update({ where: { id: item.stockItemId }, data: stockData })
+          await tx.stockMovement.create({
+            data: {
+              stockItemId: item.stockItemId,
+              type: 'IN',
+              quantity: qty,
+              unitCost: item.unitCost,
+              reason: `Réception BDC ${order.orderNumber}`,
+              reference: order.id,
+              createdBy,
+            },
+          })
+        }
       }
-    }
+    })
 
     const updated = await prisma.purchaseOrder.findUnique({
       where: { id: order.id },

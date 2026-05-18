@@ -104,9 +104,11 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
         for (const ri of product.recipeItems) {
           const stock = ri.ingredient?.stockItem
           if (!stock) continue
-          const baseQty = ri.unit && ri.unit !== stock.unit
-            ? (convertUnit(ri.quantity, ri.unit, stock.unit) ?? ri.quantity)
+          const converted = ri.unit && ri.unit !== stock.unit
+            ? convertUnit(ri.quantity, ri.unit, stock.unit)
             : ri.quantity
+          if (converted === null) continue // incompatible units — skip ingredient
+          const baseQty = converted
           const neededPerServing = baseQty / (ri.yieldRate || 1)
           if (neededPerServing <= 0) continue
           const servings = Math.floor(stock.currentQuantity / neededPerServing)

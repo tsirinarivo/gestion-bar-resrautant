@@ -35,7 +35,7 @@ const stockItemSchema = z.object({
 
 const movementSchema = z.object({
   type: z.enum(['IN', 'OUT', 'ADJUSTMENT', 'LOSS', 'TRANSFER']),
-  quantity: z.number().positive(),
+  quantity: z.number().min(0),
   unitCost: z.number().optional(),
   reason: z.string().optional(),
   notes: z.string().optional(),
