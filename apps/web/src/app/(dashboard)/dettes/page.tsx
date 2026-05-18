@@ -249,7 +249,7 @@ function DebtRow({ debt, onPay, onCancel, onDelete }: {
   onDelete: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const st = DEBT_STATUS[debt.status] ?? DEBT_STATUS.PENDING
+  const st = DEBT_STATUS[debt.status] ?? { label: debt.status, color: 'text-gray-400', bg: 'bg-gray-500/10 border-gray-500/30', icon: AlertCircle }
   const remaining = debt.amount - debt.paidAmount
   const progress = debt.amount > 0 ? (debt.paidAmount / debt.amount) * 100 : 0
   const isOverdue = debt.dueDate && debt.status !== 'PAID' && debt.status !== 'CANCELLED'
