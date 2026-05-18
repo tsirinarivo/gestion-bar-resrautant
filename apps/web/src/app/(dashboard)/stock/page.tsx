@@ -501,7 +501,8 @@ export default function StockPage() {
 
   function openNewItem() {
     setEditItem(null)
-    setItemForm(emptyItem)
+    const defaultWarehouse = (warehouses as any[]).find((w: any) => w.isDefault) ?? (warehouses as any[])[0]
+    setItemForm({ ...emptyItem, warehouseId: defaultWarehouse?.id ?? '' })
     setShowItemModal(true)
   }
 
