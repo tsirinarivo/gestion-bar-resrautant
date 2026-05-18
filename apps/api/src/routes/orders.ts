@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
-import { generateOrderNumber } from '@restaurant/utils'
+import { generateOrderNumber, convertUnit } from '@restaurant/utils'
 import { autoPrintReceiptWithTable } from '../lib/printer'
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -384,6 +384,7 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
                   recipeItems: {
                     select: {
                       quantity: true,
+                      unit: true,
                       yieldRate: true,
                       ingredient: {
                         select: { stockItemId: true },
@@ -401,10 +402,14 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
         for (const recipeItem of item.product?.recipeItems ?? []) {
           const stockItemId = recipeItem.ingredient?.stockItemId
           if (!stockItemId) continue
-          const qtyToDeduct = item.quantity * recipeItem.quantity / (recipeItem.yieldRate || 1)
           try {
             const stockItem = await prisma.stockItem.findUnique({ where: { id: stockItemId } })
             if (!stockItem) continue
+            // Convert recipe unit → stock item unit if they differ (e.g. cl → L, g → kg)
+            const recipeQty = recipeItem.unit && recipeItem.unit !== stockItem.unit
+              ? (convertUnit(recipeItem.quantity, recipeItem.unit, stockItem.unit) ?? recipeItem.quantity)
+              : recipeItem.quantity
+            const qtyToDeduct = item.quantity * recipeQty / (recipeItem.yieldRate || 1)
             const newQty = Math.max(0, stockItem.currentQuantity - qtyToDeduct)
             await prisma.$transaction([
               prisma.stockMovement.create({

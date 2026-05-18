@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
-import { slugify } from '@restaurant/utils'
+import { slugify, convertUnit } from '@restaurant/utils'
 
 export const productRouter = Router()
 productRouter.use(authenticate)
@@ -294,7 +294,11 @@ productRouter.put('/:id/recipe', authorize('manager', 'superadmin'), async (req:
         },
       })
 
-      totalCost += (item.quantity * stockItem.costPerUnit) / item.yieldRate
+      // Convert recipe unit → stock item unit before computing cost
+      const qtyInStockUnit = item.unit && item.unit !== stockItem.unit
+        ? (convertUnit(item.quantity, item.unit, stockItem.unit) ?? item.quantity)
+        : item.quantity
+      totalCost += (qtyInStockUnit * stockItem.costPerUnit) / (item.yieldRate ?? 1)
     }
 
     // Auto-update costPrice from recipe
