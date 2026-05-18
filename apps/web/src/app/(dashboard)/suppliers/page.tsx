@@ -176,13 +176,17 @@ function SupplierModal({ supplier, onClose, onSave }: {
 
 // ─── Purchase Order Modal ─────────────────────────────────────────────────────
 
-function POModal({ suppliers, editOrder, onClose }: {
+function POModal({ suppliers, editOrder, initialSupplierId, onClose, onCreated }: {
   suppliers: Supplier[]
   editOrder: PurchaseOrder | null
+  initialSupplierId?: string
   onClose: () => void
+  onCreated?: (order: PurchaseOrder) => void
 }) {
   const qc = useQueryClient()
-  const [supplierId, setSupplierId] = useState(editOrder?.supplier.id ?? suppliers[0]?.id ?? '')
+  const [supplierId, setSupplierId] = useState(
+    editOrder?.supplier.id ?? initialSupplierId ?? suppliers[0]?.id ?? ''
+  )
   const [notes, setNotes] = useState(editOrder?.notes ?? '')
   const [expectedAt, setExpectedAt] = useState(
     editOrder?.expectedAt ? editOrder.expectedAt.slice(0, 10) : ''
@@ -205,10 +209,11 @@ function POModal({ suppliers, editOrder, onClose }: {
 
   const createPO = useMutation({
     mutationFn: (data: any) => api.post('/suppliers/purchase-orders', data),
-    onSuccess: () => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['purchase-orders'] })
       qc.invalidateQueries({ queryKey: ['suppliers'] })
       toast.success('Bon de commande créé')
+      onCreated?.(res.data.data)
       onClose()
     },
     onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Erreur'),
@@ -475,7 +480,7 @@ export default function SuppliersPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<'suppliers' | 'orders'>('suppliers')
   const [supplierModal, setSupplierModal] = useState<{ open: boolean; supplier: Supplier | null }>({ open: false, supplier: null })
-  const [poModal, setPOModal] = useState(false)
+  const [poModal, setPOModal] = useState<{ open: boolean; supplierId?: string }>({ open: false })
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null)
   const [filterStatus, setFilterStatus] = useState('')
 
@@ -534,7 +539,7 @@ export default function SuppliersPage() {
         </div>
         <div className="flex gap-2">
           {tab === 'orders' && (
-            <button onClick={() => setPOModal(true)} className="btn-primary flex items-center gap-2 text-sm">
+            <button onClick={() => setPOModal({ open: true })} className="btn-primary flex items-center gap-2 text-sm">
               <Plus className="w-4 h-4" /> Nouveau bon
             </button>
           )}
@@ -632,7 +637,7 @@ export default function SuppliersPage() {
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm text-brand-muted hover:text-white hover:bg-white/5 rounded-xl transition-colors">
                       <Edit2 className="w-3.5 h-3.5" /> Modifier
                     </button>
-                    <button onClick={() => { setTab('orders'); setPOModal(true) }}
+                    <button onClick={() => { setTab('orders'); setPOModal({ open: true, supplierId: supplier.id }) }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm text-brand-orange hover:bg-brand-orange/10 rounded-xl transition-colors">
                       <ShoppingCart className="w-3.5 h-3.5" /> Commander
                     </button>
@@ -725,8 +730,18 @@ export default function SuppliersPage() {
             : createSupplier.mutate(data)}
         />
       )}
-      {poModal && (
-        <POModal suppliers={suppliers} editOrder={null} onClose={() => setPOModal(false)} />
+      {poModal.open && (
+        <POModal
+          suppliers={suppliers}
+          editOrder={null}
+          initialSupplierId={poModal.supplierId}
+          onClose={() => setPOModal({ open: false })}
+          onCreated={(order) => {
+            setPOModal({ open: false })
+            setTab('orders')
+            setSelectedOrder(order)
+          }}
+        />
       )}
     </div>
   )
