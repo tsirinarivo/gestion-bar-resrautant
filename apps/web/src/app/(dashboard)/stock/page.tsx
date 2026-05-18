@@ -12,14 +12,6 @@ import { api } from '@/lib/api'
 import { formatQuantity, formatCurrency } from '@restaurant/utils'
 import { toast } from 'sonner'
 
-const LOCATIONS = [
-  { value: 'Cuisine',        label: '👨‍🍳 Cuisine' },
-  { value: 'Bar',            label: '🍹 Bar' },
-  { value: 'Cave',           label: '🍷 Cave' },
-  { value: 'Chambre froide', label: '❄️ Chambre froide' },
-  { value: 'Réserve',        label: '📦 Réserve' },
-  { value: 'Bureau',         label: '🏢 Bureau' },
-]
 
 const STOCK_STATUS = {
   OK:             { label: 'OK',           color: '#10B981' },
@@ -42,7 +34,7 @@ interface SupplierPriceLine {
 const emptyItem = {
   name: '', description: '', sku: '', unit: 'unité',
   currentQuantity: 0, minQuantity: 0, reorderQuantity: 0, maxQuantity: '',
-  location: '', costPerUnit: 0, isPerishable: false,
+  warehouseId: '', costPerUnit: 0, isPerishable: false,
   supplierPrices: [] as SupplierPriceLine[],
 }
 
@@ -389,6 +381,12 @@ export default function StockPage() {
     staleTime: 300_000,
   })
 
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: () => api.get('/warehouses').then(r => r.data.data ?? []),
+    staleTime: 60_000,
+  })
+
   const historyParams = new URLSearchParams({ page: String(historyPage), limit: '50' })
   if (historyType) historyParams.set('type', historyType)
   if (historyItem) historyParams.set('stockItemId', historyItem)
@@ -437,12 +435,13 @@ export default function StockPage() {
 
   const recordTransfer = useMutation({
     mutationFn: async ({ item, toLocation, quantity, notes }: any) => {
+      const destWarehouse = (warehouses as any[]).find((w: any) => w.id === toLocation)
       await api.post(`/stock/${item.id}/movements`, {
         type: 'TRANSFER',
         quantity: parseFloat(quantity),
-        notes: `Transfert vers ${toLocation}${notes ? ` — ${notes}` : ''}`,
+        notes: `Transfert vers ${destWarehouse?.name ?? toLocation}${notes ? ` — ${notes}` : ''}`,
       })
-      await api.put(`/stock/${item.id}`, { ...item, location: toLocation })
+      await api.put(`/stock/${item.id}`, { ...item, warehouseId: toLocation })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['stock'] })
@@ -512,7 +511,7 @@ export default function StockPage() {
       name: item.name, description: item.description ?? '', sku: item.sku ?? '',
       unit: item.unit, currentQuantity: item.currentQuantity,
       minQuantity: item.minQuantity, reorderQuantity: item.reorderQuantity,
-      maxQuantity: item.maxQuantity ?? '', location: item.location ?? '',
+      maxQuantity: item.maxQuantity ?? '', warehouseId: item.warehouseId ?? '',
       costPerUnit: item.costPerUnit, isPerishable: item.isPerishable,
       supplierPrices: (item.supplierPrices || []).map((sp: any) => ({
         supplierId: sp.supplierId,
@@ -736,7 +735,9 @@ export default function StockPage() {
                           <span className="text-xs px-2 py-0.5 rounded-full font-medium"
                             style={{ background: `${sc.color}20`, color: sc.color }}>{sc.label}</span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-brand-muted">{item.location || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-brand-muted">
+                          {(warehouses as any[]).find((w: any) => w.id === item.warehouseId)?.name || item.location || '—'}
+                        </td>
                         <td className="px-4 py-3 text-sm font-medium">{formatCurrency(item.currentQuantity * item.costPerUnit)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
@@ -1139,12 +1140,19 @@ export default function StockPage() {
                       min="0" className="input-field" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Emplacement</label>
-                    <select value={itemForm.location} onChange={e => setItemForm((f: any) => ({ ...f, location: e.target.value }))}
+                    <label className="block text-sm font-medium mb-1">Dépôt</label>
+                    <select value={itemForm.warehouseId} onChange={e => setItemForm((f: any) => ({ ...f, warehouseId: e.target.value }))}
                       className="input-field">
-                      <option value="">— Aucun emplacement —</option>
-                      {LOCATIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                      <option value="">— Aucun dépôt —</option>
+                      {(warehouses as any[]).map((w: any) => (
+                        <option key={w.id} value={w.id}>{w.name}{w.description ? ` — ${w.description}` : ''}</option>
+                      ))}
                     </select>
+                    {(warehouses as any[]).length === 0 && (
+                      <p className="text-xs text-brand-muted mt-1">
+                        Aucun dépôt — <a href="/warehouses" className="text-brand-orange underline">créez-en un d'abord</a>
+                      </p>
+                    )}
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium mb-1">Description</label>
@@ -1317,18 +1325,18 @@ export default function StockPage() {
                 <div className="p-3 bg-white/3 rounded-xl text-sm">
                   <p className="font-medium">{transferItem.name}</p>
                   <p className="text-brand-muted mt-0.5">
-                    Emplacement actuel : <strong>{transferItem.location || '—'}</strong>
+                    Dépôt actuel : <strong>{(warehouses as any[]).find((w: any) => w.id === transferItem.warehouseId)?.name || '—'}</strong>
                     {' · '}Stock : <strong>{formatQuantity(transferItem.currentQuantity, transferItem.unit)}</strong>
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Destination *</label>
+                  <label className="block text-sm font-medium mb-2">Dépôt destination *</label>
                   <select value={transferForm.toLocation}
                     onChange={e => setTransferForm(f => ({ ...f, toLocation: e.target.value }))}
                     className="input-field">
-                    <option value="">— Choisir un emplacement —</option>
-                    {LOCATIONS.filter(l => l.value !== transferItem.location).map(l => (
-                      <option key={l.value} value={l.value}>{l.label}</option>
+                    <option value="">— Choisir un dépôt —</option>
+                    {(warehouses as any[]).filter((w: any) => w.id !== transferItem.warehouseId).map((w: any) => (
+                      <option key={w.id} value={w.id}>{w.name}{w.description ? ` — ${w.description}` : ''}</option>
                     ))}
                   </select>
                 </div>

@@ -24,6 +24,7 @@ const stockItemSchema = z.object({
   reorderQuantity: z.number().default(0),
   maxQuantity: z.number().optional(),
   location: z.string().optional(),
+  warehouseId: z.string().optional(),
   costPerUnit: z.number().default(0),
   valuationMethod: z.enum(['FIFO', 'CMUP']).default('FIFO'),
   isPerishable: z.boolean().default(false),
