@@ -247,6 +247,10 @@ model Product {
   warehouseId String?
   warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
 
+  // Article de stock directement lié à ce produit (produits vendus tels quels, sans recette)
+  stockItemId String?
+  stockItem   StockItem? @relation("ProductDirectStock", fields: [stockItemId], references: [id], onDelete: SetNull)
+
   variants       ProductVariant[]
   modifierGroups ProductModifierGroup[]
   recipeItems    RecipeItem[]
@@ -260,6 +264,7 @@ model Product {
   @@index([restaurantId])
   @@index([categoryId])
   @@index([warehouseId])
+  @@index([stockItemId])
   @@map("products")
 }
 
@@ -407,6 +412,7 @@ model StockItem {
   stockBatches    StockBatch[]
   supplierPrices  StockItemSupplier[]
   transferItems   StockTransferItem[]
+  products        Product[] @relation("ProductDirectStock")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

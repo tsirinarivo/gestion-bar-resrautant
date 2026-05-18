@@ -5,7 +5,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { formatCurrency } from '@restaurant/utils';
 
 interface Category  { id: string; name: string; icon?: string }
-interface Product   { id: string; name: string; price: number; categoryId: string; image?: string | null }
+interface Product   { id: string; name: string; price: number; categoryId: string; image?: string | null; stockAvailable?: number | null }
 interface CartItem  { product: Product; quantity: number }
 interface Table     { id: string; number: number; status: string; capacity: number }
 interface OrderItem { id: string; quantity: number; totalPrice: number; product: { name: string } }
@@ -1158,17 +1158,39 @@ export default function POSPage() {
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-1.5">
               {filteredProducts.map(product => {
                 const inCart = cart.find(i => i.product.id === product.id);
+                const hasStock = product.stockAvailable !== null && product.stockAvailable !== undefined;
+                const outOfStock = hasStock && product.stockAvailable! <= 0;
+                const lowStock = hasStock && product.stockAvailable! > 0 && product.stockAvailable! <= 5;
                 return (
-                  <button key={product.id} onClick={() => addToCart(product)}
-                    className="bg-gray-800 hover:bg-gray-700 rounded-xl p-2 text-left transition-all active:scale-95 relative border border-transparent hover:border-orange-500/30">
-                    {inCart && (
+                  <button key={product.id} onClick={() => !outOfStock && addToCart(product)}
+                    disabled={outOfStock}
+                    className={`rounded-xl p-2 text-left transition-all active:scale-95 relative border ${
+                      outOfStock
+                        ? 'bg-gray-800/50 border-gray-700 opacity-50 cursor-not-allowed'
+                        : 'bg-gray-800 hover:bg-gray-700 border-transparent hover:border-orange-500/30'
+                    }`}>
+                    {inCart && !outOfStock && (
                       <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-orange-500 rounded-full text-[10px] font-bold flex items-center justify-center z-10">
                         {inCart.quantity}
                       </span>
                     )}
+                    {outOfStock && (
+                      <span className="absolute top-1.5 right-1.5 bg-red-600 text-white text-[9px] font-bold px-1 py-0.5 rounded-md z-10 leading-none">
+                        ÉPUISÉ
+                      </span>
+                    )}
                     <ProductImage src={product.image} alt={product.name} />
                     <p className="font-medium text-[11px] leading-tight line-clamp-2 mb-0.5 pr-3">{product.name}</p>
-                    <p className="text-orange-400 font-bold text-xs">{formatCurrency(product.price)}</p>
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-orange-400 font-bold text-xs">{formatCurrency(product.price)}</p>
+                      {hasStock && (
+                        <span className={`text-[10px] font-semibold px-1 rounded ${
+                          outOfStock ? 'text-red-400' : lowStock ? 'text-amber-400' : 'text-emerald-400'
+                        }`}>
+                          {product.stockAvailable}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}

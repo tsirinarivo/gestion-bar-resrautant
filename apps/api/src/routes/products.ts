@@ -34,6 +34,7 @@ const productSchema = z.object({
   prepTime: z.number().default(10),
   categoryId: z.string(),
   warehouseId: z.string().nullable().optional(),
+  stockItemId: z.string().nullable().optional(),
 })
 
 // GET /api/products
@@ -73,7 +74,16 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
           variants: true,
           warehouse: { select: { id: true, name: true } },
           modifierGroups: { include: { modifierGroup: { include: { modifiers: true } } } },
-          recipeItems: { include: { ingredient: true } },
+          recipeItems: {
+            include: {
+              ingredient: {
+                include: {
+                  stockItem: { select: { id: true, currentQuantity: true, unit: true, minQuantity: true } },
+                },
+              },
+            },
+          },
+          stockItem: { select: { id: true, currentQuantity: true, unit: true, minQuantity: true } },
         },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         skip: (Number(page) - 1) * Number(limit),
@@ -82,9 +92,35 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
       prisma.product.count({ where }),
     ])
 
+    const data = products.map((product: any) => {
+      let stockAvailable: number | null = null
+
+      if (product.stockItemId && product.stockItem) {
+        // Produit lié directement à un article de stock
+        stockAvailable = Math.max(0, Math.floor(product.stockItem.currentQuantity))
+      } else if (product.recipeItems?.length > 0) {
+        // Produit à recette : nombre de portions pouvant être produites
+        let minServings = Infinity
+        for (const ri of product.recipeItems) {
+          const stock = ri.ingredient?.stockItem
+          if (!stock) continue
+          const baseQty = ri.unit && ri.unit !== stock.unit
+            ? (convertUnit(ri.quantity, ri.unit, stock.unit) ?? ri.quantity)
+            : ri.quantity
+          const neededPerServing = baseQty / (ri.yieldRate || 1)
+          if (neededPerServing <= 0) continue
+          const servings = Math.floor(stock.currentQuantity / neededPerServing)
+          if (servings < minServings) minServings = servings
+        }
+        if (isFinite(minServings)) stockAvailable = Math.max(0, minServings)
+      }
+
+      return { ...product, stockAvailable }
+    })
+
     res.json({
       success: true,
-      data: products,
+      data,
       pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) },
     })
   } catch (error) {

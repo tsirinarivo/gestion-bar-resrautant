@@ -74,6 +74,7 @@ export async function deductStockForOrder(
           quantity: true,
           product: {
             select: {
+              stockItemId: true,
               recipeItems: {
                 select: {
                   quantity: true,
@@ -90,7 +91,55 @@ export async function deductStockForOrder(
   })
 
   for (const item of orderWithItems?.items ?? []) {
-    for (const recipeItem of item.product?.recipeItems ?? []) {
+    const product = item.product
+    if (!product) continue
+
+    // ── Cas 1 : produit lié directement à un article de stock (sans recette) ──
+    if (product.stockItemId && (!product.recipeItems || product.recipeItems.length === 0)) {
+      try {
+        const stockItem = await prisma.stockItem.findUnique({ where: { id: product.stockItemId } })
+        if (!stockItem) continue
+
+        const actualQty = Math.min(item.quantity, stockItem.currentQuantity)
+        const newQty = stockItem.currentQuantity - actualQty
+
+        await prisma.$transaction([
+          prisma.stockMovement.create({
+            data: {
+              type: 'OUT',
+              quantity: actualQty,
+              stockItemId: product.stockItemId,
+              reason: `Vente commande #${orderNumber}`,
+              createdBy,
+            },
+          }),
+          prisma.stockItem.update({
+            where: { id: product.stockItemId },
+            data: { currentQuantity: newQty },
+          }),
+        ])
+
+        if (newQty <= stockItem.minQuantity && stockItem.currentQuantity > stockItem.minQuantity) {
+          const alertType = newQty <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'
+          const existing = await prisma.stockAlert.findFirst({
+            where: { stockItemId: product.stockItemId, type: alertType, resolvedAt: null },
+          })
+          if (!existing) {
+            await prisma.stockAlert.create({
+              data: {
+                type: alertType,
+                message: `Stock faible : ${stockItem.name} (${newQty.toFixed(2)} ${stockItem.unit} restants)`,
+                stockItemId: product.stockItemId,
+              },
+            }).catch(() => {})
+          }
+        }
+      } catch { /* non-bloquant */ }
+      continue
+    }
+
+    // ── Cas 2 : produit à recette — déduire les ingrédients ──
+    for (const recipeItem of product.recipeItems ?? []) {
       const stockItemId = recipeItem.ingredient?.stockItemId
       if (!stockItemId) continue
       try {
@@ -101,7 +150,6 @@ export async function deductStockForOrder(
         if (recipeItem.unit && recipeItem.unit !== stockItem.unit) {
           const converted = convertUnit(recipeItem.quantity, recipeItem.unit, stockItem.unit)
           if (converted === null) {
-            // Incompatible units — skip to avoid silently using wrong quantity
             console.warn(`[stock] Incompatible units: recette "${recipeItem.unit}" vs stock "${stockItem.unit}" pour ${stockItem.name} — déduction ignorée`)
             continue
           }
@@ -111,7 +159,6 @@ export async function deductStockForOrder(
         }
 
         const theoreticalQty = item.quantity * baseQty / (recipeItem.yieldRate || 1)
-        // Record only what was actually available (prevents phantom movement entries)
         const actualQty = Math.min(theoreticalQty, stockItem.currentQuantity)
         const newQty = stockItem.currentQuantity - actualQty
 
@@ -131,7 +178,6 @@ export async function deductStockForOrder(
           }),
         ])
 
-        // Alerte rupture partielle (besoin > disponible)
         if (actualQty < theoreticalQty) {
           await prisma.stockAlert.create({
             data: {
@@ -142,7 +188,6 @@ export async function deductStockForOrder(
           }).catch(() => {})
         }
 
-        // Alerte stock faible / rupture — F2: ne pas créer de doublon si alerte active non résolue
         if (newQty <= stockItem.minQuantity && stockItem.currentQuantity > stockItem.minQuantity) {
           const alertType = newQty <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'
           const existingAlert = await prisma.stockAlert.findFirst({
@@ -308,6 +353,22 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
   try {
     const data = createOrderSchema.parse(req.body)
     const restaurantId = req.user!.restaurantId
+
+    // Vérification stock avant création : rejeter si article épuisé
+    for (const item of data.items) {
+      const product = await prisma.product.findFirst({
+        where: { id: item.productId, restaurantId },
+        select: { name: true, stockItemId: true, stockItem: { select: { currentQuantity: true, unit: true } } },
+      })
+      if (product?.stockItemId && product.stockItem) {
+        if (product.stockItem.currentQuantity < item.quantity) {
+          throw new AppError(
+            `Stock insuffisant pour "${product.name}" : ${product.stockItem.currentQuantity} ${product.stockItem.unit} disponible(s), ${item.quantity} demandé(s)`,
+            400,
+          )
+        }
+      }
+    }
 
     const subtotal = data.items.reduce((sum, item) => {
       const modifierTotal = (item.modifiers || []).reduce((s, m) => s + m.price, 0)
