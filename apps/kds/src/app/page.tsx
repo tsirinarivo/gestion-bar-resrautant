@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { formatDistance } from 'date-fns';
@@ -14,6 +14,7 @@ interface OrderItem {
   status: string;
   quantity: number;
   notes?: string;
+  kdsStation?: string;
   product: { name: string };
   modifiers: Array<{ name: string; price: number }>;
 }
@@ -29,6 +30,14 @@ interface KDSOrder {
   createdAt: string;
   items: OrderItem[];
 }
+
+const STATIONS = [
+  { key: 'all',      label: 'Tout',      emoji: '🍽️' },
+  { key: 'hot',      label: 'Chaud',     emoji: '🔥' },
+  { key: 'cold',     label: 'Froid',     emoji: '❄️' },
+  { key: 'drinks',   label: 'Boissons',  emoji: '🍹' },
+  { key: 'desserts', label: 'Desserts',  emoji: '🍰' },
+]
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -119,6 +128,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
 
 function KDSPageInner() {
   const [token, setToken] = useState<string | null>(null);
+  const [station, setStation] = useState<string>('all');
   const qc = useQueryClient();
   const [now, setNow] = useState(new Date());
 
@@ -129,7 +139,6 @@ function KDSPageInner() {
     refetchInterval: 10_000,
   });
 
-  // Auto-logout on 401
   useEffect(() => {
     if (error && (error as Error).message === '401') setToken(null);
   }, [error]);
@@ -145,7 +154,6 @@ function KDSPageInner() {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
-    // BUG 7 — rejoindre explicitement la room KDS (le serveur utilise restaurantId du JWT)
     socket.on('connect', () => socket.emit('join:kds'));
     socket.on('kds:new_order', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
     socket.on('order:status_changed', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
@@ -162,6 +170,17 @@ function KDSPageInner() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }),
   });
 
+  // Filter orders by station: show order only if it has at least one item in the selected station
+  const filteredOrders = useMemo(() => {
+    if (station === 'all') return orders;
+    return orders
+      .map(order => ({
+        ...order,
+        items: order.items.filter(item => (item.kdsStation ?? 'hot') === station),
+      }))
+      .filter(order => order.items.length > 0);
+  }, [orders, station]);
+
   if (!token) return <LoginScreen onLogin={setToken} />;
 
   const getWaitTime = (createdAt: string) =>
@@ -173,16 +192,34 @@ function KDSPageInner() {
     return 'timer-danger';
   };
 
-  const pendingOrders = orders.filter(o => o.status === 'PENDING' || o.status === 'CONFIRMED');
-  const preparingOrders = orders.filter(o => o.status === 'PREPARING');
+  const pendingOrders = filteredOrders.filter(o => o.status === 'PENDING' || o.status === 'CONFIRMED');
+  const preparingOrders = filteredOrders.filter(o => o.status === 'PREPARING');
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 bg-gray-900/80 border-b border-gray-800">
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-900/80 border-b border-gray-800 flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
           <h1 className="text-base md:text-xl font-bold">Cuisine — KDS</h1>
         </div>
+
+        {/* Station filter */}
+        <div className="flex items-center gap-1">
+          {STATIONS.map(s => (
+            <button
+              key={s.key}
+              onClick={() => setStation(s.key)}
+              className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                station === s.key
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {s.emoji} {s.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex items-center gap-3 md:gap-6">
           <p className="text-xs text-gray-500 hidden sm:block">
             {pendingOrders.length} attente · {preparingOrders.length} en cours
@@ -197,7 +234,7 @@ function KDSPageInner() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {orders.length === 0 ? (
+        {filteredOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-600">
             <p className="text-6xl mb-4">🍳</p>
             <p className="text-xl font-medium">Cuisine calme...</p>
@@ -205,7 +242,7 @@ function KDSPageInner() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {orders.map(order => {
+            {filteredOrders.map(order => {
               const waitMinutes = getWaitTime(order.createdAt);
               const timerClass = getTimerClass(waitMinutes);
               const cardClass = order.status === 'PREPARING' ? 'kds-card-preparing' : 'kds-card-pending';
@@ -240,6 +277,11 @@ function KDSPageInner() {
                             <p className="text-xs text-amber-300 italic">{item.notes}</p>
                           )}
                         </div>
+                        {item.kdsStation && item.kdsStation !== 'hot' && (
+                          <span className="text-xs bg-gray-700 rounded px-1 h-fit self-start mt-0.5 text-gray-400">
+                            {STATIONS.find(s => s.key === item.kdsStation)?.emoji ?? item.kdsStation}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

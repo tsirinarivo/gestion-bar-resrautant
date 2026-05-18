@@ -9,7 +9,7 @@ import {
   Package, Users, Calendar, BarChart3, Settings, ChefHat,
   Monitor, LogOut, ChevronLeft, ChevronRight,
   CreditCard, Tag, UserCog, X, Truck, TrendingUp, Printer,
-  Warehouse, Landmark, Building2, FileText, AlertCircle,
+  Warehouse, Landmark, Building2, FileText, AlertCircle, Clock, Shield,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/lib/api'
@@ -22,6 +22,7 @@ const navItems = [
   { href: '/orders',    label: 'Commandes',          icon: ShoppingCart },
   { href: '/menu',      label: 'Menu',               icon: UtensilsCrossed,  roles: ['manager', 'superadmin'] },
   { href: '/tables',    label: 'Plan de salle',      icon: Table2 },
+  { href: '/waiting',   label: 'Liste d\'attente',   icon: Clock,            roles: ['manager', 'superadmin', 'serveur'] },
   { href: '/reservations', label: 'Réservations',   icon: Calendar,         roles: ['manager', 'superadmin', 'serveur'] },
   { href: '/kds',       label: 'Cuisine (KDS)',      icon: Monitor,          roles: ['cuisinier', 'manager', 'superadmin'] },
   { href: '/stock',     label: 'Stock',              icon: Package,          roles: ['manager', 'superadmin'] },
@@ -39,6 +40,7 @@ const navItems = [
   { href: '/analytics', label: 'Analytics',          icon: BarChart3,        roles: ['manager', 'superadmin'] },
   { href: '/settings/printer', label: 'Imprimante', icon: Printer,          roles: ['manager', 'superadmin'] },
   { href: '/settings',  label: 'Paramètres',         icon: Settings,         roles: ['manager', 'superadmin'] },
+  { href: '/audit',     label: 'Journal d\'audit',   icon: Shield,           roles: ['manager', 'superadmin'] },
 ]
 
 const POS_URL = process.env.NEXT_PUBLIC_POS_URL || 'https://pos.restaurant.dago-it.com'

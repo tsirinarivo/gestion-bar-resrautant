@@ -264,3 +264,64 @@ employeeRouter.get('/:id/schedule', async (req: AuthRequest, res, next) => {
     next(error)
   }
 })
+
+// ─── Leaves ───────────────────────────────────────────────────────────────────
+
+const leaveSchema = z.object({
+  type: z.enum(['VACATION', 'SICK', 'PERSONAL', 'UNPAID', 'PUBLIC_HOLIDAY']),
+  startDate: z.string(),
+  endDate: z.string(),
+  days: z.number().positive(),
+  reason: z.string().optional(),
+  notes: z.string().optional(),
+})
+
+// GET /api/employees/:id/leaves
+employeeRouter.get('/:id/leaves', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const employee = await prisma.employee.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!employee) throw new AppError('Employé introuvable', 404)
+    const leaves = await prisma.leave.findMany({
+      where: { employeeId: employee.id },
+      orderBy: { startDate: 'desc' },
+    })
+    res.json({ success: true, data: leaves })
+  } catch (error) { next(error) }
+})
+
+// POST /api/employees/:id/leaves
+employeeRouter.post('/:id/leaves', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const employee = await prisma.employee.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!employee) throw new AppError('Employé introuvable', 404)
+    const data = leaveSchema.parse(req.body)
+    const leave = await prisma.leave.create({
+      data: {
+        ...data,
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+        employeeId: employee.id,
+      },
+    })
+    res.status(201).json({ success: true, data: leave })
+  } catch (error) { next(error) }
+})
+
+// PATCH /api/employees/leaves/:leaveId/status
+employeeRouter.patch('/leaves/:leaveId/status', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { status } = z.object({ status: z.enum(['APPROVED', 'REJECTED', 'CANCELLED']) }).parse(req.body)
+    const leave = await prisma.leave.findFirst({
+      where: { id: req.params.leaveId, employee: { restaurantId: req.user!.restaurantId } },
+    })
+    if (!leave) throw new AppError('Congé introuvable', 404)
+    const updateData: any = { status }
+    if (status === 'APPROVED') { updateData.approvedBy = req.user!.id; updateData.approvedAt = new Date() }
+    const updated = await prisma.leave.update({ where: { id: leave.id }, data: updateData })
+    res.json({ success: true, data: updated })
+  } catch (error) { next(error) }
+})

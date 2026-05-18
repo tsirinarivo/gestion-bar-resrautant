@@ -624,3 +624,73 @@ financesRouter.delete('/expenses/:id', async (req: AuthRequest, res, next) => {
     next(error)
   }
 })
+
+// GET /api/finances/tax-report — TVA collectée par période
+financesRouter.get('/tax-report', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const { from, to } = req.query
+    const start = from ? new Date(from as string) : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d })()
+    const end = to ? new Date(to as string) : new Date()
+
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        status: 'COMPLETED',
+        completedAt: { gte: start, lte: end },
+      },
+      select: {
+        id: true, orderNumber: true, completedAt: true,
+        subtotal: true, taxAmount: true, totalAmount: true, discountAmount: true,
+        items: { select: { unitPrice: true, quantity: true, product: { select: { taxRate: true } } } },
+      },
+    })
+
+    // Aggregate TVA by tax rate
+    const byRate: Record<number, { rate: number; baseHT: number; tva: number; count: number }> = {}
+    let totalHT = 0
+    let totalTVA = 0
+    let totalTTC = 0
+
+    for (const order of orders) {
+      for (const item of order.items) {
+        const rate = item.product?.taxRate ?? 20
+        const ttc = item.unitPrice * item.quantity
+        const ht = ttc / (1 + rate / 100)
+        const tva = ttc - ht
+        if (!byRate[rate]) byRate[rate] = { rate, baseHT: 0, tva: 0, count: 0 }
+        byRate[rate]!.baseHT += ht
+        byRate[rate]!.tva += tva
+        byRate[rate]!.count++
+        totalHT += ht
+        totalTVA += tva
+        totalTTC += ttc
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        period: { from: start, to: end },
+        orderCount: orders.length,
+        totalHT: Math.round(totalHT),
+        totalTVA: Math.round(totalTVA),
+        totalTTC: Math.round(totalTTC),
+        byRate: Object.values(byRate).map(r => ({
+          rate: r.rate,
+          baseHT: Math.round(r.baseHT),
+          tva: Math.round(r.tva),
+          count: r.count,
+        })).sort((a, b) => a.rate - b.rate),
+        orders: orders.map(o => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          date: o.completedAt,
+          subtotal: o.subtotal,
+          taxAmount: o.taxAmount,
+          total: o.totalAmount,
+        })),
+      },
+    })
+  } catch (error) { next(error) }
+})

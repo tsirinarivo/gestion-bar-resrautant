@@ -330,6 +330,62 @@ dashboardRouter.get('/analytics', async (req: AuthRequest, res, next) => {
   }
 })
 
+// GET /api/dashboard/staff-performance
+dashboardRouter.get('/staff-performance', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const { from, to } = req.query
+    const start = from ? new Date(from as string) : (() => { const d = new Date(); d.setDate(d.getDate() - 29); d.setHours(0,0,0,0); return d })()
+    const end = to ? new Date(to as string) : new Date()
+
+    // Use AuditLog to find who created each order
+    const auditLogs = await prisma.auditLog.findMany({
+      where: {
+        restaurantId,
+        action: 'CREATE',
+        resource: 'order',
+        createdAt: { gte: start, lte: end },
+        userId: { not: null },
+      },
+      select: { userId: true, resourceId: true },
+    })
+
+    if (auditLogs.length === 0) { res.json({ success: true, data: [] }); return }
+
+    const orderIds = auditLogs.map(l => l.resourceId).filter(Boolean) as string[]
+    const orders = await prisma.order.findMany({
+      where: { id: { in: orderIds }, restaurantId, status: 'COMPLETED' },
+      select: { id: true, totalAmount: true },
+    })
+    const orderMap = Object.fromEntries(orders.map(o => [o.id, o]))
+
+    const byUser: Record<string, { userId: string; orderCount: number; totalRevenue: number }> = {}
+    for (const log of auditLogs) {
+      const uid = log.userId!
+      const order = log.resourceId ? orderMap[log.resourceId] : undefined
+      if (!order) continue
+      if (!byUser[uid]) byUser[uid] = { userId: uid, orderCount: 0, totalRevenue: 0 }
+      byUser[uid]!.orderCount++
+      byUser[uid]!.totalRevenue += Number(order.totalAmount)
+    }
+
+    const userIds = Object.keys(byUser)
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    })
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]))
+
+    const result = Object.values(byUser).map(row => ({
+      ...row,
+      user: userMap[row.userId] ?? null,
+      avgTicket: row.orderCount > 0 ? row.totalRevenue / row.orderCount : 0,
+    })).sort((a, b) => b.totalRevenue - a.totalRevenue)
+
+    res.json({ success: true, data: result })
+  } catch (error) { next(error) }
+})
+
 // GET /api/dashboard/live
 dashboardRouter.get('/live', async (req: AuthRequest, res, next) => {
   try {

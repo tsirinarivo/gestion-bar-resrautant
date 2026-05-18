@@ -308,6 +308,26 @@ stockRouter.get('/movements/all', async (req: AuthRequest, res, next) => {
   }
 })
 
+// GET /api/stock/expiring — Perishable items expiring within N days
+stockRouter.get('/expiring', async (req: AuthRequest, res, next) => {
+  try {
+    const days = parseInt(req.query.days as string) || 7
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() + days)
+
+    const items = await prisma.stockItem.findMany({
+      where: {
+        restaurantId: req.user!.restaurantId,
+        isPerishable: true,
+        expiryDate: { lte: cutoff },
+        currentQuantity: { gt: 0 },
+      },
+      orderBy: { expiryDate: 'asc' },
+    })
+    res.json({ success: true, data: items })
+  } catch (error) { next(error) }
+})
+
 // GET /api/stock/alerts — All stock alerts
 stockRouter.get('/alerts/all', async (req: AuthRequest, res, next) => {
   try {
