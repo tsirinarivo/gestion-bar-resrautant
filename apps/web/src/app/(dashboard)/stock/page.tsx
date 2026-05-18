@@ -240,6 +240,7 @@ function CreateProductFromStockModal({
         name: name.trim(),
         price: parseFloat(price),
         categoryId,
+        warehouseId: stockItem.warehouseId || undefined,
         isAvailable: true,
         requiresPreparation: false,
         costPrice: stockItem.costPerUnit || undefined,
