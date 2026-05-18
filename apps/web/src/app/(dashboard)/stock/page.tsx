@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -61,14 +62,30 @@ function ReorderModal({ lines: initLines, suppliers, onClose, onCreated }: {
   onClose: () => void
   onCreated: () => void
 }) {
-  const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? '')
+  const router = useRouter()
+
+  // Auto-select the preferred supplier of the first line if available
+  const preferredSupplierId = (() => {
+    const first = initLines[0]
+    if (!first) return suppliers[0]?.id ?? ''
+    const preferred = first.supplierPrices.find(sp =>
+      suppliers.some(s => s.id === sp.supplierId)
+    )
+    return preferred?.supplierId ?? suppliers[0]?.id ?? ''
+  })()
+
+  const [supplierId, setSupplierId] = useState(preferredSupplierId)
   const [expectedAt, setExpectedAt]  = useState('')
   const [notes, setNotes]            = useState('')
-  const [lines, setLines]            = useState<ReorderLine[]>(initLines)
+  const [lines, setLines]            = useState<ReorderLine[]>(() =>
+    initLines.map(line => {
+      const match = line.supplierPrices.find(sp => sp.supplierId === preferredSupplierId)
+      return match ? { ...line, unitCost: match.unitCost } : line
+    })
+  )
 
   function handleSupplierChange(newSupplierId: string) {
     setSupplierId(newSupplierId)
-    // Auto-fill unit cost from supplier catalog for each line
     setLines(prev => prev.map(line => {
       const match = line.supplierPrices.find(sp => sp.supplierId === newSupplierId)
       return match ? { ...line, unitCost: match.unitCost } : line
@@ -77,10 +94,12 @@ function ReorderModal({ lines: initLines, suppliers, onClose, onCreated }: {
 
   const createPO = useMutation({
     mutationFn: (data: any) => api.post('/suppliers/purchase-orders', data),
-    onSuccess: () => {
-      toast.success('Bon de commande créé — en attente d\'envoi au fournisseur')
+    onSuccess: (res) => {
+      const newPO = res.data.data
+      toast.success('Bon de commande créé')
       onCreated()
       onClose()
+      router.push(`/suppliers?po=${newPO.id}`)
     },
     onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur création BDC'),
   })

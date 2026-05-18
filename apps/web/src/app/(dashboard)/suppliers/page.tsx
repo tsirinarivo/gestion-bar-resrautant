@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -478,6 +479,8 @@ function PODetail({ order, onBack, onStatusChange }: {
 
 export default function SuppliersPage() {
   const qc = useQueryClient()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [tab, setTab] = useState<'suppliers' | 'orders'>('suppliers')
   const [supplierModal, setSupplierModal] = useState<{ open: boolean; supplier: Supplier | null }>({ open: false, supplier: null })
   const [poModal, setPOModal] = useState<{ open: boolean; supplierId?: string }>({ open: false })
@@ -493,6 +496,19 @@ export default function SuppliersPage() {
     queryKey: ['purchase-orders', filterStatus],
     queryFn: () => api.get(`/suppliers/purchase-orders/all${filterStatus ? `?status=${filterStatus}` : ''}`).then(r => r.data.data),
   })
+
+  // Ouvrir automatiquement un bon de commande depuis ?po=<id> (redirection depuis stock)
+  useEffect(() => {
+    const poId = searchParams.get('po')
+    if (!poId || selectedOrder) return
+    api.get(`/suppliers/purchase-orders/${poId}`)
+      .then(r => {
+        setSelectedOrder(r.data.data)
+        setTab('orders')
+        router.replace('/suppliers')
+      })
+      .catch(() => {})
+  }, [searchParams])
 
   const createSupplier = useMutation({
     mutationFn: (data: any) => api.post('/suppliers', data),
