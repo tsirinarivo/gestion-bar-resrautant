@@ -575,7 +575,12 @@ function RecipeModal({
               </div>
               {lines.map((line, idx) => {
                 const stock = stockItems.find(s => s.id === line.stockItemId)
-                const lineCost = stock ? (line.quantity * stock.costPerUnit) / (line.yieldRate || 1) : 0
+                let lineQty = line.quantity
+                if (stock && line.unit && line.unit !== stock.unit) {
+                  const converted = convertUnit(line.quantity, line.unit, stock.unit)
+                  if (converted !== null) lineQty = converted
+                }
+                const lineCost = stock ? (lineQty * stock.costPerUnit) / (line.yieldRate || 1) : 0
                 return (
                   <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-white/3 rounded-xl p-2">
                     <div className="col-span-4">
