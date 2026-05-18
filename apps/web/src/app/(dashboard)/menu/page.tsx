@@ -34,6 +34,19 @@ type RecipeItem = {
 type RecipeLine = { stockItemId: string; name: string; unit: string; quantity: number; yieldRate: number; notes: string }
 
 const UNITS = ['g', 'kg', 'ml', 'cl', 'L', 'pièce', 'portion', 'cuillère', 'pincée']
+
+const UNIT_GROUPS: Record<string, string[]> = {
+  weight: ['g', 'kg'],
+  volume: ['ml', 'cl', 'L'],
+}
+
+function getCompatibleUnits(stockUnit: string): string[] {
+  for (const group of Object.values(UNIT_GROUPS)) {
+    if (group.includes(stockUnit)) return group
+  }
+  // Unité non métrique : seule cette unité est compatible
+  return [stockUnit]
+}
 const CATEGORY_ICONS = ['🍽️', '🥩', '🍔', '🍕', '🍝', '🥗', '🍰', '🥤', '🍹', '☕', '🥐', '🍜', '🦐', '🥚', '🧀']
 
 // ─── Product Form Modal ───────────────────────────────────────────────────────
@@ -595,7 +608,9 @@ function RecipeModal({
                     <div className="col-span-2">
                       <select value={line.unit} onChange={e => updateLine(idx, 'unit', e.target.value)}
                         className="input-field py-1 text-sm">
-                        {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                        {getCompatibleUnits(stock?.unit ?? line.unit).map(u => (
+                          <option key={u} value={u}>{u}</option>
+                        ))}
                       </select>
                     </div>
                     <div className="col-span-2">
