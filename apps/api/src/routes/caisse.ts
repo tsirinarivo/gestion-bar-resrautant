@@ -114,15 +114,16 @@ caisseRouter.post('/sessions/:id/close', async (req: AuthRequest, res, next) => 
     if (!session) throw new AppError('Session introuvable ou déjà fermée', 404)
 
     // Compute expected cash:
-    // openingFloat + SALE + WITHDRAWAL - REFUND - EXPENSE - DEPOSIT + ADJUSTMENT (signed)
+    // openingFloat + SALE + DEPOSIT - REFUND - EXPENSE - WITHDRAWAL + ADJUSTMENT
+    // DEPOSIT = entrée d'argent dans le tiroir (ex: appoint fonds)
+    // WITHDRAWAL = sortie d'argent du tiroir (ex: dépôt coffre, petite caisse)
     let expectedCash = session.openingFloat
     for (const t of session.transactions) {
-      if (['SALE', 'WITHDRAWAL'].includes(t.type)) {
+      if (['SALE', 'DEPOSIT'].includes(t.type)) {
         expectedCash += t.amount
-      } else if (['REFUND', 'EXPENSE', 'DEPOSIT'].includes(t.type)) {
+      } else if (['REFUND', 'EXPENSE', 'WITHDRAWAL'].includes(t.type)) {
         expectedCash -= t.amount
       } else if (t.type === 'ADJUSTMENT') {
-        // amount peut être négatif (correction à la baisse) ou positif (correction à la hausse)
         expectedCash += t.amount
       }
     }

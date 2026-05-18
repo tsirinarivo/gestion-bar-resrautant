@@ -5,6 +5,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { autoPostPaymentToBank } from './bank'
 import { autoPrintReceiptWithTable } from '../lib/printer'
+import { deductStockForOrder } from './orders'
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Especes', MVOLA: 'MVola', ORANGE_MONEY: 'Orange Money',
@@ -68,11 +69,17 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       _sum: { amount: true },
     })
 
-    if ((totalPaid._sum.amount || 0) >= order.totalAmount) {
+    if ((totalPaid._sum.amount || 0) >= order.totalAmount && order.status !== 'COMPLETED') {
       await prisma.order.update({
         where: { id: order.id },
-        data: { status: 'COMPLETED', completedAt: new Date() },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          statusHistory: { create: { status: 'COMPLETED', notes: 'Paiement soldé', changedBy: req.user!.id } },
+        },
       })
+      // BUG 2.1 — déduction stock manquante sur paiement POS
+      await deductStockForOrder(order.id, order.orderNumber, req.user!.id).catch(() => {})
 
       // Libérer la table si plus aucune commande active dessus
       if (order.tableId) {
@@ -166,10 +173,19 @@ paymentRouter.post('/:id/refund', authorize('manager', 'superadmin'), async (req
 
     const payment = await prisma.payment.findFirst({
       where: { id: req.params.id, order: { restaurantId: req.user!.restaurantId } },
-      include: { order: { select: { restaurantId: true, orderNumber: true } } },
+      include: {
+        order: { select: { restaurantId: true, orderNumber: true } },
+        refunds: { select: { amount: true, status: true } },
+      },
     })
     if (!payment) throw new AppError('Paiement introuvable', 404)
-    if (amount > payment.amount) throw new AppError('Le montant du remboursement dépasse le paiement', 400)
+    // BUG 2.3 — vérifier le total cumulatif des remboursements, pas seulement le montant unitaire
+    const alreadyRefunded = (payment.refunds ?? [])
+      .filter((r: any) => r.status !== 'CANCELLED')
+      .reduce((sum: number, r: any) => sum + r.amount, 0)
+    if (alreadyRefunded + amount > payment.amount) {
+      throw new AppError(`Le remboursement total (${alreadyRefunded + amount} MGA) dépasse le paiement original (${payment.amount} MGA)`, 400)
+    }
 
     const refund = await prisma.refund.create({
       data: { paymentId: payment.id, amount, reason, status: 'COMPLETED' },

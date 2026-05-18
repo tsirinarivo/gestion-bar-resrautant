@@ -54,6 +54,103 @@ function buildReceiptPayload(updatedOrder: any, originalOrder: any, cashierName?
   }
 }
 
+// ─── Shared stock deduction (called from both PATCH /status and payments route) ─
+export async function deductStockForOrder(
+  orderId: string,
+  orderNumber: string,
+  createdBy: string,
+) {
+  const orderWithItems = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      items: {
+        select: {
+          quantity: true,
+          product: {
+            select: {
+              recipeItems: {
+                select: {
+                  quantity: true,
+                  unit: true,
+                  yieldRate: true,
+                  ingredient: { select: { stockItemId: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  for (const item of orderWithItems?.items ?? []) {
+    for (const recipeItem of item.product?.recipeItems ?? []) {
+      const stockItemId = recipeItem.ingredient?.stockItemId
+      if (!stockItemId) continue
+      try {
+        const stockItem = await prisma.stockItem.findUnique({ where: { id: stockItemId } })
+        if (!stockItem) continue
+
+        let baseQty: number
+        if (recipeItem.unit && recipeItem.unit !== stockItem.unit) {
+          const converted = convertUnit(recipeItem.quantity, recipeItem.unit, stockItem.unit)
+          if (converted === null) {
+            // Incompatible units — skip to avoid silently using wrong quantity
+            console.warn(`[stock] Incompatible units: recette "${recipeItem.unit}" vs stock "${stockItem.unit}" pour ${stockItem.name} — déduction ignorée`)
+            continue
+          }
+          baseQty = converted
+        } else {
+          baseQty = recipeItem.quantity
+        }
+
+        const theoreticalQty = item.quantity * baseQty / (recipeItem.yieldRate || 1)
+        // Record only what was actually available (prevents phantom movement entries)
+        const actualQty = Math.min(theoreticalQty, stockItem.currentQuantity)
+        const newQty = stockItem.currentQuantity - actualQty
+
+        await prisma.$transaction([
+          prisma.stockMovement.create({
+            data: {
+              type: 'OUT',
+              quantity: actualQty,
+              stockItemId,
+              reason: `Vente commande #${orderNumber}`,
+              createdBy,
+            },
+          }),
+          prisma.stockItem.update({
+            where: { id: stockItemId },
+            data: { currentQuantity: newQty },
+          }),
+        ])
+
+        // Alerte rupture partielle (besoin > disponible)
+        if (actualQty < theoreticalQty) {
+          await prisma.stockAlert.create({
+            data: {
+              type: 'OUT_OF_STOCK',
+              message: `Rupture partielle : ${stockItem.name} — besoin ${theoreticalQty.toFixed(2)} ${stockItem.unit}, disponible ${actualQty.toFixed(2)} ${stockItem.unit}`,
+              stockItemId,
+            },
+          }).catch(() => {})
+        }
+
+        // Alerte stock faible / rupture normale
+        if (newQty <= stockItem.minQuantity && stockItem.currentQuantity > stockItem.minQuantity) {
+          await prisma.stockAlert.create({
+            data: {
+              type: newQty <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
+              message: `Stock faible : ${stockItem.name} (${newQty.toFixed(2)} ${stockItem.unit} restants)`,
+              stockItemId,
+            },
+          }).catch(() => {})
+        }
+      } catch { /* non-bloquant */ }
+    }
+  }
+}
+
 export const orderRouter = Router()
 orderRouter.use(authenticate)
 
@@ -309,6 +406,12 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     if (!order) throw new AppError('Commande introuvable', 404)
 
+    // BUG 3.1/3.2 — empêche les transitions depuis un état terminal
+    if (order.status === 'COMPLETED') throw new AppError('La commande est déjà terminée', 400)
+    if (order.status === 'CANCELLED') throw new AppError('La commande est annulée', 400)
+    // Empêche la double déduction si deux requêtes arrivent en même temps
+    if (status === 'COMPLETED' && order.status === 'COMPLETED') throw new AppError('Déjà complétée', 400)
+
     const timestamps: Record<string, Date> = {}
     if (status === 'CONFIRMED') timestamps.confirmedAt = new Date()
     if (status === 'PREPARING') timestamps.confirmedAt = order.confirmedAt || new Date()
@@ -373,72 +476,7 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     // ── Déduction automatique du stock quand commande COMPLETED ──────────
     if (status === 'COMPLETED') {
-      const orderWithItems = await prisma.order.findUnique({
-        where: { id: order.id },
-        select: {
-          items: {
-            select: {
-              quantity: true,
-              product: {
-                select: {
-                  recipeItems: {
-                    select: {
-                      quantity: true,
-                      unit: true,
-                      yieldRate: true,
-                      ingredient: {
-                        select: { stockItemId: true },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      })
-
-      for (const item of orderWithItems?.items ?? []) {
-        for (const recipeItem of item.product?.recipeItems ?? []) {
-          const stockItemId = recipeItem.ingredient?.stockItemId
-          if (!stockItemId) continue
-          try {
-            const stockItem = await prisma.stockItem.findUnique({ where: { id: stockItemId } })
-            if (!stockItem) continue
-            // Convert recipe unit → stock item unit if they differ (e.g. cl → L, g → kg)
-            const recipeQty = recipeItem.unit && recipeItem.unit !== stockItem.unit
-              ? (convertUnit(recipeItem.quantity, recipeItem.unit, stockItem.unit) ?? recipeItem.quantity)
-              : recipeItem.quantity
-            const qtyToDeduct = item.quantity * recipeQty / (recipeItem.yieldRate || 1)
-            const newQty = Math.max(0, stockItem.currentQuantity - qtyToDeduct)
-            await prisma.$transaction([
-              prisma.stockMovement.create({
-                data: {
-                  type: 'OUT',
-                  quantity: qtyToDeduct,
-                  stockItemId,
-                  reason: `Vente commande #${updatedOrder.orderNumber}`,
-                  createdBy: req.user!.id,
-                },
-              }),
-              prisma.stockItem.update({
-                where: { id: stockItemId },
-                data: { currentQuantity: newQty },
-              }),
-            ])
-            // Alerte stock faible
-            if (newQty <= stockItem.minQuantity && stockItem.currentQuantity > stockItem.minQuantity) {
-              await prisma.stockAlert.create({
-                data: {
-                  type: newQty <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
-                  message: `Stock faible : ${stockItem.name} (${newQty} ${stockItem.unit} restants)`,
-                  stockItemId,
-                },
-              })
-            }
-          } catch { /* continue si table stock non disponible */ }
-        }
-      }
+      await deductStockForOrder(order.id, updatedOrder.orderNumber, req.user!.id).catch(() => {})
     }
 
     // ── Impression automatique ticket (uniquement au paiement) ──────────────
@@ -447,11 +485,10 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
     }
 
     const io = req.app.get('io')
-    io?.to(req.user!.restaurantId).emit('order:status_changed', {
-      orderId: order.id,
-      status,
-      order: updatedOrder,
-    })
+    const statusPayload = { orderId: order.id, status, order: updatedOrder }
+    io?.to(req.user!.restaurantId).emit('order:status_changed', statusPayload)
+    // BUG 3.3 — propager aussi au room KDS pour les mises à jour de statut
+    io?.to(`kds-${req.user!.restaurantId}`).emit('order:status_changed', statusPayload)
 
     res.json({ success: true, data: updatedOrder })
   } catch (error) {

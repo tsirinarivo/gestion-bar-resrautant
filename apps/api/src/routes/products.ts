@@ -246,7 +246,7 @@ productRouter.put('/:id/recipe', authorize('manager', 'superadmin'), async (req:
       stockItemId: z.string(),
       quantity: z.number().positive(),
       unit: z.string(),
-      yieldRate: z.number().min(0).max(1).default(1),
+      yieldRate: z.number().min(0.01).max(1).default(1),
       notes: z.string().optional(),
     }))
     const items = itemsSchema.parse(req.body.items ?? [])
@@ -298,7 +298,7 @@ productRouter.put('/:id/recipe', authorize('manager', 'superadmin'), async (req:
       const qtyInStockUnit = item.unit && item.unit !== stockItem.unit
         ? (convertUnit(item.quantity, item.unit, stockItem.unit) ?? item.quantity)
         : item.quantity
-      totalCost += (qtyInStockUnit * stockItem.costPerUnit) / (item.yieldRate ?? 1)
+      totalCost += (qtyInStockUnit * stockItem.costPerUnit) / (item.yieldRate || 1)
     }
 
     // Auto-update costPrice from recipe
