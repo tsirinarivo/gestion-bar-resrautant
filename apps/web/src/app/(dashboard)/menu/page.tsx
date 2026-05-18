@@ -10,7 +10,7 @@ import {
   ChevronUp, ChevronDown, Filter,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { formatCurrency, calculateMargin, ALLERGENS } from '@restaurant/utils'
+import { formatCurrency, calculateMargin, convertUnit, ALLERGENS } from '@restaurant/utils'
 import { toast } from 'sonner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -460,7 +460,14 @@ function RecipeModal({
   const totalCost = lines.reduce((sum, line) => {
     const stock = stockItems.find(s => s.id === line.stockItemId)
     if (!stock) return sum
-    return sum + (line.quantity * stock.costPerUnit) / (line.yieldRate || 1)
+    // Convertir l'unité recette → unité stock si différentes (ex: cl → L, g → kg)
+    let qty = line.quantity
+    if (line.unit && line.unit !== stock.unit) {
+      const converted = convertUnit(line.quantity, line.unit, stock.unit)
+      if (converted !== null) qty = converted
+      // Si null (unités incompatibles), on garde la quantité brute plutôt que d'afficher rien
+    }
+    return sum + (qty * stock.costPerUnit) / (line.yieldRate || 1)
   }, 0)
 
   const margin = totalCost > 0 ? calculateMargin(product.price, totalCost) : null
