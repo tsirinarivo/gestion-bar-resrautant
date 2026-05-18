@@ -82,8 +82,15 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       _sum: { amount: true },
     })
 
+    // B — race condition sur-paiement : si deux paiements concurrents ont passé le guard,
+    // le second détecté ici dépasse le total — on annule le paiement qu'on vient de créer
+    if ((totalPaid._sum.amount ?? 0) > order.totalAmount + 1) {
+      await prisma.payment.update({ where: { id: payment.id }, data: { status: 'CANCELLED' } })
+      throw new AppError('Sur-paiement détecté : la commande est déjà soldée', 400)
+    }
+
     // BUG 3 — re-lire le statut frais depuis la DB pour éviter le double-COMPLETED sur race condition
-    // B2 — freshOrder peut être null si l'ordre a été supprimé entre-temps ; on traite null comme non-COMPLETED
+    // B2 — freshOrder peut être null si l'ordre a été supprimé entre-temps
     const freshOrder = await prisma.order.findUnique({ where: { id: order.id }, select: { status: true } })
     if (!freshOrder) throw new AppError('Commande introuvable après paiement', 404)
     if ((totalPaid._sum.amount || 0) >= order.totalAmount && freshOrder.status !== 'COMPLETED') {

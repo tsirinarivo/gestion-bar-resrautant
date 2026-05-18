@@ -30,6 +30,12 @@ const TABLE_LABEL: Record<string, string> = {
   CLEANING: 'Nettoyage', BLOCKED: 'Bloquée',
 }
 
+// Helper: solde réel d'un ordre (totalAmount - paiements déjà encaissés)
+function orderRemaining(o: Order): number {
+  const paid = (o.payments ?? []).filter(p => p.status === 'COMPLETED').reduce((s, p) => s + p.amount, 0)
+  return Math.max(0, o.totalAmount - paid)
+}
+
 const POS_PAYMENT_METHODS = [
   { value: 'CASH',         label: '💵 Cash' },
   { value: 'MVOLA',        label: '📱 MVola' },
@@ -141,7 +147,7 @@ function ReceiptModal({
   const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const tableLabel = activeTable ? `Table ${activeTable.number}` : orderType === 'TAKEAWAY' ? 'Emporté' : 'Commande';
 
-  const kitchenTotal = openOrders.reduce((s, o) => s + o.totalAmount, 0);
+  const kitchenTotal = openOrders.reduce((s, o) => s + orderRemaining(o), 0);
   const cartTotal    = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const grandTotal   = kitchenTotal + cartTotal;
 
@@ -483,7 +489,7 @@ function CartPanel({
   onSendToKitchen: () => void; onShowPayment: () => void; onShowReceipt: () => void; onClearCart: () => void;
   onClose?: () => void; sending: boolean; isMobile?: boolean;
 }) {
-  const existingTotal = openOrders.reduce((s, o) => s + o.totalAmount, 0);
+  const existingTotal = openOrders.reduce((s, o) => s + orderRemaining(o), 0);
   const cartTotal     = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const grandTotal    = existingTotal + cartTotal;
 
@@ -906,7 +912,7 @@ export default function POSPage() {
     }
   }, [apiError]);
 
-  const existingTotal = openOrders.reduce((s, o) => s + o.totalAmount, 0);
+  const existingTotal = openOrders.reduce((s, o) => s + orderRemaining(o), 0);
   const cartTotal     = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const grandTotal    = existingTotal + cartTotal;
   const cartCount     = cart.reduce((s, i) => s + i.quantity, 0);
