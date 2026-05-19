@@ -59,9 +59,33 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       where: { id: data.orderId, restaurantId },
     })
     if (!order) throw new AppError('Commande introuvable', 404)
-    // BUG 1 — empêcher d'encaisser une commande déjà terminée ou annulée
     if (order.status === 'COMPLETED') throw new AppError('Cette commande est déjà soldée', 400)
     if (order.status === 'CANCELLED') throw new AppError('Impossible d\'encaisser une commande annulée', 400)
+
+    // ── Vérifier que la méthode de paiement a un compte bancaire associé ──────
+    const linkedBank = await prisma.bankAccount.findFirst({
+      where: { restaurantId, paymentMethod: data.method, isActive: true },
+    })
+    if (!linkedBank) {
+      const label = PAYMENT_LABELS[data.method] ?? data.method
+      throw new AppError(
+        `Aucun compte bancaire associé à "${label}". Configurez-en un dans Banque → Comptes bancaires.`,
+        400,
+      )
+    }
+
+    // ── Si commande POS, exiger une session de caisse ouverte ─────────────────
+    if (order.source === 'POS') {
+      const openSession = await prisma.caisseSession.findFirst({
+        where: { restaurantId, status: 'OPEN' },
+      })
+      if (!openSession) {
+        throw new AppError(
+          'Caisse fermée. Ouvrez une session de caisse avant d\'encaisser.',
+          400,
+        )
+      }
+    }
 
     // B1 — empêcher le sur-paiement
     const existingPaid = await prisma.payment.aggregate({
