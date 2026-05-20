@@ -25,6 +25,7 @@ type Product = {
   categoryId: string; category?: { name: string; icon?: string }
   warehouseId?: string | null; warehouse?: { id: string; name: string }
   recipeItems?: RecipeItem[]
+  variants?: { id: string; name: string; price: number; isDefault: boolean; isActive: boolean }[]
 }
 type Category = { id: string; name: string; icon?: string; color?: string; _count?: { products: number } }
 type StockItem = { id: string; name: string; unit: string; costPerUnit: number; currentQuantity: number }
@@ -1168,6 +1169,179 @@ function MargeView({ products, categories, onEdit }: {
   )
 }
 
+// ─── Variants Modal ───────────────────────────────────────────────────────────
+
+interface Variant { id: string; name: string; sku?: string | null; price: number; costPrice?: number | null; isDefault: boolean; isActive: boolean; sortOrder: number }
+
+function VariantsModal({ product, onClose }: { product: Product; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [adding, setAdding] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [form, setForm] = useState({ name: '', sku: '', price: '', costPrice: '', isDefault: false })
+  const [editForm, setEditForm] = useState<Record<string, string | boolean>>({})
+
+  const { data: variants = [], isLoading } = useQuery<Variant[]>({
+    queryKey: ['variants', product.id],
+    queryFn: () => api.get(`/products/${product.id}/variants`).then(r => r.data.data),
+  })
+
+  const createVariant = useMutation({
+    mutationFn: (data: any) => api.post(`/products/${product.id}/variants`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['variants', product.id] }); setAdding(false); setForm({ name: '', sku: '', price: '', costPrice: '', isDefault: false }); toast.success('Variante ajoutée') },
+    onError: () => toast.error('Erreur lors de la création'),
+  })
+
+  const updateVariant = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.put(`/products/${product.id}/variants/${id}`, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['variants', product.id] }); setEditId(null); toast.success('Variante mise à jour') },
+    onError: () => toast.error('Erreur lors de la mise à jour'),
+  })
+
+  const deleteVariant = useMutation({
+    mutationFn: (id: string) => api.delete(`/products/${product.id}/variants/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['variants', product.id] }); toast.success('Variante supprimée') },
+    onError: () => toast.error('Erreur lors de la suppression'),
+  })
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.name || !form.price) { toast.error('Nom et prix requis'); return }
+    createVariant.mutate({
+      name: form.name,
+      sku: form.sku || undefined,
+      price: parseFloat(form.price),
+      costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
+      isDefault: form.isDefault,
+    })
+  }
+
+  function startEdit(v: Variant) {
+    setEditId(v.id)
+    setEditForm({ name: v.name, sku: v.sku ?? '', price: String(v.price), costPrice: String(v.costPrice ?? ''), isDefault: v.isDefault, isActive: v.isActive })
+  }
+
+  function handleUpdate(id: string) {
+    if (!editForm.name || !editForm.price) { toast.error('Nom et prix requis'); return }
+    updateVariant.mutate({
+      id,
+      data: {
+        name: editForm.name,
+        sku: editForm.sku || undefined,
+        price: parseFloat(String(editForm.price)),
+        costPrice: editForm.costPrice ? parseFloat(String(editForm.costPrice)) : undefined,
+        isDefault: editForm.isDefault,
+        isActive: editForm.isActive,
+      },
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-lg font-bold">Variantes</h2>
+            <p className="text-xs text-brand-muted mt-0.5">{product.name}</p>
+          </div>
+          <button onClick={onClose} className="text-brand-muted hover:text-white p-1"><X className="w-4 h-4" /></button>
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-2">{Array.from({ length: 2 }).map((_, i) => <div key={i} className="skeleton h-12 rounded-xl" />)}</div>
+        ) : (
+          <div className="space-y-2 mb-4">
+            {variants.length === 0 && !adding && (
+              <p className="text-sm text-brand-muted text-center py-4">Aucune variante. Ajoutez des tailles, portions, etc.</p>
+            )}
+            {variants.map(v => (
+              <div key={v.id} className="border border-brand-border rounded-xl p-3">
+                {editId === v.id ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={String(editForm.name)} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Nom" className="input-field text-sm" />
+                      <input value={String(editForm.sku)} onChange={e => setEditForm(f => ({ ...f, sku: e.target.value }))} placeholder="SKU (opt.)" className="input-field text-sm" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="number" value={String(editForm.price)} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} placeholder="Prix (Ar)" className="input-field text-sm" />
+                      <input type="number" value={String(editForm.costPrice)} onChange={e => setEditForm(f => ({ ...f, costPrice: e.target.value }))} placeholder="Coût (Ar)" className="input-field text-sm" />
+                    </div>
+                    <div className="flex gap-3 text-sm">
+                      <label className="flex items-center gap-1.5">
+                        <input type="checkbox" checked={Boolean(editForm.isDefault)} onChange={e => setEditForm(f => ({ ...f, isDefault: e.target.checked }))} />
+                        Par défaut
+                      </label>
+                      <label className="flex items-center gap-1.5">
+                        <input type="checkbox" checked={Boolean(editForm.isActive)} onChange={e => setEditForm(f => ({ ...f, isActive: e.target.checked }))} />
+                        Actif
+                      </label>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditId(null)} className="btn-secondary flex-1 text-sm">Annuler</button>
+                      <button onClick={() => handleUpdate(v.id)} className="btn-primary flex-1 text-sm">Enregistrer</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{v.name}</span>
+                        {v.isDefault && <span className="text-xs px-1.5 py-0.5 rounded bg-brand-orange/10 text-brand-orange border border-brand-orange/30">Défaut</span>}
+                        {!v.isActive && <span className="text-xs px-1.5 py-0.5 rounded bg-brand-surface text-brand-muted border border-brand-border">Inactif</span>}
+                      </div>
+                      <p className="text-xs text-brand-muted mt-0.5">
+                        {formatCurrency(v.price)}
+                        {v.costPrice ? ` · Coût: ${formatCurrency(v.costPrice)}` : ''}
+                        {v.sku ? ` · ${v.sku}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => startEdit(v)} className="p-1.5 text-brand-muted hover:text-brand-orange rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => deleteVariant.mutate(v.id)} className="p-1.5 text-brand-muted hover:text-red-400 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {adding && (
+              <form onSubmit={handleCreate} className="border border-brand-orange/30 rounded-xl p-3 bg-brand-orange/5 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nom (ex: Large)" className="input-field text-sm" required />
+                  <input value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value }))} placeholder="SKU (opt.)" className="input-field text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} placeholder="Prix (Ar)" className="input-field text-sm" required />
+                  <input type="number" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))} placeholder="Coût (Ar)" className="input-field text-sm" />
+                </div>
+                <label className="flex items-center gap-1.5 text-sm">
+                  <input type="checkbox" checked={form.isDefault} onChange={e => setForm(f => ({ ...f, isDefault: e.target.checked }))} />
+                  Variante par défaut
+                </label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setAdding(false)} className="btn-secondary flex-1 text-sm">Annuler</button>
+                  <button type="submit" className="btn-primary flex-1 text-sm">Ajouter</button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+        {!adding && editId === null && (
+          <button onClick={() => setAdding(true)} className="w-full btn-secondary flex items-center justify-center gap-2 text-sm">
+            <Plus className="w-4 h-4" />
+            Ajouter une variante
+          </button>
+        )}
+      </motion.div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MenuPage() {
@@ -1176,6 +1350,7 @@ export default function MenuPage() {
   const [search, setSearch] = useState('')
   const [productModal, setProductModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
   const [recipeModal, setRecipeModal] = useState<Product | null>(null)
+  const [variantModal, setVariantModal] = useState<Product | null>(null)
   const [categoryModal, setCategoryModal] = useState<{ open: boolean; category: Category | null }>({ open: false, category: null })
   const [showCategories, setShowCategories] = useState(false)
   const qc = useQueryClient()
@@ -1488,6 +1663,16 @@ export default function MenuPage() {
                       })}
                     </div>
                   )}
+
+                  {/* Variants & recipe quick buttons */}
+                  <div className="flex gap-1 mt-2">
+                    <button
+                      onClick={() => setVariantModal(product)}
+                      className="text-xs px-2 py-0.5 rounded-lg border border-brand-border text-brand-muted hover:border-brand-orange/40 hover:text-brand-orange transition-colors"
+                    >
+                      {(product.variants?.length ?? 0) > 0 ? `${product.variants!.length} variante(s)` : '+ Variantes'}
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             ))
@@ -1507,6 +1692,9 @@ export default function MenuPage() {
       )}
       {recipeModal && (
         <RecipeModal product={recipeModal} onClose={() => setRecipeModal(null)} />
+      )}
+      {variantModal && (
+        <VariantsModal product={variantModal} onClose={() => setVariantModal(null)} />
       )}
       {categoryModal.open && (
         <CategoryModal

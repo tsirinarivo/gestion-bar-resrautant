@@ -243,6 +243,95 @@ productRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: Aut
   }
 })
 
+// ─── Product Variant Routes ────────────────────────────────────────────────────
+
+const variantSchema = z.object({
+  name: z.string().min(1),
+  sku: z.string().optional(),
+  price: z.number().positive(),
+  costPrice: z.number().optional(),
+  isDefault: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+  sortOrder: z.number().default(0),
+})
+
+// GET /api/products/:id/variants
+productRouter.get('/:id/variants', async (req: AuthRequest, res, next) => {
+  try {
+    const product = await prisma.product.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!product) { res.status(404).json({ success: false, error: 'Produit introuvable' }); return }
+
+    const variants = await prisma.productVariant.findMany({
+      where: { productId: req.params.id },
+      orderBy: [{ isDefault: 'desc' }, { sortOrder: 'asc' }],
+    })
+    res.json({ success: true, data: variants })
+  } catch (error) { next(error) }
+})
+
+// POST /api/products/:id/variants
+productRouter.post('/:id/variants', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const data = variantSchema.parse(req.body)
+    const product = await prisma.product.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!product) { res.status(404).json({ success: false, error: 'Produit introuvable' }); return }
+
+    // If new variant is default, unset all others
+    if (data.isDefault) {
+      await prisma.productVariant.updateMany({
+        where: { productId: req.params.id },
+        data: { isDefault: false },
+      })
+    }
+
+    const variant = await prisma.productVariant.create({
+      data: { ...data, productId: req.params.id },
+    })
+    res.status(201).json({ success: true, data: variant })
+  } catch (error) { next(error) }
+})
+
+// PUT /api/products/:id/variants/:variantId
+productRouter.put('/:id/variants/:variantId', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const data = variantSchema.partial().parse(req.body)
+    const product = await prisma.product.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!product) { res.status(404).json({ success: false, error: 'Produit introuvable' }); return }
+
+    if (data.isDefault) {
+      await prisma.productVariant.updateMany({
+        where: { productId: req.params.id, id: { not: req.params.variantId } },
+        data: { isDefault: false },
+      })
+    }
+
+    const variant = await prisma.productVariant.update({
+      where: { id: req.params.variantId },
+      data,
+    })
+    res.json({ success: true, data: variant })
+  } catch (error) { next(error) }
+})
+
+// DELETE /api/products/:id/variants/:variantId
+productRouter.delete('/:id/variants/:variantId', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const product = await prisma.product.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!product) { res.status(404).json({ success: false, error: 'Produit introuvable' }); return }
+
+    await prisma.productVariant.delete({ where: { id: req.params.variantId } })
+    res.json({ success: true })
+  } catch (error) { next(error) }
+})
+
 // GET /api/products/ingredients — stock items usable as recipe ingredients
 productRouter.get('/ingredients/list', async (req: AuthRequest, res, next) => {
   try {
