@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, ShoppingCart, Users, Table2,
   Euro, Clock, Star, AlertTriangle, ArrowUp, ArrowDown,
-  BarChart2, Activity, Utensils, Package
+  BarChart2, Activity, Utensils, Package, CalendarX
 } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -111,6 +111,13 @@ export default function DashboardPage() {
     queryKey: ['dashboard', 'categories'],
     queryFn: () => api.get('/dashboard/category-stats').then(r => r.data.data),
     staleTime: 300_000,
+  })
+
+  const { data: expiringItems } = useQuery({
+    queryKey: ['stock', 'expiring'],
+    queryFn: () => api.get('/stock/expiring?days=7').then(r => r.data.data),
+    staleTime: 300_000,
+    refetchInterval: 600_000,
   })
 
   const kpis = kpisData
@@ -357,6 +364,43 @@ export default function DashboardPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* Expiring Stock Alert */}
+      {expiringItems && expiringItems.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.75 }}
+          className="glass-card p-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <CalendarX className="w-4 h-4 text-amber-400" />
+            <h2 className="font-semibold">Stocks expirant bientôt</h2>
+            <span className="ml-auto text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full">
+              {expiringItems.length} article{expiringItems.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {expiringItems.slice(0, 6).map((item: any) => {
+              const expiry = new Date(item.expiryDate)
+              const daysLeft = Math.ceil((expiry.getTime() - Date.now()) / 86_400_000)
+              const expired = daysLeft < 0
+              return (
+                <div key={item.id} className={`flex items-center gap-3 p-3 rounded-xl border ${expired ? 'bg-red-500/10 border-red-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                  <Package className={`w-4 h-4 flex-shrink-0 ${expired ? 'text-red-400' : 'text-amber-400'}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{item.name}</p>
+                    <p className="text-xs text-brand-muted">{item.quantity} {item.unit}</p>
+                  </div>
+                  <span className={`text-xs font-semibold flex-shrink-0 ${expired ? 'text-red-400' : 'text-amber-400'}`}>
+                    {expired ? 'Expiré' : `${daysLeft}j`}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </motion.div>
+      )}
 
       {/* Live Status */}
       <motion.div

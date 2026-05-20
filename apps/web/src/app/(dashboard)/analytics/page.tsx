@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   TrendingUp, Euro, ShoppingCart, BarChart2,
-  ArrowUp, ArrowDown, Clock, Users, UtensilsCrossed, Package,
+  ArrowUp, ArrowDown, Clock, Users, UtensilsCrossed, Package, UserCheck,
 } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -195,6 +195,13 @@ export default function AnalyticsPage() {
     queryKey: ['dashboard', 'analytics'],
     queryFn: () => api.get('/dashboard/analytics').then(r => r.data.data),
     refetchInterval: 120_000,
+  })
+
+  // Staff performance
+  const { data: staffPerf, isLoading: staffLoading } = useQuery({
+    queryKey: ['dashboard', 'staff-performance'],
+    queryFn: () => api.get('/dashboard/staff-performance').then(r => r.data.data),
+    staleTime: 300_000,
   })
 
   // Revenue chart period
@@ -727,6 +734,61 @@ export default function AnalyticsPage() {
                   </div>
                 )
               })}
+          </div>
+        )}
+      </motion.div>
+
+      {/* ── Performance du personnel ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.85 }}
+        className="glass-card p-6"
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <UserCheck className="w-4 h-4 text-brand-orange" />
+          <h2 className="font-semibold">Performance du personnel</h2>
+        </div>
+        <p className="text-xs text-brand-muted mb-5">Commandes et CA générés par employé — 30 derniers jours</p>
+
+        {staffLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="skeleton h-14 rounded-xl" />
+            ))}
+          </div>
+        ) : !staffPerf || staffPerf.length === 0 ? (
+          <p className="text-sm text-brand-muted">Aucune donnée disponible</p>
+        ) : (
+          <div className="space-y-3">
+            {staffPerf.slice(0, 8).map((emp: any, i: number) => {
+              const maxRev = staffPerf[0]?.totalRevenue ?? 1
+              const pct = maxRev > 0 ? (emp.totalRevenue / maxRev) * 100 : 0
+              const color = i === 0 ? '#FF4D00' : i === 1 ? '#FFB800' : i === 2 ? '#10B981' : '#3B82F6'
+              return (
+                <div key={emp.userId} className="flex items-center gap-4 p-3 rounded-xl bg-brand-surface border border-brand-border">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                    style={{ background: `${color}20`, color, border: `1px solid ${color}40` }}>
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium truncate">{emp.name}</p>
+                      <p className="text-sm font-bold text-brand-orange ml-2 flex-shrink-0">
+                        {emp.totalRevenue.toLocaleString('fr-FR')} Ar
+                      </p>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-brand-border overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${pct}%`, background: color }} />
+                    </div>
+                    <p className="text-xs text-brand-muted mt-1">
+                      {emp.orderCount} commandes · panier moy. {Math.round(emp.avgTicket).toLocaleString('fr-FR')} Ar
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </motion.div>

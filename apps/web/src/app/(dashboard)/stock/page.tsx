@@ -745,6 +745,12 @@ export default function StockPage() {
                         <td className="px-4 py-3">
                           <p className="font-medium text-sm">{item.name}</p>
                           {item.sku && <p className="text-xs text-brand-muted">{item.sku}</p>}
+                          {item.isPerishable && item.expiryDate && (() => {
+                            const daysLeft = Math.ceil((new Date(item.expiryDate).getTime() - Date.now()) / 86400000)
+                            if (daysLeft < 0) return <span className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded-full mt-0.5 inline-block">Expiré</span>
+                            if (daysLeft <= 7) return <span className="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full mt-0.5 inline-block">⚠ Expire dans {daysLeft}j</span>
+                            return <span className="text-xs text-brand-muted mt-0.5 inline-block">DLC : {new Date(item.expiryDate).toLocaleDateString('fr-FR')}</span>
+                          })()}
                         </td>
                         <td className="px-4 py-3">
                           <p className="font-semibold" style={{ color: sc.color }}>{formatQuantity(item.currentQuantity, item.unit)}</p>
@@ -850,6 +856,12 @@ export default function StockPage() {
                             {isSelected && <span className="text-white text-xs font-bold">✓</span>}
                           </div>
                           <p className="font-semibold text-sm truncate">{item.name}</p>
+                          {item.isPerishable && item.expiryDate && (() => {
+                            const dl = Math.ceil((new Date(item.expiryDate).getTime() - Date.now()) / 86400000)
+                            if (dl < 0) return <span className="text-[10px] bg-red-500/20 text-red-400 px-1 rounded">Expiré</span>
+                            if (dl <= 7) return <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1 rounded">⚠ {dl}j</span>
+                            return null
+                          })()}
                         </div>
                         <span className="text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ml-2"
                           style={{ background: `${sc.color}20`, color: sc.color }}>{sc.label}</span>
