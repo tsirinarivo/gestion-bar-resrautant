@@ -35,6 +35,7 @@ import { notificationRouter } from './routes/notifications'
 import { waitingListRouter } from './routes/waiting-list'
 import { auditRouter } from './routes/audit'
 import { reviewRouter } from './routes/reviews'
+import { promotionRouter } from './routes/promotions'
 import { errorHandler } from './middleware/errorHandler'
 import { setupSocketHandlers } from './socket/handlers'
 import { prisma } from './lib/prisma'
@@ -106,6 +107,7 @@ app.use('/api/notifications', notificationRouter)
 app.use('/api/waiting-list', waitingListRouter)
 app.use('/api/audit', auditRouter)
 app.use('/api/reviews', reviewRouter)
+app.use('/api/promotions', promotionRouter)
 
 app.get('/api/health', async (req, res) => {
   try {
