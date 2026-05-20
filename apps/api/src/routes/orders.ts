@@ -650,6 +650,37 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
   }
 })
 
+// PATCH /api/orders/:id/items/:itemId — change quantity of item in PENDING order
+orderRouter.patch('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
+  try {
+    const { quantity } = z.object({ quantity: z.number().int().min(1) }).parse(req.body)
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+      include: { items: true },
+    })
+    if (!order) throw new AppError('Commande introuvable', 404)
+    if (order.status !== 'PENDING') throw new AppError('Seules les commandes en attente peuvent être modifiées', 400)
+
+    const item = order.items.find(i => i.id === req.params.itemId)
+    if (!item) throw new AppError('Article introuvable', 404)
+
+    const newItemTotal = item.unitPrice * quantity
+    const totalDiff = newItemTotal - item.totalPrice
+    const newSubtotal = order.subtotal + totalDiff
+    const newTotal = order.totalAmount + totalDiff
+
+    const [updatedItem] = await prisma.$transaction([
+      prisma.orderItem.update({ where: { id: item.id }, data: { quantity, totalPrice: newItemTotal } }),
+      prisma.order.update({ where: { id: order.id }, data: { subtotal: newSubtotal, totalAmount: newTotal } }),
+    ])
+
+    const io = req.app.get('io')
+    io?.to(req.user!.restaurantId).emit('order:updated', { orderId: order.id })
+
+    res.json({ success: true, data: updatedItem })
+  } catch (error) { next(error) }
+})
+
 // DELETE /api/orders/:id/items/:itemId — remove item from a PENDING order
 orderRouter.delete('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
   try {

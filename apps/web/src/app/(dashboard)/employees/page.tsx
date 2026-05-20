@@ -415,6 +415,179 @@ function LeaveModal({ employee, onClose }: { employee: Employee; onClose: () => 
   )
 }
 
+// ─── Shift Calendar ───────────────────────────────────────────────────────────
+
+const STATION_COLORS: Record<string, string> = {
+  salle: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  bar: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  cuisine: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  livreur: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+}
+
+type Shift = {
+  id: string
+  date: string
+  startTime: string
+  endTime: string
+  station: string | null
+  isPublished: boolean
+  employeeId: string
+}
+
+function ShiftCalendar({ employees }: { employees: Employee[] }) {
+  const qc = useQueryClient()
+  const [weekOffset, setWeekOffset] = useState(0)
+  const [addingShift, setAddingShift] = useState<{ employeeId: string; date: string } | null>(null)
+  const [newShift, setNewShift] = useState({ startTime: '08:00', endTime: '16:00', station: 'salle' })
+
+  const weekStart = (() => {
+    const d = new Date()
+    d.setDate(d.getDate() - d.getDay() + 1 + weekOffset * 7) // Monday
+    d.setHours(0, 0, 0, 0)
+    return d
+  })()
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart)
+    d.setDate(weekStart.getDate() + i)
+    return d
+  })
+
+  const fromISO = weekStart.toISOString().slice(0, 10)
+  const toISO = days[6]!.toISOString().slice(0, 10)
+
+  const { data: shifts = [] } = useQuery<Shift[]>({
+    queryKey: ['shifts', fromISO, toISO],
+    queryFn: () => api.get(`/employees/schedule?from=${fromISO}&to=${toISO}`).then(r => r.data.data),
+    staleTime: 60_000,
+  })
+
+  const createShift = useMutation({
+    mutationFn: (body: object) => api.post('/employees/shifts', body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); setAddingShift(null); toast.success('Shift ajouté') },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? 'Erreur'),
+  })
+
+  const deleteShift = useMutation({
+    mutationFn: (id: string) => api.delete(`/employees/shifts/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); toast.success('Shift supprimé') },
+  })
+
+  const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+  const today = new Date().toISOString().slice(0, 10)
+
+  if (employees.length === 0) return null
+
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-brand-orange" />
+          <h2 className="font-semibold">Planning de la semaine</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setWeekOffset(v => v - 1)} className="p-1 hover:bg-white/5 rounded-lg transition-colors">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm text-brand-muted min-w-[130px] text-center">
+            {days[0]!.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} — {days[6]!.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>
+          <button onClick={() => setWeekOffset(v => v + 1)} className="p-1 hover:bg-white/5 rounded-lg transition-colors">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          {weekOffset !== 0 && (
+            <button onClick={() => setWeekOffset(0)} className="text-xs text-brand-orange hover:underline ml-1">Aujourd'hui</button>
+          )}
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr>
+              <th className="text-left py-2 pr-3 text-brand-muted font-medium w-32">Employé</th>
+              {days.map((d, i) => (
+                <th key={i} className={`text-center py-2 px-1 font-medium min-w-[90px] ${d.toISOString().slice(0, 10) === today ? 'text-brand-orange' : 'text-brand-muted'}`}>
+                  <div>{DAY_LABELS[i]}</div>
+                  <div className={`text-[10px] mt-0.5 ${d.toISOString().slice(0, 10) === today ? 'text-brand-orange font-bold' : 'text-brand-muted/60'}`}>
+                    {d.getDate()}/{d.getMonth() + 1}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {employees.slice(0, 12).map(emp => (
+              <tr key={emp.id} className="border-t border-brand-border/50">
+                <td className="py-2 pr-3 font-medium text-xs truncate max-w-[120px]">
+                  {emp.user.firstName} {emp.user.lastName.charAt(0)}.
+                </td>
+                {days.map((d, di) => {
+                  const dateStr = d.toISOString().slice(0, 10)
+                  const dayShifts = shifts.filter(s => s.employeeId === emp.id && s.date.slice(0, 10) === dateStr)
+                  const isToday = dateStr === today
+                  return (
+                    <td key={di} className={`py-1 px-1 align-top ${isToday ? 'bg-brand-orange/5' : ''}`}>
+                      <div className="space-y-1 min-h-[32px]">
+                        {dayShifts.map(s => (
+                          <div key={s.id}
+                            className={`rounded border px-1 py-0.5 flex items-center justify-between gap-1 group ${STATION_COLORS[s.station ?? ''] ?? 'bg-white/10 text-brand-muted border-white/20'}`}>
+                            <span className="truncate">{s.startTime.slice(0, 5)}–{s.endTime.slice(0, 5)}</span>
+                            <button onClick={() => { if (confirm('Supprimer ce shift ?')) deleteShift.mutate(s.id) }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400">
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {addingShift?.employeeId === emp.id && addingShift.date === dateStr ? (
+                          <div className="bg-brand-darker border border-brand-orange/40 rounded p-1.5 space-y-1">
+                            <div className="flex gap-1">
+                              <input type="time" value={newShift.startTime} onChange={e => setNewShift(s => ({ ...s, startTime: e.target.value }))}
+                                className="flex-1 bg-transparent border border-brand-border rounded px-1 py-0.5 text-[10px]" />
+                              <input type="time" value={newShift.endTime} onChange={e => setNewShift(s => ({ ...s, endTime: e.target.value }))}
+                                className="flex-1 bg-transparent border border-brand-border rounded px-1 py-0.5 text-[10px]" />
+                            </div>
+                            <select value={newShift.station} onChange={e => setNewShift(s => ({ ...s, station: e.target.value }))}
+                              className="w-full bg-brand-darker border border-brand-border rounded px-1 py-0.5 text-[10px]">
+                              <option value="salle">Salle</option>
+                              <option value="bar">Bar</option>
+                              <option value="cuisine">Cuisine</option>
+                              <option value="livreur">Livreur</option>
+                            </select>
+                            <div className="flex gap-1">
+                              <button onClick={() => createShift.mutate({ employeeId: emp.id, date: dateStr, ...newShift })}
+                                className="flex-1 bg-brand-orange/20 text-brand-orange rounded px-2 py-0.5 text-[10px] hover:bg-brand-orange/30">✓</button>
+                              <button onClick={() => setAddingShift(null)}
+                                className="flex-1 bg-white/5 text-brand-muted rounded px-2 py-0.5 text-[10px] hover:bg-white/10">✕</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button onClick={() => setAddingShift({ employeeId: emp.id, date: dateStr })}
+                            className="w-full text-center text-brand-muted/30 hover:text-brand-orange hover:bg-brand-orange/5 rounded transition-colors py-1 text-base leading-none">
+                            +
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Station legend */}
+      <div className="flex gap-3 mt-3 flex-wrap">
+        {Object.entries({ salle: 'Salle', bar: 'Bar', cuisine: 'Cuisine', livreur: 'Livreur' }).map(([k, label]) => (
+          <span key={k} className={`text-[10px] px-2 py-0.5 rounded border ${STATION_COLORS[k] ?? ''}`}>{label}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EmployeesPage() {
@@ -732,6 +905,9 @@ export default function EmployeesPage() {
           </div>
         )}
       </div>
+
+      {/* ── Planning hebdomadaire ── */}
+      <ShiftCalendar employees={employees} />
 
       {/* ── Create Modal ── */}
       {showCreate && (
