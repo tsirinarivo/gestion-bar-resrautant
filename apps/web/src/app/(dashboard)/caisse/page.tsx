@@ -154,16 +154,26 @@ function CloseSessionModal({
 }) {
   const [closingFloat, setClosingFloat] = useState('')
   const [notes, setNotes] = useState('')
+  const [breakdownMode, setBreakdownMode] = useState(false)
+  const [counts, setCounts] = useState<Record<number, string>>({})
+
+  const DENOMS = [20000, 10000, 5000, 2000, 1000, 500, 200, 100]
+  const breakdownTotal = DENOMS.reduce((s, d) => s + d * (parseInt(counts[d] ?? '0') || 0), 0)
 
   const expectedCash = session.expectedCash ?? 0
-  const closing = parseFloat(closingFloat) || 0
+  const closing = breakdownMode ? breakdownTotal : (parseFloat(closingFloat) || 0)
   const difference = closing - expectedCash
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const float = parseFloat(closingFloat)
+    const float = breakdownMode ? breakdownTotal : parseFloat(closingFloat)
     if (isNaN(float) || float < 0) { toast.error('Montant invalide'); return }
-    onSave({ closingFloat: float, notes })
+    const breakdownNotes = breakdownMode
+      ? DENOMS.filter(d => parseInt(counts[d] ?? '0') > 0)
+          .map(d => `${counts[d]}×${d}`).join(', ')
+      : ''
+    const finalNotes = [notes, breakdownNotes ? `Comptage : ${breakdownNotes}` : ''].filter(Boolean).join(' | ')
+    onSave({ closingFloat: float, notes: finalNotes })
   }
 
   return (
@@ -193,20 +203,49 @@ function CloseSessionModal({
           </div>
 
           <div>
-            <label className="text-xs text-brand-muted mb-1 block">Comptage physique (Ar) *</label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={closingFloat}
-              onChange={e => setClosingFloat(e.target.value)}
-              className="input-field text-lg font-semibold"
-              placeholder="Saisissez le montant compté"
-              required
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-brand-muted">Comptage physique (Ar) *</label>
+              <button type="button" onClick={() => setBreakdownMode(b => !b)}
+                className="text-xs text-brand-orange hover:underline">
+                {breakdownMode ? 'Saisie globale' : 'Détail billets/pièces'}
+              </button>
+            </div>
+            {breakdownMode ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {DENOMS.map(d => (
+                    <div key={d} className="flex items-center gap-2">
+                      <span className="text-xs font-mono w-14 text-right text-brand-muted">{d} Ar</span>
+                      <span className="text-brand-muted">×</span>
+                      <input type="number" min="0" value={counts[d] ?? ''} placeholder="0"
+                        onChange={e => setCounts(c => ({ ...c, [d]: e.target.value }))}
+                        className="input-field py-1 text-sm flex-1" />
+                      <span className="text-xs text-brand-muted w-20 text-right font-mono">
+                        {formatCurrency(d * (parseInt(counts[d] ?? '0') || 0))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between bg-brand-orange/10 border border-brand-orange/30 rounded-xl px-3 py-2 mt-2">
+                  <span className="text-sm font-medium">Total compté</span>
+                  <span className="font-bold text-lg text-brand-orange">{formatCurrency(breakdownTotal)}</span>
+                </div>
+              </div>
+            ) : (
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={closingFloat}
+                onChange={e => setClosingFloat(e.target.value)}
+                className="input-field text-lg font-semibold"
+                placeholder="Saisissez le montant compté"
+                required={!breakdownMode}
+              />
+            )}
           </div>
 
-          {closingFloat !== '' && (
+          {(closingFloat !== '' || breakdownMode) && (
             <div className={`flex items-center justify-between p-3 rounded-xl border ${
               difference < 0
                 ? 'bg-red-500/10 border-red-500/30'
