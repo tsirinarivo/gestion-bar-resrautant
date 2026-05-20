@@ -35,6 +35,7 @@ type Customer = {
     transactions?: LoyaltyTx[]
   }
   orders?: Order[]
+  addresses?: { id: string; label: string; address: string; city: string; postalCode: string; isDefault: boolean }[]
   _count?: { orders: number }
 }
 
@@ -271,6 +272,7 @@ function CustomerPanel({ customerId, onClose }: { customerId: string; onClose: (
   const tierConf = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG.BRONZE
   const orders = customer?.orders?.slice(0, 5) ?? []
   const transactions = loyalty?.transactions ?? []
+  const addresses = customer?.addresses ?? []
 
   return (
     <motion.div
@@ -396,6 +398,27 @@ function CustomerPanel({ customerId, onClose }: { customerId: string; onClose: (
                 )}
               </AnimatePresence>
             </div>
+
+            {/* Addresses */}
+            {addresses.length > 0 && (
+              <div className="px-6 py-5 border-b border-brand-border/50">
+                <h4 className="text-xs font-semibold text-brand-muted uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  📍 Adresses
+                </h4>
+                <div className="space-y-2">
+                  {addresses.map(addr => (
+                    <div key={addr.id} className="glass-card px-3 py-2.5">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-semibold capitalize">{addr.label}</span>
+                        {addr.isDefault && <span className="text-xs bg-brand-orange/20 text-brand-orange px-2 py-0.5 rounded-full">par défaut</span>}
+                      </div>
+                      <p className="text-sm">{addr.address}</p>
+                      <p className="text-xs text-brand-muted">{addr.postalCode} {addr.city}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Recent orders */}
             {orders.length > 0 && (
