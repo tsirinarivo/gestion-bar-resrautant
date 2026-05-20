@@ -8,7 +8,7 @@ import {
 } from 'recharts'
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingBag, AlertCircle,
-  Plus, Edit2, Trash2, X, ChevronDown, Target,
+  Plus, Edit2, Trash2, X, ChevronDown, Target, Receipt, Download,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency } from '@restaurant/utils'
@@ -203,6 +203,41 @@ export default function FinancesPage() {
     queryFn: () => api.get(`/finances/expenses?${qParams}`).then(r => r.data.data),
     staleTime: 30_000,
   })
+
+  const taxParams = new URLSearchParams()
+  if (summary?.period) {
+    taxParams.set('from', summary.period.start)
+    taxParams.set('to', summary.period.end)
+  }
+  const { data: taxReport } = useQuery<{
+    period: { from: string; to: string }; orderCount: number;
+    totalHT: number; totalTVA: number; totalTTC: number;
+    byRate: { rate: number; baseHT: number; tva: number; count: number }[];
+    orders: { id: string; orderNumber: string; date: string; taxAmount: number; total: number }[];
+  }>({
+    queryKey: ['finances-tax', period, year, month, from, to],
+    queryFn: () => api.get(`/finances/tax-report?${taxParams}`).then(r => r.data.data),
+    enabled: !!summary?.period,
+    staleTime: 60_000,
+  })
+
+  function exportTaxCSV() {
+    if (!taxReport) return
+    const rows = [
+      ['Commande', 'Date', 'Montant TVA', 'Total TTC'].join(';'),
+      ...(taxReport.orders ?? []).map(o => [
+        o.orderNumber,
+        new Date(o.date).toLocaleDateString('fr-FR'),
+        o.taxAmount,
+        o.total,
+      ].join(';')),
+    ]
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `tva-${period}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const createExpense = useMutation({
     mutationFn: (d: any) => api.post('/finances/expenses', d),
@@ -569,6 +604,58 @@ export default function FinancesPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Rapport TVA */}
+      {taxReport && (
+        <div className="glass-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-brand-orange" />
+              <h2 className="font-semibold">Rapport TVA</h2>
+            </div>
+            <button onClick={exportTaxCSV}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg hover:border-brand-orange/40 transition-colors">
+              <Download className="w-3.5 h-3.5" />
+              Exporter CSV
+            </button>
+          </div>
+
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {[
+              { label: 'Base HT', value: taxReport.totalHT, color: '#3B82F6' },
+              { label: 'TVA collectée', value: taxReport.totalTVA, color: '#FF4D00' },
+              { label: 'Total TTC', value: taxReport.totalTTC, color: '#10B981' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="rounded-xl p-3 text-center" style={{ background: `${color}10`, border: `1px solid ${color}20` }}>
+                <p className="text-xs text-brand-muted mb-1">{label}</p>
+                <p className="font-bold text-base" style={{ color }}>{formatCurrency(value)}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* By rate breakdown */}
+          {taxReport.byRate.length > 0 && (
+            <div className="space-y-2 mb-4">
+              <p className="text-xs text-brand-muted font-medium uppercase tracking-wide">Détail par taux</p>
+              {taxReport.byRate.map(r => (
+                <div key={r.rate} className="flex items-center justify-between bg-brand-surface border border-brand-border rounded-xl px-4 py-2.5 text-sm">
+                  <span className="font-medium">TVA {r.rate}%</span>
+                  <div className="flex gap-6 text-xs text-brand-muted">
+                    <span>Base HT : <span className="text-white font-semibold">{formatCurrency(r.baseHT)}</span></span>
+                    <span>TVA : <span className="text-brand-orange font-semibold">{formatCurrency(r.tva)}</span></span>
+                    <span>{r.count} articles</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="text-xs text-brand-muted text-right">
+            {taxReport.orderCount} commande{taxReport.orderCount > 1 ? 's' : ''} sur la période
+          </p>
         </div>
       )}
 
