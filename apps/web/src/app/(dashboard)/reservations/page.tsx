@@ -107,6 +107,12 @@ export default function ReservationsPage() {
     queryFn: () => api.get(`/reservations?date=${date}&limit=50`).then(r => r.data),
   })
 
+  const { data: tablesData } = useQuery({
+    queryKey: ['tables'],
+    queryFn: () => api.get('/tables').then(r => r.data),
+  })
+  const tables = tablesData?.data ?? []
+
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.patch(`/reservations/${id}/status`, { status }),
@@ -123,6 +129,15 @@ export default function ReservationsPage() {
       qc.invalidateQueries({ queryKey: ['reservations'] })
       setEditingNotesId(null)
       toast.success('Notes mises à jour')
+    },
+  })
+
+  const updateTable = useMutation({
+    mutationFn: ({ id, tableId }: { id: string; tableId: string | null }) =>
+      api.patch(`/reservations/${id}`, { tableId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservations'] })
+      toast.success('Table assignée')
     },
   })
 
@@ -223,6 +238,22 @@ export default function ReservationsPage() {
                             {reservation.phone}
                           </span>
                         )}
+                        <span className="flex items-center gap-1">
+                          🪑
+                          <select
+                            value={reservation.tableId ?? ''}
+                            onChange={e => updateTable.mutate({ id: reservation.id, tableId: e.target.value || null })}
+                            className="bg-transparent border border-brand-border rounded-md px-1 py-0.5 text-xs cursor-pointer hover:border-brand-orange/40"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <option value="">— Table —</option>
+                            {tables.map((t: any) => (
+                              <option key={t.id} value={t.id}>
+                                Table {t.number}{t.name ? ` (${t.name})` : ''} · {t.capacity} pl.
+                              </option>
+                            ))}
+                          </select>
+                        </span>
                       </div>
                       {reservation.specialRequest && (
                         <p className="text-xs text-amber-600 mt-1 italic">⭐ {reservation.specialRequest}</p>
