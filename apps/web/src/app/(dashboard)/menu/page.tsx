@@ -19,7 +19,7 @@ type Product = {
   id: string; name: string; shortDesc?: string; description?: string
   price: number; costPrice?: number; image?: string
   isAvailable: boolean; isFeatured: boolean; isNew: boolean
-  requiresPreparation: boolean
+  requiresPreparation: boolean; sortOrder: number
   prepTime?: number; allergens: string[]; tags: string[]
   categoryId: string; category?: { name: string; icon?: string }
   warehouseId?: string | null; warehouse?: { id: string; name: string }
@@ -68,6 +68,7 @@ function ProductModal({
     price: product?.price?.toString() ?? '',
     costPrice: product?.costPrice?.toString() ?? '',
     prepTime: product?.prepTime?.toString() ?? '10',
+    sortOrder: product?.sortOrder?.toString() ?? '0',
     categoryId: product?.categoryId ?? (categories[0]?.id ?? ''),
     warehouseId: product?.warehouseId ?? '',
     isAvailable: product?.isAvailable ?? true,
@@ -109,6 +110,7 @@ function ProductModal({
       price: parseFloat(form.price),
       costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
       prepTime: form.prepTime ? parseInt(form.prepTime) : 10,
+      sortOrder: parseInt(form.sortOrder) || 0,
       categoryId: form.categoryId,
       warehouseId: form.warehouseId || null,
       isAvailable: form.isAvailable,
@@ -242,6 +244,12 @@ function ProductModal({
                   className="input-field pr-10" placeholder="10" min="1" />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted text-xs">min</span>
               </div>
+            </div>
+            <div>
+              <label className="text-sm text-brand-muted mb-1 block">Ordre d'affichage</label>
+              <input type="number" value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: e.target.value }))}
+                className="input-field" placeholder="0" min="0"
+                title="Les produits sont affichés par ordre croissant (0 = premier)" />
             </div>
           </div>
 
@@ -1303,6 +1311,7 @@ export default function MenuPage() {
                     {product.isFeatured && <span className="px-1.5 py-0.5 bg-yellow-400 text-black text-xs rounded-md font-bold">⭐</span>}
                     {product.isNew && <span className="px-1.5 py-0.5 bg-brand-orange text-white text-xs rounded-md font-bold">New</span>}
                     {!product.isAvailable && <span className="px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-md font-bold">Off</span>}
+                    {product.sortOrder > 0 && <span className="px-1.5 py-0.5 bg-black/50 text-white text-xs rounded-md font-mono">#{product.sortOrder}</span>}
                     {!product.tags?.includes('no-recipe') && (product.recipeItems?.length ?? 0) > 0 && (
                       <span className="px-1.5 py-0.5 bg-purple-500/80 text-white text-xs rounded-md font-bold flex items-center gap-0.5">
                         <ChefHat className="w-2.5 h-2.5" />{product.recipeItems!.length}
