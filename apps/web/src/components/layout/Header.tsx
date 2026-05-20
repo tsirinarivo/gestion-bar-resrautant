@@ -3,7 +3,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { Bell, Search, Menu, Wifi } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+
+const NOTIF_TYPE_TO_PATH: Record<string, string> = {
+  ORDER: '/orders',
+  STOCK: '/stock',
+  RESERVATION: '/reservations',
+  EMPLOYEE: '/employees',
+  WAITING: '/waiting',
+  REVIEW: '/reviews',
+}
 import { useAuthStore } from '@/store/auth'
 import { formatDate, formatRelative } from '@restaurant/utils'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -53,11 +62,18 @@ const TYPE_ICON: Record<string, string> = {
 
 export function Header({ onMenuToggle }: HeaderProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const { user } = useAuthStore()
   const [time, setTime] = useState(new Date())
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const qc = useQueryClient()
+
+  function handleNotifClick(n: Notification) {
+    if (!n.isRead) markRead.mutate(n.id)
+    const path = NOTIF_TYPE_TO_PATH[n.type]
+    if (path) { router.push(path); setOpen(false) }
+  }
 
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 1000)
@@ -232,7 +248,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
                   ) : notifications.map(n => (
                     <div
                       key={n.id}
-                      onClick={() => { if (!n.isRead) markRead.mutate(n.id) }}
+                      onClick={() => handleNotifClick(n)}
                       className={`px-4 py-3 cursor-pointer hover:bg-white/5 transition-colors ${!n.isRead ? 'bg-brand-orange/5' : ''}`}
                     >
                       <div className="flex items-start gap-3">
