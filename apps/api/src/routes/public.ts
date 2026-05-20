@@ -194,3 +194,39 @@ publicRouter.post('/:slug/tables/:tableId/call-waiter', async (req, res, next) =
     res.json({ success: true, message: 'Serveur appelé' })
   } catch (error) { next(error) }
 })
+
+
+// GET /api/public/:slug/reviews — public reviews list
+publicRouter.get('/:slug/reviews', async (req, res, next) => {
+  try {
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
+    const reviews = await prisma.review.findMany({
+      where: { restaurantId: restaurant.id, isPublic: true },
+      select: { id: true, rating: true, title: true, content: true, reply: true, repliedAt: true, createdAt: true,
+        customer: { select: { firstName: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    })
+    res.json({ success: true, data: reviews })
+  } catch (error) { next(error) }
+})
+
+// POST /api/public/:slug/reviews — submit a review
+publicRouter.post('/:slug/reviews', async (req, res, next) => {
+  try {
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
+    const { rating, title, content, orderNumber } = req.body as { rating: number; title?: string; content?: string; orderNumber?: string }
+    if (!rating || rating < 1 || rating > 5) return res.status(400).json({ success: false, error: 'Note invalide (1-5)' })
+    let orderId: string | undefined
+    if (orderNumber) {
+      const order = await prisma.order.findFirst({ where: { restaurantId: restaurant.id, orderNumber } })
+      orderId = order?.id
+    }
+    const review = await prisma.review.create({
+      data: { restaurantId: restaurant.id, rating, title: title || undefined, content: content || undefined, orderId },
+    })
+    res.status(201).json({ success: true, data: review })
+  } catch (error) { next(error) }
+})

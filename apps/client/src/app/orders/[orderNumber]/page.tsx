@@ -38,6 +38,23 @@ export default function OrderTrackingPage({ params }: { params: { orderNumber: s
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
+  const [review, setReview] = useState({ rating: 0, content: '' })
+  const [reviewSubmitted, setReviewSubmitted] = useState(false)
+  const [reviewLoading, setReviewLoading] = useState(false)
+
+  async function submitReview() {
+    if (!review.rating) return
+    setReviewLoading(true)
+    try {
+      await fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: review.rating, content: review.content || undefined, orderNumber: params.orderNumber }),
+      })
+      setReviewSubmitted(true)
+    } catch {}
+    finally { setReviewLoading(false) }
+  }
 
   async function cancelOrder() {
     if (!confirm('Êtes-vous sûr de vouloir annuler cette commande ?')) return
@@ -188,6 +205,37 @@ export default function OrderTrackingPage({ params }: { params: { orderNumber: s
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Review form — shown only after completion */}
+        {order.status === 'COMPLETED' && !reviewSubmitted && (
+          <div className="bg-white rounded-2xl shadow-sm p-5">
+            <h2 className="font-semibold text-sm mb-3">⭐ Donnez votre avis</h2>
+            <div className="flex gap-1 mb-3">
+              {[1,2,3,4,5].map(star => (
+                <button key={star} onClick={() => setReview(r => ({ ...r, rating: star }))}
+                  className={`text-2xl transition-transform hover:scale-110 ${star <= review.rating ? 'opacity-100' : 'opacity-30'}`}>
+                  ⭐
+                </button>
+              ))}
+            </div>
+            {review.rating > 0 && (
+              <>
+                <textarea value={review.content} onChange={e => setReview(r => ({ ...r, content: e.target.value }))}
+                  rows={2} placeholder="Commentaire (optionnel)..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 resize-none mb-3" />
+                <button onClick={submitReview} disabled={reviewLoading}
+                  className="w-full bg-amber-500 hover:bg-amber-400 text-white font-bold py-2.5 rounded-xl text-sm transition-colors disabled:opacity-50">
+                  {reviewLoading ? 'Envoi...' : 'Envoyer mon avis'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {reviewSubmitted && (
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-center text-sm text-green-700">
+            ✅ Merci pour votre avis !
           </div>
         )}
 
