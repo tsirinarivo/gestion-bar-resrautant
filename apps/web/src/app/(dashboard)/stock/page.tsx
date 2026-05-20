@@ -363,6 +363,7 @@ export default function StockPage() {
   const [activeTab, setActiveTab]       = useState<'stock' | 'reorder' | 'history'>('stock')
   const [search, setSearch]             = useState('')
   const [filter, setFilter]             = useState('')
+  const [warehouseFilter, setWarehouseFilter] = useState('')
   // Movement modal
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [movementForm, setMovementForm] = useState({ type: 'IN', quantity: '', notes: '', expiryDate: '' })
@@ -474,7 +475,9 @@ export default function StockPage() {
   })
 
   const allItems: any[] = data || []
-  const items = allItems.filter((item: any) => !filter || item.stockStatus === filter)
+  const items = allItems
+    .filter((item: any) => !filter || item.stockStatus === filter)
+    .filter((item: any) => !warehouseFilter || item.warehouseId === warehouseFilter)
   const alerts = allItems.filter((item: any) => NEEDS_REORDER.includes(item.stockStatus))
 
   function toReorderLine(item: any): ReorderLine {
@@ -708,6 +711,15 @@ export default function StockPage() {
                 {s ? STOCK_STATUS[s as keyof typeof STOCK_STATUS].label : 'Tous'}
               </button>
             ))}
+            {(warehouses as any[]).length > 1 && (
+              <select value={warehouseFilter} onChange={e => setWarehouseFilter(e.target.value)}
+                className="input-field text-sm" style={{ width: 'auto' }}>
+                <option value="">Tous dépôts</option>
+                {(warehouses as any[]).map((w: any) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="glass-card overflow-hidden">

@@ -613,10 +613,14 @@ export default function SuppliersPage() {
 
                   <div className="space-y-1.5 text-sm text-brand-muted">
                     {supplier.phone && (
-                      <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5" /> {supplier.phone}</p>
+                      <a href={`tel:${supplier.phone}`} className="flex items-center gap-2 hover:text-brand-orange transition-colors">
+                        <Phone className="w-3.5 h-3.5" /> {supplier.phone}
+                      </a>
                     )}
                     {supplier.email && (
-                      <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5" /> {supplier.email}</p>
+                      <a href={`mailto:${supplier.email}`} className="flex items-center gap-2 hover:text-brand-orange transition-colors">
+                        <Mail className="w-3.5 h-3.5" /> {supplier.email}
+                      </a>
                     )}
                     {supplier.city && (
                       <p className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5" /> {supplier.city}</p>
