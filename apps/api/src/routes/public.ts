@@ -97,3 +97,28 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     res.status(201).json({ success: true, data: order })
   } catch (error) { next(error) }
 })
+
+// GET /api/public/:slug/orders/:orderNumber — guest order tracking
+publicRouter.get('/:slug/orders/:orderNumber', async (req, res, next) => {
+  try {
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
+
+    const order = await prisma.order.findFirst({
+      where: { restaurantId: restaurant.id, orderNumber: req.params.orderNumber },
+      select: {
+        id: true, orderNumber: true, status: true, type: true,
+        totalAmount: true, createdAt: true, completedAt: true, readyAt: true,
+        estimatedReadyAt: true, notes: true,
+        items: {
+          select: { quantity: true, unitPrice: true, totalPrice: true, notes: true, status: true,
+            product: { select: { name: true, image: true } } }
+        },
+        statusHistory: { orderBy: { createdAt: 'desc' }, take: 10,
+          select: { status: true, notes: true, createdAt: true } },
+      },
+    })
+    if (!order) return res.status(404).json({ success: false, error: 'Commande introuvable' })
+    res.json({ success: true, data: order })
+  } catch (error) { next(error) }
+})

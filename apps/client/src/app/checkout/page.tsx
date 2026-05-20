@@ -65,9 +65,14 @@ export default function CheckoutPage() {
           notes: notes || undefined,
         }),
       });
-      const data = (await res.json()) as { success: boolean; data?: { orderNumber: string }; error?: string };
+      const data = (await res.json()) as { success: boolean; data?: { id: string; orderNumber: string }; error?: string };
       if (!data.success) throw new Error(data.error ?? 'Erreur lors de la commande');
-      setOrderNumber(data.data!.orderNumber);
+      const num = data.data!.orderNumber;
+      setOrderNumber(num);
+      // Persist order history in localStorage for tracking
+      const history = JSON.parse(localStorage.getItem('orders') ?? '[]') as string[];
+      history.unshift(num);
+      localStorage.setItem('orders', JSON.stringify(history.slice(0, 20)));
       localStorage.removeItem('cart');
       window.dispatchEvent(new Event('cart-updated'));
       setStep('done');
@@ -103,7 +108,8 @@ export default function CheckoutPage() {
               ? 'Votre commande sera livrée dès qu\'elle est prête. Merci de rester joignable.'
               : 'Votre commande est en préparation. Venez la récupérer au comptoir.'}
           </p>
-          <Link href="/menu" className="btn-primary block w-full py-3 rounded-xl">Nouvelle commande</Link>
+          <Link href={`/orders/${orderNumber}`} className="btn-primary block w-full py-3 rounded-xl mb-3 text-center">Suivre ma commande</Link>
+          <Link href="/menu" className="block w-full py-3 rounded-xl border border-gray-300 text-center text-gray-600 hover:bg-gray-50 transition-colors">Nouvelle commande</Link>
         </div>
       </div>
     );
