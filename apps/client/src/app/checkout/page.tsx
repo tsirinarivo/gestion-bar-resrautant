@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '@restaurant/utils';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 const RESTAURANT_SLUG = process.env['NEXT_PUBLIC_RESTAURANT_SLUG'] ?? 'restaurant-demo';
@@ -18,6 +19,7 @@ type OrderType = 'TAKEAWAY' | 'DELIVERY';
 type Step = 'form' | 'confirm' | 'done';
 
 export default function CheckoutPage() {
+  const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [type, setType] = useState<OrderType>('TAKEAWAY');
   const [name, setName] = useState('');
@@ -30,15 +32,27 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [deliveryFee, setDeliveryFee] = useState(0);
+  const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
     setCart(getCart());
-    // Fetch delivery fee from restaurant info
     fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/info`)
       .then(r => r.json())
       .then((d: { data: { deliveryFee?: number } }) => { if (d.data?.deliveryFee) setDeliveryFee(d.data.deliveryFee); })
       .catch(() => null);
   }, []);
+
+  // Auto-redirect to order tracking after placing order
+  useEffect(() => {
+    if (step !== 'done' || !orderNumber) return;
+    const interval = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) { clearInterval(interval); router.push(`/orders/${orderNumber}`); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [step, orderNumber, router]);
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const fee = type === 'DELIVERY' ? deliveryFee : 0;
@@ -108,6 +122,7 @@ export default function CheckoutPage() {
               ? 'Votre commande sera livrée dès qu\'elle est prête. Merci de rester joignable.'
               : 'Votre commande est en préparation. Venez la récupérer au comptoir.'}
           </p>
+          <p className="text-xs text-gray-400 mb-4">Redirection automatique dans {countdown}s…</p>
           <Link href={`/orders/${orderNumber}`} className="btn-primary block w-full py-3 rounded-xl mb-3 text-center">Suivre ma commande</Link>
           <Link href="/menu" className="block w-full py-3 rounded-xl border border-gray-300 text-center text-gray-600 hover:bg-gray-50 transition-colors">Nouvelle commande</Link>
         </div>

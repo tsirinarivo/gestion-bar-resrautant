@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, ShoppingCart, Users, Table2,
   Euro, Clock, Star, AlertTriangle, ArrowUp, ArrowDown,
-  BarChart2, Activity, Utensils, Package, CalendarX
+  BarChart2, Activity, Utensils, Package, CalendarX, Cake
 } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -119,6 +119,13 @@ export default function DashboardPage() {
     staleTime: 300_000,
     refetchInterval: 600_000,
   })
+
+  const { data: birthdaysData } = useQuery({
+    queryKey: ['customers', 'birthdays'],
+    queryFn: () => api.get('/customers/birthdays?days=7').then(r => r.data.data),
+    staleTime: 3_600_000,
+  })
+  const birthdays: any[] = birthdaysData ?? []
 
   const kpis = kpisData
 
@@ -398,6 +405,44 @@ export default function DashboardPage() {
                 </div>
               )
             })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Birthday Widget */}
+      {birthdays.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.78 }}
+          className="glass-card p-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Cake className="w-4 h-4 text-pink-400" />
+            <h2 className="font-semibold">Anniversaires à venir</h2>
+            <span className="ml-auto text-xs bg-pink-500/15 text-pink-400 border border-pink-500/30 px-2 py-0.5 rounded-full">
+              7 jours
+            </span>
+          </div>
+          <div className="space-y-2">
+            {birthdays.slice(0, 5).map((c: any) => (
+              <div key={c.id} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-pink-500/20 text-pink-400 flex items-center justify-center text-xs font-bold">
+                    {c.firstName?.[0]}{c.lastName?.[0]}
+                  </div>
+                  <span>{c.firstName} {c.lastName}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {c.loyaltyAccount && (
+                    <span className="text-xs text-brand-muted">{c.loyaltyAccount.tier}</span>
+                  )}
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${c.daysUntil === 0 ? 'bg-pink-500/20 text-pink-400' : 'bg-brand-darker text-brand-muted'}`}>
+                    {c.daysUntil === 0 ? '🎂 Aujourd\'hui' : `dans ${c.daysUntil}j`}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </motion.div>
       )}

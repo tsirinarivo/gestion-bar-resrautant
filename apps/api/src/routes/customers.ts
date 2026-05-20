@@ -58,6 +58,36 @@ customerRouter.get('/', async (req: AuthRequest, res, next) => {
   }
 })
 
+// GET /api/customers/birthdays?days=7 — customers with upcoming birthdays
+customerRouter.get('/birthdays', async (req: AuthRequest, res, next) => {
+  try {
+    const days = Math.min(Number(req.query.days ?? 7), 30)
+    const all = await prisma.customer.findMany({
+      where: { restaurantId: req.user!.restaurantId, birthDate: { not: null } },
+      select: { id: true, firstName: true, lastName: true, phone: true, email: true, birthDate: true,
+        loyaltyAccount: { select: { tier: true, points: true } } },
+    })
+
+    const today = new Date()
+    const upcoming = all.filter(c => {
+      if (!c.birthDate) return false
+      const bd = new Date(c.birthDate)
+      const thisYear = new Date(today.getFullYear(), bd.getMonth(), bd.getDate())
+      const nextYear = new Date(today.getFullYear() + 1, bd.getMonth(), bd.getDate())
+      const nearest = thisYear >= today ? thisYear : nextYear
+      const diff = (nearest.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      return diff <= days
+    }).map(c => {
+      const bd = new Date(c.birthDate!)
+      const thisYear = new Date(today.getFullYear(), bd.getMonth(), bd.getDate())
+      const nearest = thisYear >= today ? thisYear : new Date(today.getFullYear() + 1, bd.getMonth(), bd.getDate())
+      return { ...c, daysUntil: Math.round((nearest.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)), nextBirthday: nearest }
+    }).sort((a, b) => a.daysUntil - b.daysUntil)
+
+    res.json({ success: true, data: upcoming })
+  } catch (error) { next(error) }
+})
+
 customerRouter.get('/:id', async (req: AuthRequest, res, next) => {
   try {
     const customer = await prisma.customer.findFirst({
