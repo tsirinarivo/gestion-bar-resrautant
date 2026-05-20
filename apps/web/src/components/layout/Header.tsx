@@ -202,6 +202,19 @@ export function Header({ onMenuToggle }: HeaderProps) {
       qc.invalidateQueries({ queryKey: ['notifications'] })
     })
 
+    socket.on('order:status_changed', (data: { orderId: string; status: string; order?: { orderNumber: string } }) => {
+      if (data.status === 'READY') {
+        const num = data.order?.orderNumber
+        toast.success(`🛎️ Commande prête${num ? ` — ${num}` : ''}`, {
+          description: 'À récupérer ou à servir',
+          duration: 10_000,
+          position: 'top-right',
+          action: { label: 'Voir', onClick: () => router.push('/orders') },
+        })
+      }
+      qc.invalidateQueries({ queryKey: ['orders'] })
+    })
+
     socket.on('notification:new', () => {
       qc.invalidateQueries({ queryKey: ['notifications'] })
     })
