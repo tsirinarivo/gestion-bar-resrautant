@@ -115,6 +115,14 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     const contactNote = customerName ? `Client: ${customerName}${customerPhone ? ` — ${customerPhone}` : ''}` : undefined
     const fullNotes = [contactNote, notes].filter(Boolean).join(' | ') || undefined
 
+    // Fetch products for kdsStation inheritance
+    const productIds = [...new Set((items as Array<{ productId: string }>).map(i => i.productId))]
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, kdsStation: true },
+    })
+    const kdsMap = new Map(products.map(p => [p.id, p.kdsStation]))
+
     const order = await prisma.order.create({
       data: {
         orderNumber: generateOrderNumber(),
@@ -139,6 +147,7 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
             unitPrice: item.unitPrice,
             totalPrice: item.unitPrice * item.quantity,
             notes: item.notes,
+            kdsStation: kdsMap.get(item.productId) ?? null,
           })),
         },
         statusHistory: {
@@ -150,6 +159,23 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
 
     if (couponId) {
       prisma.coupon.update({ where: { id: couponId }, data: { usageCount: { increment: 1 } } }).catch(() => {})
+    }
+
+    // Notify dashboard + KDS of the new order
+    const io = req.app.get('io')
+    if (io) {
+      io.to(restaurant.id).emit('order:created', { orderNumber: order.orderNumber, type: order.type })
+      io.to(`kds-${restaurant.id}`).emit('kds:new_order', { orderId: order.id })
+      prisma.notification.create({
+        data: {
+          type: 'ORDER',
+          title: `Nouvelle commande en ligne`,
+          message: `${order.orderNumber} — ${customerName || 'Anonyme'}${customerPhone ? ` (${customerPhone})` : ''}`,
+          restaurantId: restaurant.id,
+          targetRole: 'manager',
+        },
+      }).catch(() => {})
+      io.to(restaurant.id).emit('notification:new', { type: 'ORDER' })
     }
 
     res.status(201).json({ success: true, data: order })
