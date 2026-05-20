@@ -377,6 +377,7 @@ export default function StockPage() {
   // Transfer modal
   const [transferItem, setTransferItem] = useState<any>(null)
   const [transferForm, setTransferForm] = useState({ toLocation: '', quantity: '', notes: '' })
+  const [batchItem, setBatchItem] = useState<any>(null)
   // Reorder
   const [reorderLines, setReorderLines]   = useState<ReorderLine[] | null>(null)
   const [selected, setSelected]           = useState<Set<string>>(new Set())
@@ -407,6 +408,13 @@ export default function StockPage() {
     queryKey: ['warehouses'],
     queryFn: () => api.get('/warehouses').then(r => r.data.data ?? []),
     staleTime: 60_000,
+  })
+
+  const { data: batchItemDetail } = useQuery({
+    queryKey: ['stock-item', batchItem?.id],
+    queryFn: () => api.get(`/stock/${batchItem!.id}`).then(r => r.data.data),
+    enabled: !!batchItem,
+    staleTime: 30_000,
   })
 
   const historyParams = new URLSearchParams({ page: String(historyPage), limit: '50' })
@@ -812,6 +820,12 @@ export default function StockPage() {
                               className="p-1.5 text-purple-400 hover:bg-purple-400/10 rounded-lg" title="Créer un produit vendable (POS)">
                               <UtensilsCrossed className="w-4 h-4" />
                             </button>
+                            {item.isPerishable && (
+                              <button onClick={() => setBatchItem(item)}
+                                className="p-1.5 text-amber-400 hover:bg-amber-400/10 rounded-lg" title="Voir les lots (FIFO)">
+                                <ClipboardList className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1439,6 +1453,72 @@ export default function StockPage() {
             stockItem={createProductFrom}
             onClose={() => setCreateProductFrom(null)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Batch (FIFO) modal */}
+      <AnimatePresence>
+        {batchItem && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setBatchItem(null)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              className="glass-card p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="font-bold text-lg">Lots FIFO</h2>
+                  <p className="text-xs text-brand-muted">{batchItem.name} — {formatQuantity(batchItem.currentQuantity, batchItem.unit)} en stock</p>
+                </div>
+                <button onClick={() => setBatchItem(null)} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
+              </div>
+              {!batchItemDetail ? (
+                <p className="text-sm text-brand-muted text-center py-6">Chargement…</p>
+              ) : !batchItemDetail.stockBatches?.length ? (
+                <p className="text-sm text-brand-muted text-center py-6">Aucun lot enregistré. Les lots sont créés automatiquement lors des entrées de stock.</p>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {batchItemDetail.stockBatches.map((batch: any, i: number) => {
+                    const isExpired = batch.expiryDate && new Date(batch.expiryDate) < new Date()
+                    const expiresSoon = batch.expiryDate && !isExpired &&
+                      (new Date(batch.expiryDate).getTime() - Date.now()) < 7 * 86_400_000
+                    return (
+                      <div key={batch.id}
+                        className={`flex items-center gap-3 p-3 rounded-xl border ${isExpired ? 'border-red-500/40 bg-red-500/5' : expiresSoon ? 'border-amber-500/40 bg-amber-500/5' : 'border-brand-border bg-white/4'}`}>
+                        <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-xs font-bold text-brand-muted flex-shrink-0">
+                          {i + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">
+                            {formatQuantity(batch.remainingQty, batchItemDetail.unit)}
+                            <span className="text-brand-muted text-xs"> / {formatQuantity(batch.quantity, batchItemDetail.unit)}</span>
+                          </p>
+                          <p className="text-xs text-brand-muted">
+                            Reçu le {new Date(batch.receivedAt).toLocaleDateString('fr-FR')}
+                            {batch.costPerUnit > 0 && ` · ${formatCurrency(batch.costPerUnit)}/${batchItemDetail.unit}`}
+                          </p>
+                          {batch.expiryDate && (
+                            <p className={`text-xs font-medium mt-0.5 ${isExpired ? 'text-red-400' : expiresSoon ? 'text-amber-400' : 'text-green-400'}`}>
+                              {isExpired ? '⚠️ Expiré' : expiresSoon ? '⏰ Expire bientôt'  : '✓ Valide'} — {new Date(batch.expiryDate).toLocaleDateString('fr-FR')}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-brand-orange rounded-full"
+                              style={{ width: `${Math.min(100, (batch.remainingQty / batch.quantity) * 100)}%` }} />
+                          </div>
+                          <p className="text-[10px] text-brand-muted mt-0.5">
+                            {Math.round((batch.remainingQty / batch.quantity) * 100)}%
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              <p className="text-[10px] text-brand-muted mt-3 text-center">Les lots sont consommés dans l'ordre FIFO (premier entré, premier sorti)</p>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

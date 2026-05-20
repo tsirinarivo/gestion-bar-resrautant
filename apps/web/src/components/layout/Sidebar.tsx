@@ -43,6 +43,7 @@ const navItems = [
   { href: '/settings/printer', label: 'Imprimante', icon: Printer,          roles: ['manager', 'superadmin'] },
   { href: '/settings',  label: 'Paramètres',         icon: Settings,         roles: ['manager', 'superadmin'] },
   { href: '/reviews',   label: 'Avis clients',        icon: Star,             roles: ['manager', 'superadmin'] },
+  { href: '/campaigns', label: 'Campagnes',           icon: Megaphone,        roles: ['manager', 'superadmin'] },
   { href: '/audit',     label: 'Journal d\'audit',   icon: Shield,           roles: ['manager', 'superadmin'] },
 ]
 
