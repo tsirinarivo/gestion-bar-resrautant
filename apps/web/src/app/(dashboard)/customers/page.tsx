@@ -399,6 +399,39 @@ function CustomerPanel({ customerId, onClose }: { customerId: string; onClose: (
               </AnimatePresence>
             </div>
 
+            {/* Insights */}
+            {orders.length > 0 && (() => {
+              const lastOrder = orders[0]
+              const avgOrder = orders.reduce((s, o) => s + o.total, 0) / orders.length
+              const productFreq: Record<string, number> = {}
+              orders.forEach(o => o.items?.forEach(i => {
+                const name = i.product?.name ?? '?'
+                productFreq[name] = (productFreq[name] ?? 0) + i.quantity
+              }))
+              const favorite = Object.entries(productFreq).sort((a, b) => b[1] - a[1])[0]
+              return (
+                <div className="px-6 py-5 border-b border-brand-border/50">
+                  <h4 className="text-xs font-semibold text-brand-muted uppercase tracking-wider mb-3">💡 Insights</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-brand-muted mb-0.5">Dernière visite</p>
+                      <p className="font-medium">{lastOrder ? formatDate(lastOrder.createdAt) : '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-brand-muted mb-0.5">Panier moyen</p>
+                      <p className="font-medium">{formatCurrency(avgOrder)}</p>
+                    </div>
+                    {favorite && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-brand-muted mb-0.5">Produit préféré</p>
+                        <p className="font-medium">⭐ {favorite[0]} <span className="text-xs text-brand-muted">({favorite[1]}× commandé)</span></p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Addresses */}
             {addresses.length > 0 && (
               <div className="px-6 py-5 border-b border-brand-border/50">
