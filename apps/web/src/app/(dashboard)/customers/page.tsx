@@ -55,6 +55,107 @@ type Order = {
   items?: { quantity: number; product?: { name: string } }[]
 }
 
+// ─── New Customer Modal ───────────────────────────────────────────────────────
+function NewCustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', email: '', city: '', birthDate: '', acceptsMarketing: false })
+  const [loading, setLoading] = useState(false)
+  const [duplicate, setDuplicate] = useState<{ id: string; firstName: string; lastName: string; phone?: string; email?: string } | null>(null)
+  const [error, setError] = useState('')
+
+  async function checkDuplicate(phone: string, email: string) {
+    if (!phone && !email) { setDuplicate(null); return }
+    try {
+      const params = new URLSearchParams()
+      if (phone) params.set('phone', phone)
+      if (email) params.set('email', email)
+      const res = await api.get(`/customers/check-duplicate?${params}`)
+      setDuplicate(res.data.data ?? null)
+    } catch { setDuplicate(null) }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.firstName.trim() || !form.lastName.trim()) { setError('Prénom et nom requis'); return }
+    setLoading(true)
+    try {
+      await api.post('/customers', {
+        firstName: form.firstName.trim(), lastName: form.lastName.trim(),
+        phone: form.phone.trim() || undefined, email: form.email.trim() || undefined,
+        city: form.city.trim() || undefined,
+        birthDate: form.birthDate || undefined,
+        acceptsMarketing: form.acceptsMarketing,
+      })
+      onSaved(); onClose()
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erreur lors de la création')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-brand-surface rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold">Nouveau client</h2>
+          <button onClick={onClose} className="p-2 hover:bg-brand-muted/10 rounded-lg"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Prénom *</label>
+              <input value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} className="input-field text-sm" placeholder="Jean" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Nom *</label>
+              <input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} className="input-field text-sm" placeholder="Dupont" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Téléphone</label>
+            <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+              onBlur={() => checkDuplicate(form.phone, form.email)}
+              className="input-field text-sm" placeholder="+261 34 00 000 00" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Email</label>
+            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              onBlur={() => checkDuplicate(form.phone, form.email)}
+              className="input-field text-sm" placeholder="jean@email.com" />
+          </div>
+          {duplicate && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-amber-600">
+              ⚠️ Client similaire existant : <strong>{duplicate.firstName} {duplicate.lastName}</strong>
+              {duplicate.phone && ` — ${duplicate.phone}`}
+              {duplicate.email && ` — ${duplicate.email}`}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Ville</label>
+              <input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className="input-field text-sm" placeholder="Antananarivo" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-muted mb-1">Date de naissance</label>
+              <input type="date" value={form.birthDate} onChange={e => setForm(f => ({ ...f, birthDate: e.target.value }))} className="input-field text-sm" />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={form.acceptsMarketing} onChange={e => setForm(f => ({ ...f, acceptsMarketing: e.target.checked }))} className="w-4 h-4 accent-brand-orange" />
+            <span>Accepte les communications marketing</span>
+          </label>
+          {error && <p className="text-red-500 text-xs">{error}</p>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Annuler</button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1">
+              {loading ? 'Enregistrement...' : 'Créer le client'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
 // ─── Tier Badge ───────────────────────────────────────────────────────────────
 function TierBadge({ tier, size = 'sm' }: { tier: string; size?: 'sm' | 'lg' }) {
   const conf = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG.BRONZE
@@ -372,6 +473,8 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showNew, setShowNew] = useState(false)
+  const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers', search, page],
@@ -411,6 +514,7 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6">
+      {showNew && <NewCustomerModal onClose={() => setShowNew(false)} onSaved={() => qc.invalidateQueries({ queryKey: ['customers'] })} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Clients</h1>
@@ -420,7 +524,7 @@ export default function CustomersPage() {
           <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-brand-orange/40 hover:text-brand-orange text-sm transition-colors">
             <Download className="w-4 h-4" /> Exporter CSV
           </button>
-          <button className="btn-primary flex items-center gap-2">
+          <button onClick={() => setShowNew(true)} className="btn-primary flex items-center gap-2">
             <Users className="w-4 h-4" />
             Nouveau client
           </button>

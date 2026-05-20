@@ -88,6 +88,24 @@ customerRouter.get('/birthdays', async (req: AuthRequest, res, next) => {
   } catch (error) { next(error) }
 })
 
+// GET /api/customers/check-duplicate?phone=&email= — check for existing customer (MUST be before /:id)
+customerRouter.get('/check-duplicate', async (req: AuthRequest, res, next) => {
+  try {
+    const { phone, email } = req.query
+    if (!phone && !email) return res.json({ success: true, data: null })
+
+    const orConditions: any[] = []
+    if (phone) orConditions.push({ phone: phone as string })
+    if (email) orConditions.push({ email: email as string })
+
+    const existing = await prisma.customer.findFirst({
+      where: { restaurantId: req.user!.restaurantId, OR: orConditions },
+      select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+    })
+    res.json({ success: true, data: existing })
+  } catch (error) { next(error) }
+})
+
 customerRouter.get('/:id', async (req: AuthRequest, res, next) => {
   try {
     const customer = await prisma.customer.findFirst({
