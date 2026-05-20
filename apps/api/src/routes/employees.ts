@@ -240,6 +240,47 @@ employeeRouter.post('/:id/clock-out', async (req: AuthRequest, res, next) => {
   }
 })
 
+// GET /api/employees/schedule — all employees, date range
+employeeRouter.get('/schedule', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { from, to } = req.query
+    const start = from ? new Date(from as string) : (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); d.setHours(0,0,0,0); return d })()
+    const end = to ? new Date(to as string) : new Date(start.getTime() + 6 * 86_400_000)
+    const shifts = await prisma.scheduleShift.findMany({
+      where: { employee: { restaurantId: req.user!.restaurantId }, date: { gte: start, lte: end } },
+      include: { employee: { include: { user: { select: { firstName: true, lastName: true } } } } },
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+    })
+    res.json({ success: true, data: shifts })
+  } catch (error) { next(error) }
+})
+
+// POST /api/employees/shifts — create a shift
+employeeRouter.post('/shifts', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { employeeId, date, startTime, endTime, station, notes } = req.body
+    const employee = await prisma.employee.findFirst({ where: { id: employeeId, restaurantId: req.user!.restaurantId } })
+    if (!employee) throw new AppError('Employé introuvable', 404)
+    const shift = await prisma.scheduleShift.create({
+      data: { employeeId: employee.id, date: new Date(date), startTime, endTime, station, notes },
+      include: { employee: { include: { user: { select: { firstName: true, lastName: true } } } } },
+    })
+    res.status(201).json({ success: true, data: shift })
+  } catch (error) { next(error) }
+})
+
+// DELETE /api/employees/shifts/:shiftId
+employeeRouter.delete('/shifts/:shiftId', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const shift = await prisma.scheduleShift.findFirst({
+      where: { id: req.params.shiftId, employee: { restaurantId: req.user!.restaurantId } },
+    })
+    if (!shift) throw new AppError('Shift introuvable', 404)
+    await prisma.scheduleShift.delete({ where: { id: shift.id } })
+    res.json({ success: true })
+  } catch (error) { next(error) }
+})
+
 employeeRouter.get('/:id/schedule', async (req: AuthRequest, res, next) => {
   try {
     const { from, to } = req.query
