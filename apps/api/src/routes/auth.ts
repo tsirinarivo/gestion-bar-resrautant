@@ -182,6 +182,32 @@ authRouter.get('/me', authenticate, async (req: AuthRequest, res, next) => {
   }
 })
 
+// PUT /api/auth/me — update profile fields
+authRouter.put('/me', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const { firstName, lastName, email, avatar, phone } = z.object({
+      firstName: z.string().min(1).optional(),
+      lastName: z.string().min(1).optional(),
+      email: z.string().email().optional(),
+      avatar: z.string().url().nullable().optional(),
+      phone: z.string().nullable().optional(),
+    }).parse(req.body)
+
+    const updated = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        ...(firstName !== undefined && { firstName }),
+        ...(lastName !== undefined && { lastName }),
+        ...(email !== undefined && { email }),
+        ...(avatar !== undefined && { avatar }),
+        ...(phone !== undefined && { phone }),
+      },
+    })
+    const { passwordHash: _, ...userWithoutPassword } = updated
+    res.json({ success: true, data: userWithoutPassword })
+  } catch (error) { next(error) }
+})
+
 // PUT /api/auth/password
 authRouter.put('/password', authenticate, async (req: AuthRequest, res, next) => {
   try {

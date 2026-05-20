@@ -348,10 +348,12 @@ export function Header({ onMenuToggle }: HeaderProps) {
         </div>
 
         {/* User avatar */}
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer"
-          style={{ background: 'linear-gradient(135deg, #FF4D00 0%, #FFB800 100%)' }}>
+        <button onClick={() => router.push('/profile')}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer hover:scale-105 transition-transform"
+          style={{ background: 'linear-gradient(135deg, #FF4D00 0%, #FFB800 100%)' }}
+          title="Mon profil">
           {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-        </div>
+        </button>
       </div>
     </header>
   )
