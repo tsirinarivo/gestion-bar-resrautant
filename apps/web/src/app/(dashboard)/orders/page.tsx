@@ -738,9 +738,16 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
-  const [statusFilter, setStatusFilter] = useState('')
-  const [dateFilter, setDateFilter] = useState('')
-  const [customerFilter, setCustomerFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>(() =>
+    typeof window === 'undefined' ? '' : (localStorage.getItem('orders-filter-status') ?? '')
+  )
+  const [dateFilter, setDateFilter] = useState<string>(() =>
+    typeof window === 'undefined' ? '' : (localStorage.getItem('orders-filter-date') ?? '')
+  )
+  const [customerFilter, setCustomerFilter] = useState<string>('')
+
+  useEffect(() => { if (typeof window !== 'undefined') localStorage.setItem('orders-filter-status', statusFilter) }, [statusFilter])
+  useEffect(() => { if (typeof window !== 'undefined') localStorage.setItem('orders-filter-date', dateFilter) }, [dateFilter])
   const [showNew, setShowNew] = useState(false)
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null)
   const qc = useQueryClient()
