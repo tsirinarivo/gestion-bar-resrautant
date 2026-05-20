@@ -577,6 +577,22 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
     // BUG 3.3 — propager aussi au room KDS pour les mises à jour de statut
     io?.to(`kds-${req.user!.restaurantId}`).emit('order:status_changed', statusPayload)
 
+    // Notify when order is ready for pickup / serving
+    if (status === 'READY') {
+      const tableInfo = updatedOrder.table ? ` — Table ${updatedOrder.table.number}` : ''
+      prisma.notification.create({
+        data: {
+          type: 'ORDER',
+          title: 'Commande prête',
+          message: `Commande ${updatedOrder.orderNumber}${tableInfo} est prête`,
+          restaurantId: req.user!.restaurantId,
+          targetRole: 'serveur',
+          data: { orderId: updatedOrder.id, orderNumber: updatedOrder.orderNumber },
+        },
+      }).catch(() => {})
+      io?.to(req.user!.restaurantId).emit('notification:new', { type: 'ORDER', message: `Commande ${updatedOrder.orderNumber} prête` })
+    }
+
     res.json({ success: true, data: updatedOrder })
   } catch (error) {
     next(error)

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ShoppingCart, Plus, RefreshCw, XCircle, X, ChefHat,
   Check, Clock, Utensils, CheckCircle2, Search, ChevronDown, Trash2,
-  Banknote, CreditCard, Split,
+  Banknote, CreditCard, Split, CalendarDays,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, formatRelative } from '@restaurant/utils'
@@ -674,13 +674,19 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
 
 export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null)
   const qc = useQueryClient()
 
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
-    queryKey: ['orders', statusFilter],
-    queryFn: () => api.get(`/orders?${statusFilter ? `status=${statusFilter}&` : ''}limit=80`).then(r => r.data),
+    queryKey: ['orders', statusFilter, dateFilter],
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: '80' })
+      if (statusFilter) params.set('status', statusFilter)
+      if (dateFilter) params.set('date', dateFilter)
+      return api.get(`/orders?${params}`).then(r => r.data)
+    },
     refetchInterval: 60_000,
     staleTime: 20_000,
   })
@@ -728,9 +734,44 @@ export default function OrdersPage() {
             </p>
           )}
         </div>
-        <button onClick={() => refetch()}
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/6 active:bg-white/12 text-brand-muted">
-          <RefreshCw className="w-4 h-4" />
+        <div className="flex gap-2">
+          <button onClick={() => refetch()}
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/6 active:bg-white/12 text-brand-muted">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button onClick={() => setShowNew(true)}
+            className="btn-primary flex items-center gap-2 px-4">
+            <Plus className="w-4 h-4" /> Nouvelle
+          </button>
+        </div>
+      </div>
+
+      {/* Date filter */}
+      <div className="flex items-center gap-2 mb-3">
+        <CalendarDays className="w-4 h-4 text-brand-muted flex-shrink-0" />
+        <input
+          type="date"
+          value={dateFilter}
+          onChange={e => setDateFilter(e.target.value)}
+          className="bg-brand-darker border border-brand-border rounded-xl px-3 py-1.5 text-sm outline-none focus:border-brand-orange/50 transition-colors"
+        />
+        {dateFilter && (
+          <button
+            onClick={() => setDateFilter('')}
+            className="text-xs text-brand-muted hover:text-white flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors"
+          >
+            <X className="w-3 h-3" /> Effacer
+          </button>
+        )}
+        <button
+          onClick={() => setDateFilter(new Date().toISOString().slice(0, 10))}
+          className={`text-xs px-3 py-1.5 rounded-xl border transition-colors ${
+            dateFilter === new Date().toISOString().slice(0, 10)
+              ? 'border-brand-orange text-brand-orange bg-brand-orange/10'
+              : 'border-brand-border text-brand-muted hover:border-brand-orange/40'
+          }`}
+        >
+          Aujourd'hui
         </button>
       </div>
 
