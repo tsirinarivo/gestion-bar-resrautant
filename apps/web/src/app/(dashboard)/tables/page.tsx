@@ -81,9 +81,70 @@ const TABLE_STATUS_CONFIG = {
   BLOCKED: { label: 'Bloquée', color: '#6B7280', bg: '#6B728010', border: '#6B728030' },
 }
 
+function AddTableModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ number: '', capacity: '4', section: '', name: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.number || !form.capacity) { setError('Numéro et capacité requis'); return }
+    setLoading(true)
+    try {
+      await api.post('/tables', { number: Number(form.number), capacity: Number(form.capacity), section: form.section || undefined, name: form.name || undefined })
+      onSaved()
+      onClose()
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erreur lors de la création')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="relative bg-brand-card border border-brand-border rounded-2xl p-6 z-10 w-full max-w-sm shadow-2xl">
+        <h3 className="font-bold text-lg mb-4">Ajouter une table</h3>
+        {error && <p className="text-red-400 text-sm mb-3 bg-red-500/10 px-3 py-2 rounded-xl">{error}</p>}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-brand-muted mb-1 block">Numéro *</label>
+              <input type="number" min="1" value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))}
+                required className="input-field w-full" placeholder="1" />
+            </div>
+            <div>
+              <label className="text-xs text-brand-muted mb-1 block">Capacité *</label>
+              <input type="number" min="1" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))}
+                required className="input-field w-full" placeholder="4" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-brand-muted mb-1 block">Nom (optionnel)</label>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              className="input-field w-full" placeholder="Ex: Terrasse 1" />
+          </div>
+          <div>
+            <label className="text-xs text-brand-muted mb-1 block">Section (optionnel)</label>
+            <input value={form.section} onChange={e => setForm(f => ({ ...f, section: e.target.value }))}
+              className="input-field w-full" placeholder="Salle principale, Terrasse..." />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2 rounded-xl border border-brand-border text-sm text-brand-muted hover:border-brand-orange/40 transition-colors">Annuler</button>
+            <button type="submit" disabled={loading} className="flex-1 btn-primary py-2 text-sm disabled:opacity-50">
+              {loading ? 'Création...' : 'Créer la table'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
 export default function TablesPage() {
   const [view, setView] = useState<'grid' | 'floor'>('grid')
   const [qrTable, setQrTable] = useState<any>(null)
+  const [showAddTable, setShowAddTable] = useState(false)
   const qc = useQueryClient()
 
   const { data: tablesData, isLoading } = useQuery({
@@ -134,7 +195,7 @@ export default function TablesPage() {
               <List className="w-4 h-4" />
             </button>
           </div>
-          <button className="btn-primary flex items-center gap-2">
+          <button onClick={() => setShowAddTable(true)} className="btn-primary flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Ajouter table
           </button>
@@ -255,6 +316,13 @@ export default function TablesPage() {
           <QRModal table={qrTable} onClose={() => setQrTable(null)} />
         )}
       </AnimatePresence>
+
+      {showAddTable && (
+        <AddTableModal
+          onClose={() => setShowAddTable(false)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ['tables'] })}
+        />
+      )}
     </div>
   )
 }
