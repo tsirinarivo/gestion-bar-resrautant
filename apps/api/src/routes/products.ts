@@ -62,6 +62,7 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
         { name: { contains: search as string, mode: 'insensitive' } },
         { description: { contains: search as string, mode: 'insensitive' } },
         { sku: { contains: search as string, mode: 'insensitive' } },
+        { barcode: { equals: search as string } },
       ]})
     }
     if (andConditions.length > 0) where.AND = andConditions

@@ -5,7 +5,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { formatCurrency } from '@restaurant/utils';
 
 interface Category  { id: string; name: string; icon?: string }
-interface Product   { id: string; name: string; price: number; categoryId: string; image?: string | null; stockAvailable?: number | null }
+interface Product   { id: string; name: string; price: number; categoryId: string; image?: string | null; stockAvailable?: number | null; barcode?: string | null; sku?: string | null }
 interface CartItem  { product: Product; quantity: number }
 interface Table     { id: string; number: number; status: string; capacity: number }
 interface OrderItem { id: string; quantity: number; totalPrice: number; product: { name: string } }
@@ -1034,9 +1034,31 @@ export default function POSPage() {
   });
   const caisseOpen = caisseSession?.status === 'OPEN';
 
-  const filteredProducts = useMemo(() =>
-    products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())),
-    [products, search]);
+  const filteredProducts = useMemo(() => {
+    if (!search) return products
+    const q = search.toLowerCase()
+    return products.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.barcode && p.barcode.includes(search.trim()))
+    )
+  }, [products, search]);
+
+  function handleBarcodeEnter(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter') return
+    const val = search.trim()
+    if (!val) return
+    // Exact barcode or SKU match → add to cart immediately
+    const match = products.find(p =>
+      p.barcode === val || p.sku === val ||
+      (val.length >= 8 && p.barcode?.includes(val))
+    )
+    if (match) {
+      addToCart(match)
+      setSearch('')
+      showToast(`${match.name} ajouté`, true)
+    }
+  }
 
   const addToCart = useCallback((product: Product) => {
     if (product.stockAvailable !== null && product.stockAvailable !== undefined) {
@@ -1343,8 +1365,9 @@ export default function POSPage() {
           {/* Search + categories */}
           <div className="px-3 pt-3 pb-2 space-y-2 flex-shrink-0">
             <input
-              type="text" placeholder="🔍 Rechercher..." value={search}
+              type="text" placeholder="🔍 Rechercher / scanner code-barres..." value={search}
               onChange={e => setSearch(e.target.value)}
+              onKeyDown={handleBarcodeEnter}
               className="w-full bg-gray-800 rounded-xl px-4 py-2 text-sm placeholder-gray-500 outline-none focus:ring-1 focus:ring-orange-500"
             />
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
