@@ -62,6 +62,89 @@ const TYPE_ICON: Record<string, string> = {
   SYSTEM: '⚙️',
 }
 
+function GlobalSearch() {
+  const router = useRouter()
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const { data: customers } = useQuery({
+    queryKey: ['global-search-customers', q],
+    queryFn: () => api.get(`/customers?search=${encodeURIComponent(q)}&limit=5`).then(r => r.data.data ?? []),
+    enabled: q.length >= 2,
+    staleTime: 30_000,
+  })
+  const { data: products } = useQuery({
+    queryKey: ['global-search-products', q],
+    queryFn: () => api.get(`/products?search=${encodeURIComponent(q)}&limit=5`).then(r => r.data.data ?? []),
+    enabled: q.length >= 2,
+    staleTime: 30_000,
+  })
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [])
+
+  const hasResults = (customers?.length ?? 0) + (products?.length ?? 0) > 0
+
+  return (
+    <div ref={ref} className="relative hidden md:flex items-center">
+      <Search className="absolute left-3 w-4 h-4 text-brand-muted z-10" />
+      <input
+        type="search" placeholder="Rechercher client, produit…" value={q}
+        onChange={e => { setQ(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={e => { if (e.key === 'Enter' && q.trim()) { router.push(`/customers?search=${encodeURIComponent(q)}`); setOpen(false) } }}
+        className="pl-9 pr-4 py-2 text-sm bg-brand-darker border border-brand-border rounded-xl w-72 focus:outline-none focus:border-brand-orange/50 transition-all"
+      />
+      {open && q.length >= 2 && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-brand-darker border border-brand-border rounded-xl shadow-xl overflow-hidden z-50">
+          {!hasResults ? (
+            <p className="p-4 text-sm text-brand-muted text-center">Aucun résultat</p>
+          ) : (
+            <div className="max-h-96 overflow-y-auto">
+              {(customers?.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-brand-muted px-3 pt-2 pb-1">Clients</p>
+                  {customers.map((c: any) => (
+                    <button key={c.id} onClick={() => { router.push(`/customers?search=${encodeURIComponent(c.firstName)}`); setOpen(false); setQ('') }}
+                      className="w-full px-3 py-2 flex items-center gap-3 hover:bg-white/5 text-left">
+                      <span className="text-sm">👤</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{c.firstName} {c.lastName}</p>
+                        <p className="text-xs text-brand-muted truncate">{c.phone || c.email || ''}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {(products?.length ?? 0) > 0 && (
+                <div className="border-t border-brand-border">
+                  <p className="text-[10px] uppercase tracking-wider text-brand-muted px-3 pt-2 pb-1">Produits</p>
+                  {products.map((p: any) => (
+                    <button key={p.id} onClick={() => { router.push('/menu'); setOpen(false); setQ('') }}
+                      className="w-full px-3 py-2 flex items-center gap-3 hover:bg-white/5 text-left">
+                      <span className="text-sm">🍽️</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{p.name}</p>
+                        <p className="text-xs text-brand-muted">{p.category?.name ?? ''} · {p.price} Ar</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Header({ onMenuToggle }: HeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -181,14 +264,8 @@ export function Header({ onMenuToggle }: HeaderProps) {
 
       <div className="flex items-center gap-3">
         {/* Search */}
-        <div className="relative hidden md:flex items-center">
-          <Search className="absolute left-3 w-4 h-4 text-brand-muted" />
-          <input
-            type="search"
-            placeholder="Rechercher..."
-            className="pl-9 pr-4 py-2 text-sm bg-brand-darker border border-brand-border rounded-xl w-64 focus:outline-none focus:border-brand-orange/50 transition-all"
-          />
-        </div>
+        <GlobalSearch />
+
 
         {/* Connection status */}
         <div className="flex items-center gap-1.5 text-xs text-green-400">
