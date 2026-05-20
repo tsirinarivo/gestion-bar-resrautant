@@ -247,9 +247,10 @@ const createOrderSchema = z.object({
 // GET /api/orders
 orderRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const { status, type, tableId, page = '1', limit = '20', date } = req.query
+    const { status, type, tableId, page = '1', limit = '20', date, orderNumber } = req.query
 
     const where: any = { restaurantId: req.user!.restaurantId }
+    if (orderNumber) where.orderNumber = { contains: orderNumber as string, mode: 'insensitive' }
     if (status) {
       const statuses = (status as string).split(',').map(s => s.trim()).filter(Boolean)
       where.status = statuses.length === 1 ? statuses[0] : { in: statuses }

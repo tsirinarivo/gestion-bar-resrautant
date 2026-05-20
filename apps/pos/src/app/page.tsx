@@ -264,6 +264,126 @@ function ReceiptModal({
   );
 }
 
+// ─── Refund modal ─────────────────────────────────────────────────────────────
+
+function RefundModal({ token, onClose }: { token: string; onClose: () => void }) {
+  const [query, setQuery]       = useState('')
+  const [foundOrder, setFound]  = useState<any>(null)
+  const [searching, setSearching] = useState(false)
+  const [refundState, setRefundState] = useState<Record<string, { amount: string; busy: boolean; done: boolean }>>({})
+  const [error, setError]       = useState('')
+
+  async function search() {
+    if (!query.trim()) return
+    setSearching(true); setError(''); setFound(null)
+    try {
+      const res = await fetch(`${API_URL}/api/orders?orderNumber=${encodeURIComponent(query.trim())}&status=COMPLETED&limit=5`, {
+        headers: authHeaders(token),
+      })
+      const data = await res.json() as { success: boolean; data: any[] }
+      if (!data.success || !data.data.length) { setError('Aucune commande complétée trouvée'); return }
+      setFound(data.data[0])
+    } catch { setError('Erreur réseau') }
+    finally { setSearching(false) }
+  }
+
+  async function doRefund(paymentId: string) {
+    const st = refundState[paymentId]
+    const amount = parseFloat(st?.amount ?? '0')
+    if (!amount || amount <= 0) return
+    setRefundState(s => ({ ...s, [paymentId]: { ...s[paymentId]!, busy: true } }))
+    try {
+      const res = await fetch(`${API_URL}/api/payments/${paymentId}/refund`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify({ amount, reason: 'Retour POS' }),
+      })
+      const data = await res.json() as { success: boolean; error?: string }
+      if (!data.success) throw new Error(data.error ?? 'Erreur')
+      setRefundState(s => ({ ...s, [paymentId]: { amount: '', busy: false, done: true } }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur remboursement')
+      setRefundState(s => ({ ...s, [paymentId]: { ...s[paymentId]!, busy: false } }))
+    }
+  }
+
+  const completedPayments = (foundOrder?.payments ?? []).filter((p: any) => p.status === 'COMPLETED' || p.status === 'PARTIAL_REFUND')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl z-10 max-h-[95vh] overflow-y-auto">
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-base">↩ Remboursement / Retour</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">&times;</button>
+          </div>
+
+          <div className="flex gap-2 mb-3">
+            <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && search()}
+              placeholder="N° commande (ex: ORD-001)"
+              className="flex-1 bg-gray-700 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <button onClick={search} disabled={searching}
+              className="bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-sm">
+              {searching ? '⏳' : '🔍'}
+            </button>
+          </div>
+
+          {error && <p className="text-red-400 text-xs mb-3 bg-red-900/30 rounded-xl px-3 py-2">{error}</p>}
+
+          {foundOrder && (
+            <div className="bg-gray-700/40 rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-gray-700">
+                <p className="font-semibold text-sm">Commande {foundOrder.orderNumber}</p>
+                <p className="text-xs text-gray-400">
+                  {new Date(foundOrder.completedAt ?? foundOrder.createdAt).toLocaleString('fr-FR')}
+                  {' · '}{formatCurrency(foundOrder.totalAmount)}
+                </p>
+              </div>
+
+              {completedPayments.length === 0 ? (
+                <p className="p-4 text-sm text-gray-400">Aucun paiement remboursable</p>
+              ) : (
+                <div className="divide-y divide-gray-700/50">
+                  {completedPayments.map((p: any) => {
+                    const st = refundState[p.id]
+                    const LABELS: Record<string, string> = { CASH:'Espèces', MVOLA:'MVola', ORANGE_MONEY:'Orange Money', CARD:'Carte', WALLET:'Wallet' }
+                    return (
+                      <div key={p.id} className="p-3">
+                        <div className="flex items-center justify-between mb-2 text-sm">
+                          <span className="text-gray-300">{LABELS[p.method] ?? p.method}</span>
+                          <span className="font-bold">{formatCurrency(p.amount)}</span>
+                        </div>
+                        {st?.done ? (
+                          <p className="text-green-400 text-xs">✅ Remboursé</p>
+                        ) : (
+                          <div className="flex gap-2">
+                            <input type="number" min="1" step="1" max={p.amount}
+                              value={st?.amount ?? ''} placeholder="Montant (Ar)"
+                              onChange={e => setRefundState(s => ({ ...s, [p.id]: { amount: e.target.value, busy: false, done: false } }))}
+                              className="flex-1 bg-gray-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-red-500"
+                            />
+                            <button onClick={() => doRefund(p.id)} disabled={st?.busy}
+                              className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap">
+                              {st?.busy ? '⏳' : '↩ Rembourser'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Payment modal (multi-méthode) ────────────────────────────────────────────
 
 function PaymentModal({
@@ -982,6 +1102,7 @@ export default function POSPage() {
   const [sending,          setSending]          = useState(false);
   const [showPayModal,     setShowPayModal]      = useState(false);
   const [showReceipt,      setShowReceipt]       = useState(false);
+  const [showRefund,       setShowRefund]        = useState(false);
   const [cartOpen,         setCartOpen]          = useState(false);
   const [toast,            setToast]            = useState<{ msg: string; ok: boolean } | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null);
@@ -1260,6 +1381,11 @@ export default function POSPage() {
         </div>
       )}
 
+      {/* Refund modal */}
+      {showRefund && (
+        <RefundModal token={token!} onClose={() => setShowRefund(false)} />
+      )}
+
       {/* Receipt modal */}
       {showReceipt && (
         <ReceiptModal
@@ -1319,6 +1445,10 @@ export default function POSPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setShowRefund(true)}
+            className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white border border-gray-600 px-3 py-1.5 rounded-lg transition-colors font-medium">
+            ↩ Retour
+          </button>
           {terminal && (
             <button
               onClick={() => { localStorage.removeItem('pos_terminal_id'); setTerminalId(null); setTerminal(null); setTerminalsList(null); }}
