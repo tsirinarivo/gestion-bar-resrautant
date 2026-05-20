@@ -14,6 +14,7 @@ const productSchema = z.object({
   shortDesc: z.string().optional(),
   sku: z.string().optional(),
   barcode: z.string().optional(),
+  kdsStation: z.enum(['hot', 'cold', 'drinks', 'desserts']).nullable().optional(),
   price: z.number().positive(),
   comparePrice: z.number().optional(),
   costPrice: z.number().optional(),

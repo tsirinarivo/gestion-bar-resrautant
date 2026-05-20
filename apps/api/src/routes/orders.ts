@@ -393,6 +393,14 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
       }
     }
 
+    // Fetch products to inherit kdsStation when not set by client
+    const productIds = [...new Set(data.items.map(i => i.productId))]
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, kdsStation: true },
+    })
+    const productKdsMap = new Map(products.map(p => [p.id, p.kdsStation]))
+
     const subtotal = data.items.reduce((sum, item) => {
       const modifierTotal = (item.modifiers || []).reduce((s, m) => s + m.price, 0)
       return sum + (item.unitPrice + modifierTotal) * item.quantity
@@ -446,7 +454,7 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
             unitPrice: item.unitPrice,
             totalPrice: item.unitPrice * item.quantity,
             notes: item.notes,
-            kdsStation: item.kdsStation,
+            kdsStation: item.kdsStation ?? productKdsMap.get(item.productId) ?? null,
             modifiers: item.modifiers ? {
               create: item.modifiers.map(m => ({
                 name: m.name,

@@ -20,7 +20,7 @@ type Product = {
   price: number; costPrice?: number; image?: string
   isAvailable: boolean; isFeatured: boolean; isNew: boolean
   requiresPreparation: boolean; sortOrder: number
-  sku?: string; barcode?: string
+  sku?: string; barcode?: string; kdsStation?: string | null
   prepTime?: number; allergens: string[]; tags: string[]
   categoryId: string; category?: { name: string; icon?: string }
   warehouseId?: string | null; warehouse?: { id: string; name: string }
@@ -72,6 +72,7 @@ function ProductModal({
     sortOrder: product?.sortOrder?.toString() ?? '0',
     sku: product?.sku ?? '',
     barcode: product?.barcode ?? '',
+    kdsStation: product?.kdsStation ?? '',
     categoryId: product?.categoryId ?? (categories[0]?.id ?? ''),
     warehouseId: product?.warehouseId ?? '',
     isAvailable: product?.isAvailable ?? true,
@@ -116,6 +117,7 @@ function ProductModal({
       sortOrder: parseInt(form.sortOrder) || 0,
       sku: form.sku.trim() || undefined,
       barcode: form.barcode.trim() || undefined,
+      kdsStation: form.kdsStation || null,
       categoryId: form.categoryId,
       warehouseId: form.warehouseId || null,
       isAvailable: form.isAvailable,
@@ -269,6 +271,17 @@ function ProductModal({
               <input type="number" value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: e.target.value }))}
                 className="input-field" placeholder="0" min="0"
                 title="Les produits sont affichés par ordre croissant (0 = premier)" />
+            </div>
+            <div>
+              <label className="text-sm text-brand-muted mb-1 block">Station KDS</label>
+              <select value={form.kdsStation} onChange={e => setForm(f => ({ ...f, kdsStation: e.target.value }))}
+                className="input-field">
+                <option value="">— Auto —</option>
+                <option value="hot">🔥 Chaud</option>
+                <option value="cold">❄️ Froid</option>
+                <option value="drinks">🍹 Boissons</option>
+                <option value="desserts">🍰 Desserts</option>
+              </select>
             </div>
           </div>
 

@@ -226,6 +226,9 @@ model Product {
   // Allergens (14 official EU allergens)
   allergens       String[]
 
+  // KDS station assignment (hot, cold, drinks, desserts)
+  kdsStation      String?
+
   // Tags
   tags            String[]
 
