@@ -693,12 +693,13 @@ function CategoryModal({
     name: category?.name ?? '',
     icon: category?.icon ?? '🍽️',
     color: category?.color ?? '#FF4D00',
+    sortOrder: (category as any)?.sortOrder?.toString() ?? '0',
   })
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name.trim()) { toast.error('Nom requis'); return }
-    onSave({ name: form.name.trim(), icon: form.icon, color: form.color })
+    onSave({ name: form.name.trim(), icon: form.icon, color: form.color, sortOrder: parseInt(form.sortOrder) || 0 })
   }
 
   return (
@@ -729,12 +730,19 @@ function CategoryModal({
               ))}
             </div>
           </div>
-          <div>
-            <label className="text-sm text-brand-muted mb-1 block">Couleur</label>
-            <div className="flex items-center gap-3">
-              <input type="color" value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
-                className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0" />
-              <span className="text-sm font-mono text-brand-muted">{form.color}</span>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm text-brand-muted mb-1 block">Couleur</label>
+              <div className="flex items-center gap-3">
+                <input type="color" value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
+                  className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0" />
+                <span className="text-sm font-mono text-brand-muted">{form.color}</span>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm text-brand-muted mb-1 block">Ordre d'affichage</label>
+              <input type="number" value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: e.target.value }))}
+                className="input-field" placeholder="0" min="0" />
             </div>
           </div>
           <div className="flex gap-3 pt-1">
