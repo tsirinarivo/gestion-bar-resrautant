@@ -67,11 +67,17 @@ function MenuPageInner() {
   const [callingWaiter, setCallingWaiter] = useState(false);
   const [waiterCalled, setWaiterCalled] = useState(false);
   const [restaurantInfo, setRestaurantInfo] = useState<{ name?: string; openingHours?: any } | null>(null);
+  const [promos, setPromos] = useState<Array<{ id: string; name: string; description?: string; type: string; value: number; minOrderAmount?: number; endDate?: string }>>([]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/info`)
       .then(r => r.json())
       .then((d: { data?: any }) => { if (d.data) setRestaurantInfo(d.data) })
+      .catch(() => null);
+
+    fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/promotions`)
+      .then(r => r.json())
+      .then((d: { data?: any[] }) => { if (d.data?.length) setPromos(d.data) })
       .catch(() => null);
   }, []);
 
@@ -157,6 +163,27 @@ function MenuPageInner() {
           </div>
         </div>
       </header>
+
+      {/* Active promotions banner */}
+      {promos.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-400 to-orange-500 text-white py-3 px-4">
+          <div className="container-narrow flex gap-3 overflow-x-auto">
+            {promos.map(p => (
+              <div key={p.id} className="flex-shrink-0 bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2 text-sm">
+                <p className="font-bold flex items-center gap-1">
+                  🎉 {p.name}
+                </p>
+                <p className="text-xs opacity-90">
+                  {p.type === 'PERCENTAGE' ? `-${p.value}%` :
+                   p.type === 'FIXED_AMOUNT' ? `-${p.value} Ar` :
+                   p.type === 'FREE_DELIVERY' ? 'Livraison gratuite' : p.description}
+                  {p.minOrderAmount ? ` · dès ${p.minOrderAmount} Ar` : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white border-b border-gray-200 overflow-x-auto">
         <div className="container-narrow py-3 flex gap-2">

@@ -230,3 +230,27 @@ publicRouter.post('/:slug/reviews', async (req, res, next) => {
     res.status(201).json({ success: true, data: review })
   } catch (error) { next(error) }
 })
+
+// GET /api/public/:slug/promotions — currently active public promotions
+publicRouter.get('/:slug/promotions', async (req, res, next) => {
+  try {
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
+    const now = new Date()
+    const promos = await prisma.promotion.findMany({
+      where: {
+        restaurantId: restaurant.id,
+        isActive: true,
+        OR: [{ channels: { has: 'ONLINE' } }, { channels: { has: 'BOTH' } }],
+        AND: [
+          { OR: [{ startDate: null }, { startDate: { lte: now } }] },
+          { OR: [{ endDate: null }, { endDate: { gte: now } }] },
+        ],
+      },
+      select: { id: true, name: true, description: true, type: true, value: true, minOrderAmount: true, endDate: true },
+      orderBy: { value: 'desc' },
+      take: 5,
+    })
+    res.json({ success: true, data: promos })
+  } catch (error) { next(error) }
+})
