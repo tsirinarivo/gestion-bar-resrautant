@@ -152,6 +152,10 @@ function MenuPageInner() {
                 {waiterCalled ? '✅ Serveur appelé' : callingWaiter ? '⏳' : '🔔 Appeler'}
               </button>
             )}
+            <a href="/account" title="Mon compte"
+              className="w-9 h-9 rounded-xl bg-gray-100 hover:bg-amber-100 flex items-center justify-center transition-colors text-lg">
+              👤
+            </a>
             <a href="/cart" className="relative btn-primary py-2 px-4 text-sm rounded-xl">
               🛒 Panier
               {cartCount > 0 && (
