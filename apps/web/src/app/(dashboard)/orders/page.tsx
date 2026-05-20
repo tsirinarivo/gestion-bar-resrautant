@@ -571,10 +571,18 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 
 function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChange: (id: string, status: string) => void; onPay: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false)
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesValue, setNotesValue] = useState(order.notes ?? '')
+  const qc = useQueryClient()
   const statusConf = ORDER_STATUSES.find(s => s.value === order.status) ?? ORDER_STATUSES[0]!
   const nextAction = STATUS_NEXT[order.status]
   const Icon = STATUS_ICONS[order.status] ?? Clock
   const orderType = ORDER_TYPES[order.type as keyof typeof ORDER_TYPES]
+
+  const saveNotes = useMutation({
+    mutationFn: () => api.patch(`/orders/${order.id}`, { notes: notesValue.trim() || null }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['orders'] }); setEditingNotes(false); toast.success('Note mise à jour') },
+  })
 
   return (
     <motion.div
@@ -631,10 +639,25 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
         </div>
 
         {/* Notes */}
-        {expanded && order.notes && (
-          <p className="text-xs text-yellow-400 bg-yellow-400/10 px-3 py-2 rounded-xl mb-3">
-            ⚠️ {order.notes}
-          </p>
+        {expanded && (
+          <div className="mb-3">
+            {editingNotes ? (
+              <div className="flex items-start gap-2">
+                <textarea autoFocus value={notesValue} onChange={e => setNotesValue(e.target.value)}
+                  rows={2} placeholder="Ajouter une note..."
+                  className="input-field text-xs resize-none flex-1 py-1.5" />
+                <div className="flex flex-col gap-1">
+                  <button onClick={() => saveNotes.mutate()} className="px-2 py-1 bg-green-500/20 text-green-400 rounded-lg text-xs">✓</button>
+                  <button onClick={() => { setEditingNotes(false); setNotesValue(order.notes ?? '') }} className="px-2 py-1 bg-red-400/20 text-red-400 rounded-lg text-xs">✕</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setEditingNotes(true)}
+                className={`w-full text-left text-xs px-3 py-2 rounded-xl transition-colors ${order.notes ? 'text-yellow-400 bg-yellow-400/10 hover:bg-yellow-400/20' : 'text-brand-muted bg-white/5 hover:bg-white/10'}`}>
+                {order.notes ? `⚠️ ${order.notes}` : '+ Ajouter une note'}
+              </button>
+            )}
+          </div>
         )}
 
         {/* Action buttons */}

@@ -666,6 +666,36 @@ orderRouter.patch('/:id/tip', async (req: AuthRequest, res, next) => {
   }
 })
 
+// PATCH /api/orders/:id — edit order notes
+orderRouter.patch('/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const { notes, deliveryAddress, deliveryCity, deliveryPostalCode, deliveryNotes } = z.object({
+      notes: z.string().nullable().optional(),
+      deliveryAddress: z.string().nullable().optional(),
+      deliveryCity: z.string().nullable().optional(),
+      deliveryPostalCode: z.string().nullable().optional(),
+      deliveryNotes: z.string().nullable().optional(),
+    }).parse(req.body)
+
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!order) throw new AppError('Commande introuvable', 404)
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        ...(notes !== undefined && { notes }),
+        ...(deliveryAddress !== undefined && { deliveryAddress }),
+        ...(deliveryCity !== undefined && { deliveryCity }),
+        ...(deliveryPostalCode !== undefined && { deliveryPostalCode }),
+        ...(deliveryNotes !== undefined && { deliveryNotes }),
+      },
+    })
+    res.json({ success: true, data: updated })
+  } catch (error) { next(error) }
+})
+
 // GET /api/orders/:id/payments — paiements d'une commande avec solde restant
 orderRouter.get('/:id/payments', async (req: AuthRequest, res, next) => {
   try {
