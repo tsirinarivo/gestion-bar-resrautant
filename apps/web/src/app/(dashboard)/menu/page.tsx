@@ -20,6 +20,7 @@ type Product = {
   price: number; costPrice?: number; image?: string
   isAvailable: boolean; isFeatured: boolean; isNew: boolean
   requiresPreparation: boolean; sortOrder: number
+  sku?: string; barcode?: string
   prepTime?: number; allergens: string[]; tags: string[]
   categoryId: string; category?: { name: string; icon?: string }
   warehouseId?: string | null; warehouse?: { id: string; name: string }
@@ -69,6 +70,8 @@ function ProductModal({
     costPrice: product?.costPrice?.toString() ?? '',
     prepTime: product?.prepTime?.toString() ?? '10',
     sortOrder: product?.sortOrder?.toString() ?? '0',
+    sku: product?.sku ?? '',
+    barcode: product?.barcode ?? '',
     categoryId: product?.categoryId ?? (categories[0]?.id ?? ''),
     warehouseId: product?.warehouseId ?? '',
     isAvailable: product?.isAvailable ?? true,
@@ -111,6 +114,8 @@ function ProductModal({
       costPrice: form.costPrice ? parseFloat(form.costPrice) : undefined,
       prepTime: form.prepTime ? parseInt(form.prepTime) : 10,
       sortOrder: parseInt(form.sortOrder) || 0,
+      sku: form.sku.trim() || undefined,
+      barcode: form.barcode.trim() || undefined,
       categoryId: form.categoryId,
       warehouseId: form.warehouseId || null,
       isAvailable: form.isAvailable,
@@ -205,6 +210,20 @@ function ProductModal({
                 />
               </div>
             )}
+          </div>
+
+          {/* SKU / Barcode */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-brand-muted mb-1 block">SKU</label>
+              <input value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value }))}
+                className="input-field font-mono text-sm" placeholder="PLT-001" />
+            </div>
+            <div>
+              <label className="text-sm text-brand-muted mb-1 block">Code-barres</label>
+              <input value={form.barcode} onChange={e => setForm(f => ({ ...f, barcode: e.target.value }))}
+                className="input-field font-mono text-sm" placeholder="3760123450123" />
+            </div>
           </div>
 
           {/* Description */}

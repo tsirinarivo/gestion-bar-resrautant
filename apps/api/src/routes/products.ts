@@ -13,6 +13,7 @@ const productSchema = z.object({
   description: z.string().optional(),
   shortDesc: z.string().optional(),
   sku: z.string().optional(),
+  barcode: z.string().optional(),
   price: z.number().positive(),
   comparePrice: z.number().optional(),
   costPrice: z.number().optional(),
