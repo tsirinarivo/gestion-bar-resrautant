@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { formatCurrency } from '@restaurant/utils';
 import Link from 'next/link';
 
-interface CartItem { productId: string; name: string; price: number; quantity: number }
+interface CartItem { productId: string; name: string; price: number; quantity: number; notes?: string }
 
 function getCart(): CartItem[] {
   if (typeof window === 'undefined') return [];
@@ -17,6 +17,7 @@ function saveCart(items: CartItem[]) {
 
 export default function CartPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [editingNotes, setEditingNotes] = useState<string | null>(null);
 
   useEffect(() => { setCart(getCart()); }, []);
 
@@ -24,6 +25,12 @@ export default function CartPage() {
     const next = cart
       .map(i => i.productId === productId ? { ...i, quantity: i.quantity + delta } : i)
       .filter(i => i.quantity > 0);
+    setCart(next);
+    saveCart(next);
+  };
+
+  const setNote = (productId: string, notes: string) => {
+    const next = cart.map(i => i.productId === productId ? { ...i, notes: notes || undefined } : i);
     setCart(next);
     saveCart(next);
   };
@@ -50,18 +57,39 @@ export default function CartPage() {
           <>
             <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-100 mb-6">
               {cart.map(item => (
-                <div key={item.productId} className="flex items-center gap-4 p-4">
-                  <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🍽️</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold truncate">{item.name}</p>
-                    <p className="text-amber-600 font-medium">{formatCurrency(item.price)}</p>
+                <div key={item.productId} className="p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🍽️</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{item.name}</p>
+                      <p className="text-amber-600 font-medium">{formatCurrency(item.price)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => update(item.productId, -1)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-red-100 hover:text-red-600 flex items-center justify-center font-bold transition-colors">−</button>
+                      <span className="w-8 text-center font-bold">{item.quantity}</span>
+                      <button onClick={() => update(item.productId, 1)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-green-100 hover:text-green-600 flex items-center justify-center font-bold transition-colors">+</button>
+                    </div>
+                    <span className="font-bold text-gray-900 w-24 text-right">{formatCurrency(item.price * item.quantity)}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => update(item.productId, -1)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-red-100 hover:text-red-600 flex items-center justify-center font-bold transition-colors">−</button>
-                    <span className="w-8 text-center font-bold">{item.quantity}</span>
-                    <button onClick={() => update(item.productId, 1)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-green-100 hover:text-green-600 flex items-center justify-center font-bold transition-colors">+</button>
+                  {/* Item note */}
+                  <div className="mt-2 ml-16">
+                    {editingNotes === item.productId ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        defaultValue={item.notes ?? ''}
+                        onBlur={e => { setNote(item.productId, e.target.value); setEditingNotes(null) }}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                        placeholder="Sans oignon, pain à part..."
+                        className="w-full text-sm border border-amber-200 rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-amber-300"
+                      />
+                    ) : (
+                      <button onClick={() => setEditingNotes(item.productId)}
+                        className="text-xs text-gray-500 hover:text-amber-600 transition-colors">
+                        {item.notes ? `📝 ${item.notes}` : '+ Ajouter une note'}
+                      </button>
+                    )}
                   </div>
-                  <span className="font-bold text-gray-900 w-24 text-right">{formatCurrency(item.price * item.quantity)}</span>
                 </div>
               ))}
             </div>

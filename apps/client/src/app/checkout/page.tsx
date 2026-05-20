@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 const RESTAURANT_SLUG = process.env['NEXT_PUBLIC_RESTAURANT_SLUG'] ?? 'restaurant-demo';
 
-interface CartItem { productId: string; name: string; price: number; quantity: number }
+interface CartItem { productId: string; name: string; price: number; quantity: number; notes?: string }
 
 function getCart(): CartItem[] {
   if (typeof window === 'undefined') return [];
@@ -72,7 +72,7 @@ export default function CheckoutPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type,
-          items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.price })),
+          items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.price, notes: i.notes })),
           customerName: name,
           customerPhone: phone,
           deliveryAddress: type === 'DELIVERY' ? address : undefined,
