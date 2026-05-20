@@ -1106,12 +1106,40 @@ export default function POSPage() {
   const [cartOpen,         setCartOpen]          = useState(false);
   const [toast,            setToast]            = useState<{ msg: string; ok: boolean } | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 4000);
   }
+
+  // Keyboard shortcuts (Ctrl+F search, Ctrl+Enter send, Ctrl+P pay, Esc clear)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const inField = tag === 'INPUT' || tag === 'TEXTAREA';
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && cart.length > 0 && !showPayModal) {
+        e.preventDefault();
+        void sendToKitchen();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p' && cart.length > 0) {
+        e.preventDefault();
+        setShowPayModal(true);
+      } else if (e.key === 'Escape' && !inField) {
+        if (showPayModal) setShowPayModal(false);
+        else if (showRefund) setShowRefund(false);
+        else if (showReceipt) setShowReceipt(false);
+        else if (search) setSearch('');
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, showPayModal, showRefund, showReceipt, search]);
 
   const { data: tables = [], error: tablesError, isLoading: tablesLoading } = useQuery<Table[]>({
     queryKey: ['pos-tables', token],
@@ -1495,7 +1523,8 @@ export default function POSPage() {
           {/* Search + categories */}
           <div className="px-3 pt-3 pb-2 space-y-2 flex-shrink-0">
             <input
-              type="text" placeholder="🔍 Rechercher / scanner code-barres..." value={search}
+              ref={searchInputRef}
+              type="text" placeholder="🔍 Rechercher / scanner (Ctrl+F)..." value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={handleBarcodeEnter}
               className="w-full bg-gray-800 rounded-xl px-4 py-2 text-sm placeholder-gray-500 outline-none focus:ring-1 focus:ring-orange-500"
