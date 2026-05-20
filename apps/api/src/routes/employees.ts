@@ -240,6 +240,35 @@ employeeRouter.post('/:id/clock-out', async (req: AuthRequest, res, next) => {
   }
 })
 
+// GET /api/employees/active — currently clocked-in employees
+employeeRouter.get('/active', async (req: AuthRequest, res, next) => {
+  try {
+    const entries = await prisma.timeEntry.findMany({
+      where: {
+        employee: { restaurantId: req.user!.restaurantId },
+        clockOut: null,
+      },
+      include: {
+        employee: {
+          include: { user: { select: { firstName: true, lastName: true, avatar: true, role: true } } },
+        },
+      },
+      orderBy: { clockIn: 'asc' },
+    })
+    const now = Date.now()
+    const data = entries.map(e => ({
+      employeeId: e.employee.id,
+      firstName: e.employee.user.firstName,
+      lastName: e.employee.user.lastName,
+      avatar: e.employee.user.avatar,
+      role: e.employee.user.role,
+      clockIn: e.clockIn,
+      durationMinutes: Math.floor((now - e.clockIn.getTime()) / 60000),
+    }))
+    res.json({ success: true, data })
+  } catch (error) { next(error) }
+})
+
 // GET /api/employees/hours-summary — total hours worked per employee in a period
 employeeRouter.get('/hours-summary', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {

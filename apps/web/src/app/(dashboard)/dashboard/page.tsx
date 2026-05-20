@@ -127,6 +127,13 @@ export default function DashboardPage() {
   })
   const birthdays: any[] = birthdaysData ?? []
 
+  const { data: activeEmployees } = useQuery({
+    queryKey: ['employees', 'active'],
+    queryFn: () => api.get('/employees/active').then(r => r.data.data),
+    refetchInterval: 60_000,
+  })
+  const onDuty: any[] = activeEmployees ?? []
+
   const kpis = kpisData
 
   return (
@@ -371,6 +378,41 @@ export default function DashboardPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* On-duty employees */}
+      {onDuty.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.7 }}
+          className="glass-card p-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            <h2 className="font-semibold">Équipe présente</h2>
+            <span className="ml-auto text-xs bg-green-500/15 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">
+              {onDuty.length} personne{onDuty.length > 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {onDuty.map((emp: any) => {
+              const h = Math.floor(emp.durationMinutes / 60)
+              const m = emp.durationMinutes % 60
+              return (
+                <div key={emp.employeeId} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-brand-border/40">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-orange to-amber-500 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                    {emp.firstName?.[0] ?? '?'}{emp.lastName?.[0] ?? ''}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{emp.firstName} {emp.lastName}</p>
+                    <p className="text-xs text-brand-muted capitalize">{emp.role} · {h}h{m.toString().padStart(2, '0')}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </motion.div>
+      )}
 
       {/* Expiring Stock Alert */}
       {expiringItems && expiringItems.length > 0 && (
