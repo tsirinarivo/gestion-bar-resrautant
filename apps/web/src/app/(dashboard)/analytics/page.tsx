@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   TrendingUp, Euro, ShoppingCart, BarChart2,
-  ArrowUp, ArrowDown, Clock, Users, UtensilsCrossed, Package, UserCheck,
+  ArrowUp, ArrowDown, Clock, Users, UtensilsCrossed, Package, UserCheck, Download,
 } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -183,6 +183,36 @@ function PeriodToggle({ options, value, onChange }: PeriodToggleProps) {
 export default function AnalyticsPage() {
   const [revenuePeriod, setRevenuePeriod] = useState<string>('week')
 
+  function exportCSV() {
+    const rows: (string | number)[][] = []
+    // Revenue chart data
+    if (revenueChart?.length) {
+      rows.push(['--- CA par jour ---'])
+      rows.push(['Date', 'CA (Ar)', 'Commandes'])
+      revenueChart.forEach((d: any) => rows.push([d.date, d.revenue ?? 0, d.orders ?? 0]))
+      rows.push([])
+    }
+    // Top products
+    if (kpis?.topProducts?.length) {
+      rows.push(['--- Top produits ---'])
+      rows.push(['Produit', 'Ventes', 'CA (Ar)'])
+      kpis.topProducts.forEach((p: any) => rows.push([p.name, p.count ?? 0, p.revenue ?? 0]))
+      rows.push([])
+    }
+    // Staff performance
+    if (staffPerf?.length) {
+      rows.push(['--- Performance équipe ---'])
+      rows.push(['Employé', 'Commandes', 'CA (Ar)', 'Panier moyen (Ar)'])
+      staffPerf.forEach((s: any) => rows.push([`${s.firstName} ${s.lastName}`, s.orderCount ?? 0, s.totalRevenue ?? 0, s.avgOrderValue ?? 0]))
+    }
+    if (!rows.length) return
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `analytiques-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // KPIs
   const { data: kpis, isLoading: kpisLoading } = useQuery({
     queryKey: ['dashboard', 'kpis'],
@@ -267,9 +297,15 @@ export default function AnalyticsPage() {
             Performances et tendances de votre établissement
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-brand-muted">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-          Données en temps réel
+        <div className="flex items-center gap-3">
+          <button onClick={exportCSV}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-brand-border text-brand-muted hover:border-brand-orange/40 hover:text-brand-orange text-xs transition-colors">
+            <Download className="w-3.5 h-3.5" /> Exporter CSV
+          </button>
+          <div className="flex items-center gap-2 text-xs text-brand-muted">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            Données en temps réel
+          </div>
         </div>
       </motion.div>
 
