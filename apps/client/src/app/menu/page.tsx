@@ -50,6 +50,25 @@ function MenuPageInner() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [cartCount, setCartCount] = useState(0);
   const [added, setAdded] = useState<string | null>(null);
+  const [tableId, setTableId] = useState<string | null>(null);
+  const [callingWaiter, setCallingWaiter] = useState(false);
+  const [waiterCalled, setWaiterCalled] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setTableId(params.get('table'));
+  }, []);
+
+  async function callWaiter() {
+    if (!tableId) return;
+    setCallingWaiter(true);
+    try {
+      await fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/tables/${tableId}/call-waiter`, { method: 'POST' });
+      setWaiterCalled(true);
+      setTimeout(() => setWaiterCalled(false), 10_000);
+    } catch {}
+    finally { setCallingWaiter(false); }
+  }
 
   const { data, isLoading } = useQuery({ queryKey: ['client-menu'], queryFn: fetchMenu });
 
@@ -76,16 +95,34 @@ function MenuPageInner() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="container-narrow py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-serif font-bold">Notre Menu</h1>
-          <a href="/cart" className="relative btn-primary py-2 px-4 text-sm rounded-xl">
-            🛒 Panier
-            {cartCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-                {cartCount}
-              </span>
+        <div className="container-narrow py-4 flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-serif font-bold">Notre Menu</h1>
+            {tableId && <p className="text-xs text-gray-500">Sur place — Table sélectionnée</p>}
+          </div>
+          <div className="flex items-center gap-2">
+            {tableId && (
+              <button
+                onClick={callWaiter}
+                disabled={callingWaiter || waiterCalled}
+                className={`py-2 px-3 text-sm rounded-xl font-medium transition-colors ${
+                  waiterCalled
+                    ? 'bg-green-100 text-green-700 border border-green-200'
+                    : 'bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200'
+                }`}
+              >
+                {waiterCalled ? '✅ Serveur appelé' : callingWaiter ? '⏳' : '🔔 Appeler'}
+              </button>
             )}
-          </a>
+            <a href="/cart" className="relative btn-primary py-2 px-4 text-sm rounded-xl">
+              🛒 Panier
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                  {cartCount}
+                </span>
+              )}
+            </a>
+          </div>
         </div>
       </header>
 

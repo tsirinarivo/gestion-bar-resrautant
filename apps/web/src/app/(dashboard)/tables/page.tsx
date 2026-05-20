@@ -1,12 +1,77 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { Users, Plus, RefreshCw, Grid, List, Clock } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Users, Plus, RefreshCw, Grid, List, Clock, QrCode, Download, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, formatRelative } from '@restaurant/utils'
 import { toast } from 'sonner'
+
+const QRCodeSVG = dynamic(() => import('qrcode.react').then(m => m.QRCodeSVG), { ssr: false })
+
+const CLIENT_URL = process.env.NEXT_PUBLIC_CLIENT_URL || 'https://client.restaurant.dago-it.com'
+
+function QRModal({ table, onClose }: { table: any; onClose: () => void }) {
+  const svgRef = useRef<HTMLDivElement>(null)
+  const tableUrl = `${CLIENT_URL}/menu?table=${table.id}`
+
+  function downloadQR() {
+    const svg = svgRef.current?.querySelector('svg')
+    if (!svg) return
+    const canvas = document.createElement('canvas')
+    const size = 300
+    canvas.width = size; canvas.height = size + 40
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    const img = new Image()
+    const svgBlob = new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' })
+    const url = URL.createObjectURL(svgBlob)
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, size, size)
+      ctx.fillStyle = '#000000'
+      ctx.font = 'bold 16px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(`Table ${table.number}`, size / 2, size + 26)
+      URL.revokeObjectURL(url)
+      const a = document.createElement('a')
+      a.download = `table-${table.number}-qr.png`
+      a.href = canvas.toDataURL()
+      a.click()
+    }
+    img.src = url
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+        className="relative bg-white rounded-2xl p-8 z-10 text-center shadow-2xl">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+          <X className="w-5 h-5" />
+        </button>
+        <h3 className="text-gray-900 font-bold text-lg mb-1">Table {table.number}</h3>
+        <p className="text-gray-500 text-sm mb-6">Scanner pour commander</p>
+        <div ref={svgRef} className="flex justify-center mb-4">
+          <QRCodeSVG value={tableUrl} size={220} level="H" includeMargin />
+        </div>
+        <p className="text-gray-400 text-xs mb-5 break-all max-w-xs">{tableUrl}</p>
+        <div className="flex gap-3 justify-center">
+          <button onClick={downloadQR}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors">
+            <Download className="w-4 h-4" /> Télécharger
+          </button>
+          <button onClick={() => window.print()}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+            Imprimer
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
 
 const TABLE_STATUS_CONFIG = {
   AVAILABLE: { label: 'Libre', color: '#10B981', bg: '#10B98110', border: '#10B98130' },
@@ -18,6 +83,7 @@ const TABLE_STATUS_CONFIG = {
 
 export default function TablesPage() {
   const [view, setView] = useState<'grid' | 'floor'>('grid')
+  const [qrTable, setQrTable] = useState<any>(null)
   const qc = useQueryClient()
 
   const { data: tablesData, isLoading } = useQuery({
@@ -171,12 +237,24 @@ export default function TablesPage() {
                       Nettoyage
                     </button>
                   )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setQrTable(table) }}
+                    className="col-span-2 flex items-center justify-center gap-1 text-xs py-1 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
+                  >
+                    <QrCode className="w-3 h-3" /> QR Code
+                  </button>
                 </div>
               </motion.div>
             )
           })}
         </div>
       )}
+
+      <AnimatePresence>
+        {qrTable && (
+          <QRModal table={qrTable} onClose={() => setQrTable(null)} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

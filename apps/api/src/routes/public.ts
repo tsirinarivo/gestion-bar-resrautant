@@ -122,3 +122,29 @@ publicRouter.get('/:slug/orders/:orderNumber', async (req, res, next) => {
     res.json({ success: true, data: order })
   } catch (error) { next(error) }
 })
+
+// POST /api/public/:slug/tables/:tableId/call-waiter
+publicRouter.post('/:slug/tables/:tableId/call-waiter', async (req, res, next) => {
+  try {
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
+
+    const table = await prisma.diningTable.findFirst({
+      where: { id: req.params.tableId, restaurantId: restaurant.id },
+    })
+    if (!table) return res.status(404).json({ success: false, error: 'Table introuvable' })
+
+    // Emit socket event to dashboard
+    const io = req.app.get('io')
+    if (io) {
+      io.to(`restaurant:${restaurant.id}`).emit('table:call_waiter', {
+        tableId: table.id,
+        tableNumber: table.number,
+        message: `Table ${table.number} appelle un serveur`,
+        timestamp: new Date(),
+      })
+    }
+
+    res.json({ success: true, message: 'Serveur appelé' })
+  } catch (error) { next(error) }
+})
