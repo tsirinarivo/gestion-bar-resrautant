@@ -11,6 +11,9 @@ interface Table     { id: string; number: number; status: string; capacity: numb
 interface OrderItem { id: string; quantity: number; totalPrice: number; product: { name: string } }
 interface OrderPayment { id: string; amount: number; status: string }
 interface Order     { id: string; orderNumber: string; status: string; totalAmount: number; items: OrderItem[]; payments?: OrderPayment[] }
+interface CustomerLite { id: string; firstName: string; lastName: string; phone?: string; loyaltyAccount?: { points: number; tier: string } }
+
+const POINTS_RATE = 10 // 1 point = 10 Ar
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 
@@ -265,12 +268,13 @@ function ReceiptModal({
 
 function PaymentModal({
   token, grandTotal, tableLabel, openOrders, cart, orderType, activeTable, orderNote,
-  allowedMethods, onComplete, onClose,
+  allowedMethods, customer, onComplete, onClose,
 }: {
   token: string; grandTotal: number; tableLabel: string;
   openOrders: Order[]; cart: CartItem[]; orderType: 'DINE_IN' | 'TAKEAWAY';
   activeTable: Table | null; orderNote: string;
   allowedMethods: typeof POS_PAYMENT_METHODS;
+  customer: CustomerLite | null;
   onComplete: () => void; onClose: () => void;
 }) {
   // Queue of orders to pay: {id, remaining}
@@ -335,6 +339,13 @@ function PaymentModal({
     if (isNaN(amount) || amount <= 0) { setError('Montant invalide'); return; }
     if (amount > remaining + 0.01) { setError(`Maximum restant : ${formatCurrency(remaining)}`); return; }
 
+    // WALLET cap: check customer has enough points
+    if (method === 'WALLET') {
+      if (!customer) { setError('Sélectionnez un client pour utiliser les points fidélité'); return; }
+      const maxWallet = (customer.loyaltyAccount?.points ?? 0) * POINTS_RATE;
+      if (amount > maxWallet + 0.01) { setError(`Points insuffisants — max ${formatCurrency(maxWallet)}`); return; }
+    }
+
     setBusy(true); setError('');
     try {
       let toDistribute = amount;
@@ -346,6 +357,15 @@ function PaymentModal({
         await apiPost(token, '/payments', { orderId: newQueue[i]!.id, amount: pay, method });
         newQueue[i] = { ...newQueue[i]!, remaining: newQueue[i]!.remaining - pay };
         toDistribute -= pay;
+      }
+
+      // Deduct loyalty points for WALLET payments
+      if (method === 'WALLET' && customer) {
+        const pointsUsed = -Math.ceil(amount / POINTS_RATE);
+        await apiPost(token, `/customers/${customer.id}/loyalty/adjust`, {
+          points: pointsUsed,
+          reason: `Rachat POS — ${tableLabel}`,
+        }).catch(() => {});
       }
 
       setOrderQueue(newQueue);
@@ -496,9 +516,16 @@ function PaymentModal({
               </div>
 
               {/* Method grid — 4 colonnes, 3 rangées, tout visible d'un coup */}
-              <div className="grid grid-cols-4 gap-1 mb-3">
+              <div className="grid grid-cols-4 gap-1 mb-2">
                 {allowedMethods.map(m => (
-                  <button key={m.value} onClick={() => setMethod(m.value)}
+                  <button key={m.value} onClick={() => {
+                    setMethod(m.value)
+                    // Auto-fill max wallet amount when customer selected
+                    if (m.value === 'WALLET' && customer?.loyaltyAccount) {
+                      const maxWallet = Math.min(remaining, customer.loyaltyAccount.points * POINTS_RATE)
+                      setAmountStr(String(Math.round(maxWallet)))
+                    }
+                  }}
                     className={`py-2 px-1 rounded-lg border text-center text-[11px] font-semibold transition-all leading-tight ${
                       method === m.value
                         ? 'border-orange-500 bg-orange-500/20 text-white'
@@ -508,6 +535,31 @@ function PaymentModal({
                   </button>
                 ))}
               </div>
+
+              {/* Loyalty points info when WALLET selected */}
+              {method === 'WALLET' && (
+                <div className={`rounded-xl px-3 py-2 mb-2 text-xs ${
+                  customer?.loyaltyAccount
+                    ? 'bg-blue-900/30 border border-blue-500/30'
+                    : 'bg-yellow-900/30 border border-yellow-500/30'
+                }`}>
+                  {customer?.loyaltyAccount ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-300">
+                        Points de {customer.firstName} :
+                        <span className="text-blue-300 font-bold ml-1">
+                          {customer.loyaltyAccount.points.toLocaleString('fr-FR')} pts
+                        </span>
+                      </span>
+                      <span className="text-blue-200 font-semibold">
+                        = {formatCurrency(customer.loyaltyAccount.points * POINTS_RATE)}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-yellow-400">⚠️ Aucun client sélectionné — impossible d'utiliser les points fidélité</p>
+                  )}
+                </div>
+              )}
 
               <button onClick={addPayment} disabled={busy || remaining <= 0}
                 className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white py-3.5 rounded-xl font-bold text-sm transition-colors">
@@ -526,7 +578,7 @@ function PaymentModal({
 function CartPanel({
   token, cart, orderNote, activeTable, orderType, openOrders,
   onAdd, onRemove, onNoteChange, onSendToKitchen, onShowPayment, onShowReceipt, onClearCart, onClose,
-  sending, isMobile,
+  sending, isMobile, selectedCustomer, onSelectCustomer,
 }: {
   token: string; cart: CartItem[]; orderNote: string;
   activeTable: Table | null; orderType: 'DINE_IN' | 'TAKEAWAY';
@@ -535,6 +587,7 @@ function CartPanel({
   onNoteChange: (v: string) => void;
   onSendToKitchen: () => void; onShowPayment: () => void; onShowReceipt: () => void; onClearCart: () => void;
   onClose?: () => void; sending: boolean; isMobile?: boolean;
+  selectedCustomer: CustomerLite | null; onSelectCustomer: (c: CustomerLite | null) => void;
 }) {
   const existingTotal = openOrders.reduce((s, o) => s + orderRemaining(o), 0);
   const cartTotal     = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
@@ -623,8 +676,9 @@ function CartPanel({
         )}
       </div>
 
-      {/* Note */}
-      <div className="px-3 pb-2 flex-shrink-0">
+      {/* Customer + Note */}
+      <div className="px-3 pb-2 flex-shrink-0 space-y-2">
+        <CustomerSearch token={token} selected={selectedCustomer} onSelect={onSelectCustomer} />
         <input type="text" placeholder="Note pour la cuisine..." value={orderNote}
           onChange={e => onNoteChange(e.target.value)}
           className="w-full bg-gray-700 rounded-xl px-3 py-2 text-sm placeholder-gray-500 outline-none focus:ring-1 focus:ring-orange-500" />
@@ -673,6 +727,94 @@ function CartPanel({
       </div>
     </div>
   );
+}
+
+// ─── Customer search (loyalty) ────────────────────────────────────────────────
+
+function CustomerSearch({
+  token, selected, onSelect,
+}: { token: string; selected: CustomerLite | null; onSelect: (c: CustomerLite | null) => void }) {
+  const [open, setOpen]   = useState(false)
+  const [q, setQ]         = useState('')
+  const [results, setResults] = useState<CustomerLite[]>([])
+  const [busy, setBusy]   = useState(false)
+
+  const doSearch = useCallback(async (val: string) => {
+    if (!val.trim()) { setResults([]); return }
+    setBusy(true)
+    try {
+      const data = await apiFetch<CustomerLite[]>(token, `/customers?search=${encodeURIComponent(val)}&limit=8`)
+      setResults(data)
+    } catch { setResults([]) }
+    finally { setBusy(false) }
+  }, [token])
+
+  useEffect(() => {
+    const t = setTimeout(() => doSearch(q), 300)
+    return () => clearTimeout(t)
+  }, [q, doSearch])
+
+  const tierColor = (tier?: string) =>
+    tier === 'PLATINUM' ? 'text-purple-400' : tier === 'GOLD' ? 'text-yellow-400' :
+    tier === 'SILVER'   ? 'text-gray-300'   : 'text-amber-700'
+
+  if (selected) {
+    const pts = selected.loyaltyAccount?.points ?? 0
+    return (
+      <div className="flex items-center gap-2 px-2 py-1.5 bg-blue-900/30 border border-blue-500/30 rounded-xl mb-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold truncate">{selected.firstName} {selected.lastName}</p>
+          <p className={`text-[10px] ${tierColor(selected.loyaltyAccount?.tier)}`}>
+            {pts.toLocaleString('fr-FR')} pts · {(pts * POINTS_RATE).toLocaleString('fr-FR')} Ar
+          </p>
+        </div>
+        <button onClick={() => onSelect(null)} className="text-gray-500 hover:text-gray-300 text-lg w-5 h-5 flex items-center justify-center">&times;</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative mb-2">
+      {!open ? (
+        <button onClick={() => setOpen(true)}
+          className="w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 bg-gray-700/40 border border-gray-600 rounded-xl transition-colors">
+          👤 Associer un client (fidélité)
+        </button>
+      ) : (
+        <div className="bg-gray-800 border border-gray-600 rounded-xl overflow-hidden shadow-xl">
+          <div className="flex items-center gap-2 px-2 py-1.5 border-b border-gray-700">
+            <input autoFocus type="text" value={q} onChange={e => setQ(e.target.value)}
+              placeholder="Rechercher par nom / téléphone…"
+              className="flex-1 bg-transparent text-sm outline-none placeholder-gray-500" />
+            {busy && <span className="text-gray-500 text-xs">⏳</span>}
+            <button onClick={() => { setOpen(false); setQ(''); setResults([]) }}
+              className="text-gray-500 hover:text-gray-300 text-lg">&times;</button>
+          </div>
+          {results.length > 0 && (
+            <div className="max-h-40 overflow-y-auto">
+              {results.map(c => (
+                <button key={c.id} onClick={() => { onSelect(c); setOpen(false); setQ(''); setResults([]) }}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-700 flex items-center justify-between text-xs border-b border-gray-700/50 last:border-0">
+                  <div>
+                    <p className="font-medium">{c.firstName} {c.lastName}</p>
+                    {c.phone && <p className="text-gray-500">{c.phone}</p>}
+                  </div>
+                  {c.loyaltyAccount && (
+                    <span className={`${tierColor(c.loyaltyAccount.tier)} font-semibold`}>
+                      {c.loyaltyAccount.points} pts
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          {q.trim() && !busy && results.length === 0 && (
+            <p className="px-3 py-2 text-xs text-gray-500">Aucun client trouvé</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Product image with emoji fallback ───────────────────────────────────────
@@ -842,6 +984,7 @@ export default function POSPage() {
   const [showReceipt,      setShowReceipt]       = useState(false);
   const [cartOpen,         setCartOpen]          = useState(false);
   const [toast,            setToast]            = useState<{ msg: string; ok: boolean } | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null);
   const qc = useQueryClient();
 
   function showToast(msg: string, ok = true) {
@@ -957,6 +1100,7 @@ export default function POSPage() {
     showToast(`${activeTable ? `Table ${activeTable.number}` : 'Emporté'} — ${formatCurrency(total)} encaissé`);
     setCart([]);
     setOrderNote('');
+    setSelectedCustomer(null);
     setShowPayModal(false);
     setCartOpen(false);
     qc.invalidateQueries({ queryKey: ['pos-products'] });
@@ -1081,6 +1225,7 @@ export default function POSPage() {
     onSendToKitchen: sendToKitchen, onShowPayment: () => setShowPayModal(true),
     onShowReceipt: () => setShowReceipt(true),
     onClearCart: () => setCart([]), sending,
+    selectedCustomer, onSelectCustomer: setSelectedCustomer,
   };
 
   return (
@@ -1117,6 +1262,7 @@ export default function POSPage() {
           activeTable={activeTable}
           orderNote={orderNote}
           allowedMethods={allowedMethods}
+          customer={selectedCustomer}
           onComplete={handlePaymentComplete}
           onClose={() => setShowPayModal(false)}
         />
