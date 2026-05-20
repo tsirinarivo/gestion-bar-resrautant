@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -54,7 +54,12 @@ interface SidebarProps {
 }
 
 export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState<boolean>(() =>
+    typeof window === 'undefined' ? false : localStorage.getItem('sidebar-collapsed') === '1'
+  )
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0')
+  }, [collapsed])
   const pathname = usePathname()
   const { user, logout, accessToken } = useAuthStore()
   const router = useRouter()
