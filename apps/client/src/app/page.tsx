@@ -48,15 +48,27 @@ function nextOpenDay(hours: RestaurantInfo['openingHours']): string | null {
   return null;
 }
 
+type Review = { id: string; rating: number; content?: string; reply?: string; createdAt: string; customer?: { firstName?: string } };
+
 export default function HomePage() {
   const [info, setInfo] = useState<RestaurantInfo | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/info`)
       .then(r => r.json())
       .then((d: { success?: boolean; data?: RestaurantInfo }) => { if (d.data) setInfo(d.data) })
       .catch(() => null);
+
+    fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/reviews`)
+      .then(r => r.json())
+      .then((d: { data?: Review[] }) => { if (d.data?.length) setReviews(d.data.slice(0, 6)) })
+      .catch(() => null);
   }, []);
+
+  const avgRating = reviews.length
+    ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+    : null;
 
   const name = info?.name ?? 'Restaurant';
   const description = info?.description ?? 'Cuisine locale et internationale — Ambiance chaleureuse';
@@ -135,6 +147,42 @@ export default function HomePage() {
           <Link href="/menu" className="btn-primary text-lg">Voir le menu complet →</Link>
         </div>
       </section>
+
+      {/* Reviews */}
+      {reviews.length > 0 && (
+        <section className="py-20 bg-white">
+          <div className="container-narrow">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-serif font-bold mb-3">Ce qu'en disent nos clients</h2>
+              {avgRating && (
+                <p className="text-xl text-amber-500 font-bold">
+                  ⭐ {avgRating} / 5 <span className="text-sm text-gray-500 font-normal">({reviews.length} avis)</span>
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {reviews.map(r => (
+                <div key={r.id} className="bg-amber-50 rounded-2xl p-6 shadow-sm">
+                  <div className="text-amber-500 text-xl mb-3">
+                    {'⭐'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
+                  </div>
+                  {r.content && <p className="text-gray-700 mb-3 italic">« {r.content} »</p>}
+                  <p className="text-sm font-bold text-gray-900">
+                    {r.customer?.firstName ?? 'Anonyme'}
+                  </p>
+                  <p className="text-xs text-gray-400">{new Date(r.createdAt).toLocaleDateString('fr-FR')}</p>
+                  {r.reply && (
+                    <div className="mt-3 pt-3 border-t border-amber-200">
+                      <p className="text-xs font-bold text-amber-700 mb-1">Réponse du restaurant :</p>
+                      <p className="text-xs text-gray-600">{r.reply}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <footer className="bg-stone-900 text-gray-400 py-12">
         <div className="container-narrow text-center text-sm">
