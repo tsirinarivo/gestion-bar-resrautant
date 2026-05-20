@@ -123,10 +123,10 @@ reservationRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
     }
 
     const NOTIF_CONFIG: Record<string, { title: string; message: (r: typeof reservation) => string } | undefined> = {
-      CONFIRMED:  { title: 'Réservation confirmée',   message: r => `Réservation de ${r.firstName} ${r.lastName} (${r.partySize} pers.) le ${new Date(r.date).toLocaleDateString('fr-FR')} confirmée` },
-      SEATED:     { title: 'Client arrivé',            message: r => `${r.firstName} ${r.lastName} est arrivé et a été placé` },
-      CANCELLED:  { title: 'Réservation annulée',     message: r => `Réservation de ${r.firstName} ${r.lastName} annulée` },
-      NO_SHOW:    { title: 'No-show',                  message: r => `${r.firstName} ${r.lastName} ne s'est pas présenté` },
+      CONFIRMED:  { title: 'Réservation confirmée',   message: r => `Réservation de ${r?.firstName ?? ''} ${r?.lastName ?? ''} (${r?.partySize ?? 0} pers.) le ${new Date(r?.date ?? new Date()).toLocaleDateString('fr-FR')} confirmée` },
+      SEATED:     { title: 'Client arrivé',            message: r => `${r?.firstName ?? ''} ${r?.lastName ?? ''} est arrivé et a été placé` },
+      CANCELLED:  { title: 'Réservation annulée',     message: r => `Réservation de ${r?.firstName ?? ''} ${r?.lastName ?? ''} annulée` },
+      NO_SHOW:    { title: 'No-show',                  message: r => `${r?.firstName ?? ''} ${r?.lastName ?? ''} ne s'est pas présenté` },
     }
 
     const notifConf = NOTIF_CONFIG[status]

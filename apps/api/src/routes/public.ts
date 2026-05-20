@@ -12,6 +12,7 @@ publicRouter.get('/:slug/info', async (req, res, next) => {
       select: {
         id: true, name: true, description: true, phone: true,
         address: true, city: true, openingHours: true, currency: true,
+        logo: true, website: true,
         deliveryEnabled: true, pickupEnabled: true, dineInEnabled: true,
         deliveryFee: true, minOrderAmount: true, estimatedPrepTime: true,
       },
@@ -111,7 +112,7 @@ publicRouter.get('/:slug/orders/:orderNumber', async (req, res, next) => {
       select: {
         id: true, orderNumber: true, status: true, type: true,
         totalAmount: true, createdAt: true, completedAt: true, readyAt: true,
-        estimatedReadyAt: true, notes: true,
+        notes: true,
         items: {
           select: { quantity: true, unitPrice: true, totalPrice: true, notes: true, status: true,
             product: { select: { name: true, image: true } } }
