@@ -3,10 +3,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { memo } from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 import {
   TrendingUp, TrendingDown, ShoppingCart, Users, Table2,
   Euro, Clock, Star, AlertTriangle, ArrowUp, ArrowDown,
-  BarChart2, Activity, Utensils, Package, CalendarX, Cake
+  BarChart2, Activity, Utensils, Package, CalendarX, Cake,
+  CalendarDays, ChefHat, Receipt, Plus
 } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -217,6 +219,31 @@ export default function DashboardPage() {
             />
           </>
         )}
+      </motion.div>
+
+      {/* Quick actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.4 }}
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"
+      >
+        {[
+          { href: '/orders',       label: 'Nouvelle commande', icon: ShoppingCart, color: 'from-orange-500 to-red-500' },
+          { href: '/reservations', label: 'Réservation',       icon: CalendarDays, color: 'from-blue-500 to-cyan-500' },
+          { href: '/tables',       label: 'Plan de salle',     icon: Table2,       color: 'from-purple-500 to-pink-500' },
+          { href: '/kds',          label: 'Cuisine',           icon: ChefHat,      color: 'from-amber-500 to-yellow-500' },
+          { href: '/caisse',       label: 'Caisse',            icon: Receipt,      color: 'from-green-500 to-emerald-500' },
+          { href: '/customers',    label: 'Nouveau client',    icon: Users,        color: 'from-indigo-500 to-blue-500' },
+        ].map(a => (
+          <Link key={a.href} href={a.href}
+            className="group glass-card p-4 hover:border-brand-orange/40 transition-all duration-200 hover:scale-[1.02]">
+            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${a.color} flex items-center justify-center mb-2 shadow-md group-hover:shadow-lg transition-shadow`}>
+              <a.icon className="w-4 h-4 text-white" />
+            </div>
+            <p className="text-sm font-medium">{a.label}</p>
+          </Link>
+        ))}
       </motion.div>
 
       {/* Charts Row 1 */}
