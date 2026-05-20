@@ -47,7 +47,7 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
 
-    const { items, type = 'TAKEAWAY', notes, customerName, customerPhone, deliveryAddress, deliveryCity } = req.body
+    const { items, type = 'TAKEAWAY', notes, customerName, customerPhone, deliveryAddress, deliveryCity, tipAmount = 0 } = req.body
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Panier vide' })
@@ -58,7 +58,8 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     const deliveryFee = type === 'DELIVERY' ? (restaurant.deliveryFee ?? 0) : 0
     const taxRate = restaurant.defaultTaxRate ?? 20
     const taxAmount = subtotal * (taxRate / 100)
-    const totalAmount = subtotal + taxAmount + deliveryFee
+    const tip = Number(tipAmount) || 0
+    const totalAmount = subtotal + taxAmount + deliveryFee + tip
 
     const contactNote = customerName ? `Client: ${customerName}${customerPhone ? ` — ${customerPhone}` : ''}` : undefined
     const fullNotes = [contactNote, notes].filter(Boolean).join(' | ') || undefined
@@ -75,6 +76,7 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
         deliveryCity,
         subtotal,
         taxAmount,
+        tipAmount: tip,
         deliveryFee,
         discountAmount: 0,
         totalAmount,

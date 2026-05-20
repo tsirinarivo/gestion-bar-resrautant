@@ -27,6 +27,7 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [notes, setNotes] = useState('');
+  const [tip, setTip] = useState(0);
   const [step, setStep] = useState<Step>('form');
   const [orderNumber, setOrderNumber] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,7 +57,7 @@ export default function CheckoutPage() {
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const fee = type === 'DELIVERY' ? deliveryFee : 0;
-  const total = subtotal + fee;
+  const total = subtotal + fee + tip;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +78,7 @@ export default function CheckoutPage() {
           deliveryAddress: type === 'DELIVERY' ? address : undefined,
           deliveryCity: type === 'DELIVERY' ? city : undefined,
           notes: notes || undefined,
+          tipAmount: tip > 0 ? tip : undefined,
         }),
       });
       const data = (await res.json()) as { success: boolean; data?: { id: string; orderNumber: string }; error?: string };
@@ -225,8 +227,29 @@ export default function CheckoutPage() {
                 <span>Livraison</span><span>{formatCurrency(fee)}</span>
               </div>
             )}
+            {tip > 0 && (
+              <div className="flex justify-between text-gray-600 text-sm">
+                <span>Pourboire</span><span>{formatCurrency(tip)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-lg pt-2">
               <span>Total</span><span className="text-amber-600">{formatCurrency(total)}</span>
+            </div>
+          </div>
+          {/* Tip */}
+          <div className="border-t border-gray-100 mt-3 pt-3">
+            <p className="text-sm font-medium text-gray-700 mb-2">Pourboire (optionnel)</p>
+            <div className="flex gap-2 flex-wrap">
+              {[0, Math.round(subtotal * 0.05 / 100) * 100, Math.round(subtotal * 0.1 / 100) * 100, Math.round(subtotal * 0.15 / 100) * 100].map((amt, i) => (
+                <button key={amt}
+                  type="button"
+                  onClick={() => setTip(amt)}
+                  className={`px-3 py-1.5 rounded-xl text-sm border-2 transition-colors ${tip === amt ? 'border-amber-500 bg-amber-50 text-amber-700 font-semibold' : 'border-gray-200 text-gray-500'}`}
+                >
+                  {i === 0 ? 'Aucun' : i === 1 ? '5%' : i === 2 ? '10%' : '15%'}
+                  {amt > 0 && ` (${formatCurrency(amt)})`}
+                </button>
+              ))}
             </div>
           </div>
           <p className="text-xs text-gray-400 mt-3">💵 Paiement à la réception</p>

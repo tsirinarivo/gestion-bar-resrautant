@@ -601,6 +601,24 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
       io?.to(req.user!.restaurantId).emit('notification:new', { type: 'ORDER', message: `Commande ${updatedOrder.orderNumber} prête` })
     }
 
+    // Notify when order is CANCELLED
+    if (status === 'CANCELLED') {
+      const reason = notes ? ` — ${notes}` : ''
+      const tableInfo = updatedOrder.table ? ` (Table ${updatedOrder.table.number})` : ''
+      const msg = `Commande ${updatedOrder.orderNumber}${tableInfo} annulée${reason}`
+      prisma.notification.create({
+        data: {
+          type: 'ORDER',
+          title: 'Commande annulée',
+          message: msg,
+          restaurantId: req.user!.restaurantId,
+          targetRole: 'manager',
+          data: { orderId: updatedOrder.id, orderNumber: updatedOrder.orderNumber, reason: notes },
+        },
+      }).catch(() => {})
+      io?.to(req.user!.restaurantId).emit('notification:new', { type: 'ORDER', message: msg })
+    }
+
     res.json({ success: true, data: updatedOrder })
   } catch (error) {
     next(error)
