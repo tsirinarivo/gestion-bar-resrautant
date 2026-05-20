@@ -3,9 +3,19 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
-import { Settings, Building2, Clock, Truck, Save } from 'lucide-react'
+import { Building2, Clock, Truck, Save, Globe, Image } from 'lucide-react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
+
+const DAYS = [
+  { key: 'monday',    label: 'Lundi' },
+  { key: 'tuesday',   label: 'Mardi' },
+  { key: 'wednesday', label: 'Mercredi' },
+  { key: 'thursday',  label: 'Jeudi' },
+  { key: 'friday',    label: 'Vendredi' },
+  { key: 'saturday',  label: 'Samedi' },
+  { key: 'sunday',    label: 'Dimanche' },
+]
 
 export default function SettingsPage() {
   const { data: restaurant, isLoading } = useQuery({
@@ -13,9 +23,20 @@ export default function SettingsPage() {
     queryFn: () => api.get('/restaurants/me').then(r => r.data.data),
   })
 
-  const { register, handleSubmit, formState: { isDirty } } = useForm({
+  const { register, handleSubmit, watch, setValue, formState: { isDirty } } = useForm({
     values: restaurant || {},
   })
+
+  const openingHours = watch('openingHours') ?? {} as Record<string, { open: boolean; start: string; end: string }>
+
+  function toggleDay(day: string) {
+    const current = openingHours[day] ?? { open: false, start: '09:00', end: '22:00' }
+    setValue('openingHours', { ...openingHours, [day]: { ...current, open: !current.open } }, { shouldDirty: true })
+  }
+  function updateHour(day: string, field: 'start' | 'end', val: string) {
+    const current = openingHours[day] ?? { open: true, start: '09:00', end: '22:00' }
+    setValue('openingHours', { ...openingHours, [day]: { ...current, [field]: val } }, { shouldDirty: true })
+  }
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => api.put('/restaurants/me', data),
@@ -76,6 +97,49 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium mb-2">N° TVA</label>
               <input {...register('vatNumber')} className="input-field" />
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Site web</label>
+              <input {...register('website')} type="url" placeholder="https://monrestaurant.mg" className="input-field" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-2">Logo (URL)</label>
+              <input {...register('logo')} placeholder="https://..." className="input-field" />
+            </div>
+          </div>
+        </div>
+
+        {/* Opening hours */}
+        <div className="glass-card p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-green-400" />
+            </div>
+            <h2 className="font-semibold">Horaires d'ouverture</h2>
+          </div>
+          <div className="space-y-3">
+            {DAYS.map(({ key, label }) => {
+              const day = openingHours[key as keyof typeof openingHours] as any ?? { open: false, start: '09:00', end: '22:00' }
+              return (
+                <div key={key} className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 w-32 cursor-pointer flex-shrink-0">
+                    <input type="checkbox" checked={day.open ?? false} onChange={() => toggleDay(key)}
+                      className="w-4 h-4 accent-brand-orange" />
+                    <span className="text-sm">{label}</span>
+                  </label>
+                  {day.open ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <input type="time" value={day.start ?? '09:00'} onChange={e => updateHour(key, 'start', e.target.value)}
+                        className="input-field w-32 py-1" />
+                      <span className="text-brand-muted">→</span>
+                      <input type="time" value={day.end ?? '22:00'} onChange={e => updateHour(key, 'end', e.target.value)}
+                        className="input-field w-32 py-1" />
+                    </div>
+                  ) : (
+                    <span className="text-sm text-brand-muted italic">Fermé</span>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
