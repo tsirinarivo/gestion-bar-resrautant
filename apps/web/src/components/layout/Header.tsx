@@ -290,6 +290,13 @@ export function Header({ onMenuToggle }: HeaderProps) {
   const notifications = data?.data ?? []
   const unreadCount = data?.unreadCount ?? 0
 
+  const { data: pendingOrdersData } = useQuery<{ pagination: { total: number } }>({
+    queryKey: ['orders-pending-count'],
+    queryFn: () => api.get('/orders?status=PENDING&limit=1').then(r => r.data),
+    refetchInterval: 15_000,
+  })
+  const pendingCount = pendingOrdersData?.pagination?.total ?? 0
+
   const markRead = useMutation({
     mutationFn: (id: string) => api.patch(`/notifications/${id}/read`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
@@ -328,6 +335,15 @@ export function Header({ onMenuToggle }: HeaderProps) {
         {/* Search */}
         <GlobalSearch />
 
+
+        {/* Pending orders badge */}
+        {pendingCount > 0 && (
+          <button onClick={() => router.push('/orders?status=PENDING')}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors text-xs font-semibold"
+            title="Commandes en attente">
+            🛒 {pendingCount} en attente
+          </button>
+        )}
 
         {/* Connection status */}
         <div className="flex items-center gap-1.5 text-xs text-green-400">

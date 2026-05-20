@@ -708,6 +708,29 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
           )}
         </div>
 
+        {/* Timeline */}
+        {expanded && (
+          <div className="mb-3 flex gap-1.5 flex-wrap">
+            {[
+              { label: 'Créée', time: order.createdAt, color: 'text-brand-muted' },
+              { label: 'Confirmée', time: order.confirmedAt, color: 'text-blue-400' },
+              { label: 'Prête', time: order.readyAt, color: 'text-green-400' },
+              { label: 'Livrée', time: (order as any).deliveredAt, color: 'text-purple-400' },
+              { label: 'Terminée', time: order.completedAt, color: 'text-emerald-400' },
+              { label: 'Annulée', time: (order as any).cancelledAt, color: 'text-red-400' },
+            ].filter(s => s.time).map((s, i) => (
+              <div key={i} className="flex items-center gap-1 text-[10px]">
+                {i > 0 && <span className="text-brand-muted/30">→</span>}
+                <span className={`${s.color} font-medium`}>{s.label}</span>
+                <span className="text-brand-muted/60">{new Date(s.time!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            ))}
+            {(order as any).tipAmount > 0 && (
+              <span className="ml-auto text-[10px] text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">🫶 Pourboire {(order as any).tipAmount} Ar</span>
+            )}
+          </div>
+        )}
+
         {/* Notes */}
         {expanded && (
           <div className="mb-3">
