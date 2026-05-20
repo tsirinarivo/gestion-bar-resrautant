@@ -152,6 +152,38 @@ reservationRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
   }
 })
 
+// PATCH /api/reservations/:id — update notes, specialRequest, tableId, date
+reservationRouter.patch('/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const { notes, specialRequest, tableId, date, duration } = z.object({
+      notes: z.string().optional(),
+      specialRequest: z.string().optional(),
+      tableId: z.string().nullable().optional(),
+      date: z.string().datetime().optional(),
+      duration: z.number().int().optional(),
+    }).parse(req.body)
+
+    const reservation = await prisma.reservation.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!reservation) throw new AppError('Réservation introuvable', 404)
+
+    const updated = await prisma.reservation.update({
+      where: { id: reservation.id },
+      data: {
+        ...(notes !== undefined && { notes }),
+        ...(specialRequest !== undefined && { specialRequest }),
+        ...(tableId !== undefined && { tableId }),
+        ...(date !== undefined && { date: new Date(date) }),
+        ...(duration !== undefined && { duration }),
+      },
+    })
+    res.json({ success: true, data: updated })
+  } catch (error) {
+    next(error)
+  }
+})
+
 reservationRouter.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
     const reservation = await prisma.reservation.findFirst({

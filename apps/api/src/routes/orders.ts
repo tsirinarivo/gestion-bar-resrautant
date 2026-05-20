@@ -363,6 +363,20 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
     const data = createOrderSchema.parse(req.body)
     const restaurantId = req.user!.restaurantId
 
+    // Check table availability for DINE_IN orders
+    if (data.type === 'DINE_IN' && data.tableId) {
+      const table = await prisma.diningTable.findFirst({
+        where: { id: data.tableId, restaurantId },
+        select: { status: true, number: true },
+      })
+      if (table && ['OCCUPIED', 'RESERVED', 'BLOCKED'].includes(table.status)) {
+        throw new AppError(
+          `Table ${table.number} n'est pas disponible (statut: ${table.status})`,
+          400,
+        )
+      }
+    }
+
     // Vérification stock avant création : rejeter si article épuisé
     for (const item of data.items) {
       const product = await prisma.product.findFirst({

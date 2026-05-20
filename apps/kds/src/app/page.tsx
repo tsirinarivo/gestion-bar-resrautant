@@ -148,6 +148,22 @@ function KDSPageInner() {
     return () => clearInterval(interval);
   }, []);
 
+  function playBeep() {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.frequency.value = 880;
+      oscillator.type = 'sine';
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.4);
+    } catch {}
+  }
+
   useEffect(() => {
     if (!token) return;
     const socket = io(API_URL, {
@@ -155,7 +171,10 @@ function KDSPageInner() {
       transports: ['websocket', 'polling'],
     });
     socket.on('connect', () => socket.emit('join:kds'));
-    socket.on('kds:new_order', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
+    socket.on('kds:new_order', () => {
+      playBeep();
+      void qc.invalidateQueries({ queryKey: ['kds-orders'] });
+    });
     socket.on('order:status_changed', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
     return () => { socket.disconnect(); };
   }, [qc, token]);
