@@ -227,6 +227,21 @@ publicRouter.post('/:slug/reviews', async (req, res, next) => {
     const review = await prisma.review.create({
       data: { restaurantId: restaurant.id, rating, title: title || undefined, content: content || undefined, orderId },
     })
+
+    // Non-blocking: notify managers of new review
+    prisma.notification.create({
+      data: {
+        type: 'REVIEW',
+        title: `Nouvel avis ${rating}⭐`,
+        message: content ? `« ${content.slice(0, 80)}${content.length > 80 ? '…' : ''} »` : `Nouvelle note ${rating}/5`,
+        restaurantId: restaurant.id,
+        targetRole: 'manager',
+      },
+    }).catch(() => {})
+
+    const io = req.app.get('io')
+    io?.to(restaurant.id).emit('notification:new', { type: 'REVIEW', rating })
+
     res.status(201).json({ success: true, data: review })
   } catch (error) { next(error) }
 })

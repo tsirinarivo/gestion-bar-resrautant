@@ -57,6 +57,8 @@ const TYPE_ICON: Record<string, string> = {
   STOCK: '📦',
   RESERVATION: '📅',
   EMPLOYEE: '👤',
+  WAITING: '⏳',
+  REVIEW: '⭐',
   SYSTEM: '⚙️',
 }
 
