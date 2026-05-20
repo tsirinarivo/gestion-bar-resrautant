@@ -21,15 +21,25 @@ function userFilter(req: AuthRequest) {
 // GET /api/notifications
 notificationRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
+    const { unreadOnly, limit = '30', skip = '0' } = req.query
     const filter = userFilter(req)
     const where: any = { ...filter }
-    if (req.query.unreadOnly === 'true') where.isRead = false
+    if (unreadOnly === 'true') where.isRead = false
 
-    const [notifications, unreadCount] = await Promise.all([
-      prisma.notification.findMany({ where, orderBy: { createdAt: 'desc' }, take: 30 }),
+    const [notifications, unreadCount, total] = await Promise.all([
+      prisma.notification.findMany({ where, orderBy: { createdAt: 'desc' }, take: Math.min(Number(limit), 100), skip: Number(skip) }),
       prisma.notification.count({ where: { ...filter, isRead: false } }),
+      prisma.notification.count({ where }),
     ])
-    res.json({ success: true, data: notifications, unreadCount })
+    res.json({ success: true, data: notifications, unreadCount, total })
+  } catch (error) { next(error) }
+})
+
+// DELETE /api/notifications/read — clear all read notifications
+notificationRouter.delete('/read', async (req: AuthRequest, res, next) => {
+  try {
+    await prisma.notification.deleteMany({ where: { ...userFilter(req), isRead: true } })
+    res.json({ success: true })
   } catch (error) { next(error) }
 })
 

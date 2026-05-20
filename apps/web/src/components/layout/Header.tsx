@@ -137,6 +137,11 @@ export function Header({ onMenuToggle }: HeaderProps) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   })
 
+  const clearRead = useMutation({
+    mutationFn: () => api.delete('/notifications/read'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+  })
+
   const title = Object.entries(pageTitles).find(([path]) => pathname.startsWith(path))?.[1] || 'Dashboard'
 
   return (
@@ -198,14 +203,24 @@ export function Header({ onMenuToggle }: HeaderProps) {
               >
                 <div className="flex items-center justify-between px-4 py-3 border-b border-brand-border">
                   <p className="font-semibold text-sm">Notifications {unreadCount > 0 && <span className="text-brand-orange">({unreadCount})</span>}</p>
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={() => markAllRead.mutate()}
-                      className="text-xs text-brand-muted hover:text-brand-orange transition-colors"
-                    >
-                      Tout lire
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={() => markAllRead.mutate()}
+                        className="text-xs text-brand-muted hover:text-brand-orange transition-colors"
+                      >
+                        Tout lire
+                      </button>
+                    )}
+                    {notifications.some(n => n.isRead) && (
+                      <button
+                        onClick={() => clearRead.mutate()}
+                        className="text-xs text-brand-muted hover:text-red-400 transition-colors"
+                      >
+                        Effacer lues
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="max-h-80 overflow-y-auto divide-y divide-brand-border">

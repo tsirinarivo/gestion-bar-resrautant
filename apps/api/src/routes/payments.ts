@@ -97,6 +97,31 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       throw new AppError(`Sur-paiement refusé : reste dû ${order.totalAmount - alreadyPaid} MGA`, 400)
     }
 
+    // WALLET: deduct loyalty points from customer (1 point = 10 MGA)
+    if (data.method === 'WALLET') {
+      const orderWithCustomer = await prisma.order.findUnique({
+        where: { id: data.orderId },
+        include: { customer: { include: { loyaltyAccount: true } } },
+      })
+      const loyaltyAccount = orderWithCustomer?.customer?.loyaltyAccount
+      if (!loyaltyAccount) throw new AppError('Aucun compte fidélité associé à cette commande', 400)
+      const pointsToDeduct = Math.ceil(data.amount / 10)
+      if (loyaltyAccount.points < pointsToDeduct) {
+        throw new AppError(`Solde de points insuffisant (${loyaltyAccount.points} pts disponibles, ${pointsToDeduct} requis)`, 400)
+      }
+      const newBalance = loyaltyAccount.points - pointsToDeduct
+      await prisma.loyaltyAccount.update({
+        where: { id: loyaltyAccount.id },
+        data: {
+          points: newBalance,
+          totalSpent: { increment: pointsToDeduct },
+          transactions: {
+            create: { type: 'SPEND', points: -pointsToDeduct, balance: newBalance, description: `Paiement commande ${order.orderNumber}` },
+          },
+        },
+      })
+    }
+
     const payment = await prisma.payment.create({
       data: { ...data, currency: 'MGA', status: 'COMPLETED' },
     })
