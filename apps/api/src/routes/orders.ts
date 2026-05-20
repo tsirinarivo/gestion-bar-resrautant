@@ -340,6 +340,59 @@ orderRouter.get('/', async (req: AuthRequest, res, next) => {
   }
 })
 
+// PATCH /api/orders/:id/table — Transfer order to another table
+orderRouter.patch('/:id/table', async (req: AuthRequest, res, next) => {
+  try {
+    const { tableId } = z.object({ tableId: z.string() }).parse(req.body)
+    const restaurantId = req.user!.restaurantId
+
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, restaurantId },
+      select: { id: true, tableId: true, status: true },
+    })
+    if (!order) throw new AppError('Commande introuvable', 404)
+    if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+      throw new AppError('Impossible de transférer une commande terminée', 400)
+    }
+
+    const newTable = await prisma.diningTable.findFirst({
+      where: { id: tableId, restaurantId },
+    })
+    if (!newTable) throw new AppError('Table introuvable', 404)
+
+    // Release old table if it was occupied by this order only
+    if (order.tableId && order.tableId !== tableId) {
+      const otherActiveOnOldTable = await prisma.order.count({
+        where: {
+          tableId: order.tableId,
+          status: { in: ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'] },
+          id: { not: order.id },
+        },
+      })
+      if (otherActiveOnOldTable === 0) {
+        await prisma.diningTable.update({
+          where: { id: order.tableId },
+          data: { status: 'AVAILABLE' },
+        })
+      }
+    }
+
+    // Assign to new table and mark it occupied
+    const updatedOrder = await prisma.order.update({
+      where: { id: order.id },
+      data: { tableId },
+      include: { table: true },
+    })
+
+    await prisma.diningTable.update({
+      where: { id: tableId },
+      data: { status: 'OCCUPIED' },
+    })
+
+    res.json({ success: true, data: updatedOrder })
+  } catch (error) { next(error) }
+})
+
 // GET /api/orders/:id
 orderRouter.get('/:id', async (req: AuthRequest, res, next) => {
   try {

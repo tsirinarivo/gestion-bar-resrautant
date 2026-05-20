@@ -357,6 +357,8 @@ function CreateProductFromStockModal({
   )
 }
 
+
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function StockPage() {
@@ -608,25 +610,23 @@ export default function StockPage() {
   async function submitInventory() {
     const entries = Object.entries(inventoryCounts).filter(([, v]) => v !== '')
     if (entries.length === 0) { toast.error('Aucune quantité saisie'); return }
-    let ok = 0
-    for (const [id, val] of entries) {
-      const item = allItems.find((i: any) => i.id === id)
-      if (!item) continue
-      const counted = parseFloat(val)
-      if (isNaN(counted)) continue
-      const diff = counted - item.currentQuantity
-      if (diff === 0) continue
-      await api.post(`/stock/${id}/movements`, {
-        type: 'ADJUSTMENT',
-        quantity: Math.abs(diff),
-        notes: `Inventaire physique — ajustement ${diff > 0 ? '+' : ''}${diff} ${item.unit}`,
-      })
-      ok++
+    try {
+      const payload = {
+        items: entries.map(([stockItemId, counted]) => ({
+          stockItemId,
+          counted: parseFloat(counted) || 0,
+        })),
+        notes: 'Inventaire physique',
+      }
+      const res = await api.post('/stock/inventory-count', payload)
+      const { adjusted } = res.data.data
+      qc.invalidateQueries({ queryKey: ['stock'] })
+      setShowInventory(false)
+      setInventoryCounts({})
+      toast.success(`Inventaire enregistré — ${adjusted} article(s) ajusté(s)`)
+    } catch {
+      toast.error('Erreur lors de l\'inventaire')
     }
-    qc.invalidateQueries({ queryKey: ['stock'] })
-    setShowInventory(false)
-    setInventoryCounts({})
-    toast.success(`Inventaire enregistré — ${ok} article(s) ajusté(s)`)
   }
 
   return (

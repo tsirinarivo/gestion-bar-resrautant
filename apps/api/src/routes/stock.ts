@@ -405,3 +405,84 @@ stockRouter.patch('/alerts/:alertId/read', async (req: AuthRequest, res, next) =
     next(error)
   }
 })
+
+// POST /api/stock/inventory-count — Physical inventory count: submit counted quantities, auto-create adjustments
+stockRouter.post('/inventory-count', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { items, notes } = z.object({
+      items: z.array(z.object({
+        stockItemId: z.string(),
+        counted: z.number().min(0),
+      })).min(1),
+      notes: z.string().optional(),
+    }).parse(req.body)
+
+    const restaurantId = req.user!.restaurantId
+    const userId = req.user!.id
+
+    const stockItems = await prisma.stockItem.findMany({
+      where: { id: { in: items.map(i => i.stockItemId) }, restaurantId },
+      select: { id: true, name: true, currentQuantity: true, unit: true, minQuantity: true },
+    })
+    const stockMap = Object.fromEntries(stockItems.map(s => [s.id, s]))
+
+    const adjustments: { stockItemId: string; name: string; system: number; counted: number; diff: number }[] = []
+    const movements = []
+
+    for (const item of items) {
+      const stock = stockMap[item.stockItemId]
+      if (!stock) continue
+      const diff = item.counted - stock.currentQuantity
+      if (Math.abs(diff) < 0.001) continue // no difference, skip
+
+      adjustments.push({ stockItemId: item.stockItemId, name: stock.name, system: stock.currentQuantity, counted: item.counted, diff })
+      movements.push({
+        stockItemId: item.stockItemId,
+        type: 'ADJUSTMENT' as const,
+        quantity: Math.abs(diff),
+        direction: diff > 0 ? 'IN' : 'OUT',
+        reason: 'inventory_count',
+        notes: notes || 'Inventaire physique',
+        performedBy: userId,
+        newQuantity: item.counted,
+      })
+    }
+
+    // Apply all movements in a transaction
+    if (movements.length > 0) {
+      await prisma.$transaction(
+        movements.map(m =>
+          prisma.stockMovement.create({
+            data: {
+              stockItem: { connect: { id: m.stockItemId } },
+              type: m.type,
+              quantity: m.quantity,
+              reason: m.reason,
+              notes: m.notes,
+              createdBy: m.performedBy,
+            },
+          })
+        )
+      )
+
+      // Update stock quantities
+      await prisma.$transaction(
+        movements.map(m =>
+          prisma.stockItem.update({
+            where: { id: m.stockItemId },
+            data: { currentQuantity: m.newQuantity },
+          })
+        )
+      )
+    }
+
+    res.json({
+      success: true,
+      data: {
+        adjusted: adjustments.length,
+        unchanged: items.length - adjustments.length,
+        adjustments,
+      },
+    })
+  } catch (error) { next(error) }
+})

@@ -97,6 +97,19 @@ reservationRouter.post('/', async (req: AuthRequest, res, next) => {
       })
     }
 
+    // Auto-schedule reminders: 24h before and 2h before
+    const reservationDate = new Date(data.date)
+    const reminder24h = new Date(reservationDate.getTime() - 24 * 60 * 60 * 1000)
+    const reminder2h  = new Date(reservationDate.getTime() - 2  * 60 * 60 * 1000)
+    const now = new Date()
+    const reminderData = [
+      ...(reminder24h > now ? [{ type: 'SMS', scheduledAt: reminder24h, reservationId: reservation.id }] : []),
+      ...(reminder2h  > now ? [{ type: 'SMS', scheduledAt: reminder2h,  reservationId: reservation.id }] : []),
+    ]
+    if (reminderData.length > 0) {
+      await prisma.reservationReminder.createMany({ data: reminderData }).catch(() => {})
+    }
+
     res.status(201).json({ success: true, data: reservation })
   } catch (error) {
     next(error)

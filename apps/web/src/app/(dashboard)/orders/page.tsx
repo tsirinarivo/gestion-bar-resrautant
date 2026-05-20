@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ShoppingCart, Plus, RefreshCw, XCircle, X, ChefHat,
   Check, Clock, Utensils, CheckCircle2, Search, ChevronDown, Trash2,
-  Banknote, CreditCard, Split, CalendarDays, Printer,
+  Banknote, CreditCard, Split, CalendarDays, Printer, ArrowRightLeft,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, formatRelative } from '@restaurant/utils'
@@ -569,10 +569,87 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 
 // ─── Order card ───────────────────────────────────────────────────────────────
 
+function TableTransferModal({ order, onClose }: { order: any; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [selectedTableId, setSelectedTableId] = useState('')
+
+  const { data: tables } = useQuery({
+    queryKey: ['tables-for-transfer'],
+    queryFn: () => api.get('/tables').then(r => r.data.data),
+  })
+
+  const transfer = useMutation({
+    mutationFn: () => api.patch(`/orders/${order.id}/table`, { tableId: selectedTableId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      toast.success('Commande transférée')
+      onClose()
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Erreur lors du transfert'),
+  })
+
+  const availableTables = (tables ?? []).filter((t: any) => t.id !== order.tableId && t.isActive)
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-sm p-5"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold flex items-center gap-2">
+            <ArrowRightLeft className="w-4 h-4 text-brand-orange" />
+            Transférer vers une table
+          </h2>
+          <button onClick={onClose} className="text-brand-muted hover:text-white p-1"><X className="w-4 h-4" /></button>
+        </div>
+
+        <p className="text-xs text-brand-muted mb-3">
+          Commande <span className="text-brand-orange font-mono">#{order.orderNumber}</span>
+          {order.table && ` · Table actuelle: ${order.table.name ?? order.table.number}`}
+        </p>
+
+        <div className="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto mb-4">
+          {availableTables.map((t: any) => (
+            <button
+              key={t.id}
+              onClick={() => setSelectedTableId(t.id)}
+              className={`p-3 rounded-xl border text-sm font-semibold transition-colors ${
+                selectedTableId === t.id
+                  ? 'border-brand-orange bg-brand-orange/10 text-brand-orange'
+                  : t.status === 'AVAILABLE'
+                  ? 'border-green-400/30 bg-green-400/5 text-green-400 hover:border-green-400/50'
+                  : 'border-brand-border text-brand-muted hover:border-brand-orange/30'
+              }`}
+            >
+              {t.name ?? `T${t.number}`}
+              {t.status === 'OCCUPIED' && <span className="block text-[9px] mt-0.5 opacity-60">Occupée</span>}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={onClose} className="btn-secondary flex-1 text-sm">Annuler</button>
+          <button
+            onClick={() => transfer.mutate()}
+            disabled={!selectedTableId || transfer.isPending}
+            className="btn-primary flex-1 text-sm"
+          >
+            {transfer.isPending ? 'Transfert...' : 'Transférer'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChange: (id: string, status: string) => void; onPay: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notesValue, setNotesValue] = useState(order.notes ?? '')
+  const [showTransfer, setShowTransfer] = useState(false)
   const qc = useQueryClient()
   const statusConf = ORDER_STATUSES.find(s => s.value === order.status) ?? ORDER_STATUSES[0]!
   const nextAction = STATUS_NEXT[order.status]
@@ -777,6 +854,15 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
               <XCircle className="w-5 h-5" />
             </button>
           )}
+          {/* Table transfer for dine-in active orders */}
+          {order.type === 'DINE_IN' && !['COMPLETED', 'CANCELLED'].includes(order.status) && (
+            <button
+              onClick={() => setShowTransfer(true)}
+              title="Changer de table"
+              className="w-12 flex items-center justify-center rounded-xl bg-purple-500/15 text-purple-400 active:bg-purple-500/30">
+              <ArrowRightLeft className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={() => reprintReceipt.mutate()}
             disabled={reprintReceipt.isPending}
@@ -790,6 +876,10 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showTransfer && <TableTransferModal order={order} onClose={() => setShowTransfer(false)} />}
+      </AnimatePresence>
     </motion.div>
   )
 }
