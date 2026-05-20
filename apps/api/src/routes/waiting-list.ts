@@ -58,6 +58,27 @@ waitingListRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
     if (status === 'NOTIFIED') updateData.notifiedAt = new Date()
 
     const updated = await prisma.waitingList.update({ where: { id: entry.id }, data: updateData })
+
+    if (status === 'NOTIFIED' || status === 'SEATED') {
+      const guestName = `${entry.firstName} ${entry.lastName}`
+      const notifMsg = status === 'NOTIFIED'
+        ? `${guestName} (${entry.partySize} pers.) a été notifié`
+        : `${guestName} (${entry.partySize} pers.) a été placé à table`
+
+      await prisma.notification.create({
+        data: {
+          type: 'RESERVATION',
+          title: status === 'NOTIFIED' ? 'Client notifié' : 'Client placé',
+          message: notifMsg,
+          restaurantId: req.user!.restaurantId,
+          targetRole: 'serveur',
+        },
+      })
+
+      const io = req.app.get('io')
+      io?.to(req.user!.restaurantId).emit('notification:new', { type: 'RESERVATION', message: notifMsg })
+    }
+
     res.json({ success: true, data: updated })
   } catch (error) { next(error) }
 })

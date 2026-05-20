@@ -91,6 +91,16 @@ export function Header({ onMenuToggle }: HeaderProps) {
       qc.invalidateQueries({ queryKey: ['notifications'] })
     })
 
+    socket.on('order:created', (data: { orderNumber: string; type: string }) => {
+      const typeLabel = data.type === 'DINE_IN' ? 'Sur place' : data.type === 'DELIVERY' ? 'Livraison' : 'À emporter'
+      toast.info(`🛒 Nouvelle commande — ${typeLabel}`, {
+        description: data.orderNumber,
+        duration: 8_000,
+        position: 'top-right',
+      })
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+    })
+
     socket.on('notification:new', () => {
       qc.invalidateQueries({ queryKey: ['notifications'] })
     })

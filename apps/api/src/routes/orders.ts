@@ -460,6 +460,21 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
     io?.to(restaurantId).emit('order:created', order)
     io?.to(`kds-${restaurantId}`).emit('kds:new_order', order)
 
+    // Create notification for managers/servers
+    const orderType = order.type === 'DINE_IN' ? 'sur place' : order.type === 'DELIVERY' ? 'livraison' : 'à emporter'
+    prisma.notification.create({
+      data: {
+        type: 'ORDER',
+        title: 'Nouvelle commande',
+        message: `Commande ${order.orderNumber} (${orderType}) — ${order.items?.length ?? 0} article(s)`,
+        restaurantId,
+        targetRole: 'manager',
+        data: { orderId: order.id, orderNumber: order.orderNumber, type: order.type },
+      },
+    }).catch(() => {}) // non-blocking
+
+    io?.to(restaurantId).emit('notification:new', { type: 'ORDER', orderNumber: order.orderNumber })
+
     res.status(201).json({ success: true, data: order })
   } catch (error) {
     next(error)

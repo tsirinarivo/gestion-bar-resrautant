@@ -122,6 +122,30 @@ reservationRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
       await prisma.diningTable.update({ where: { id: reservation.tableId }, data: { status: 'AVAILABLE' } })
     }
 
+    const NOTIF_CONFIG: Record<string, { title: string; message: (r: typeof reservation) => string } | undefined> = {
+      CONFIRMED:  { title: 'Réservation confirmée',   message: r => `Réservation de ${r.firstName} ${r.lastName} (${r.partySize} pers.) le ${new Date(r.date).toLocaleDateString('fr-FR')} confirmée` },
+      SEATED:     { title: 'Client arrivé',            message: r => `${r.firstName} ${r.lastName} est arrivé et a été placé` },
+      CANCELLED:  { title: 'Réservation annulée',     message: r => `Réservation de ${r.firstName} ${r.lastName} annulée` },
+      NO_SHOW:    { title: 'No-show',                  message: r => `${r.firstName} ${r.lastName} ne s'est pas présenté` },
+    }
+
+    const notifConf = NOTIF_CONFIG[status]
+    if (notifConf) {
+      const message = notifConf.message(reservation)
+      await prisma.notification.create({
+        data: {
+          type: 'RESERVATION',
+          title: notifConf.title,
+          message,
+          restaurantId: req.user!.restaurantId,
+          targetRole: 'manager',
+        },
+      })
+
+      const io = req.app.get('io')
+      io?.to(req.user!.restaurantId).emit('notification:new', { type: 'RESERVATION', message })
+    }
+
     res.json({ success: true, data: updated })
   } catch (error) {
     next(error)
