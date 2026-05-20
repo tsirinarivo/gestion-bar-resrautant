@@ -284,9 +284,12 @@ function PaymentModal({
   const [amountStr, setAmountStr]   = useState('');
   const [payments, setPayments]     = useState<{method: string; amount: number}[]>([]);
   const [error, setError]           = useState('');
+  const [tip, setTip]               = useState(0);
+  const [tipInput, setTipInput]     = useState('');
 
+  const grandTotalWithTip = grandTotal + tip;
   const totalPaid  = payments.reduce((s, p) => s + p.amount, 0);
-  const remaining  = Math.max(0, grandTotal - totalPaid);
+  const remaining  = Math.max(0, grandTotalWithTip - totalPaid);
 
   // On mount: create order from cart if needed, then build queue
   useEffect(() => {
@@ -300,10 +303,11 @@ function PaymentModal({
             type: orderType, status: 'CONFIRMED',
             tableId: activeTable?.id,
             notes: orderNote || undefined,
+            tipAmount: tip > 0 ? tip : undefined,
             items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price })),
           });
           createdCartOrderId.current = newOrder.id;
-          queue.push({ id: newOrder.id, remaining: newOrder.totalAmount });
+          queue.push({ id: newOrder.id, remaining: newOrder.totalAmount + (tip > 0 ? tip : 0) });
         }
 
         for (const o of openOrders) {
@@ -316,7 +320,7 @@ function PaymentModal({
         }
 
         setOrderQueue(queue);
-        setAmountStr(String(grandTotal));
+        setAmountStr(String(Math.round(grandTotal + tip)));
         setReady(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erreur création commande');
@@ -374,7 +378,7 @@ function PaymentModal({
         <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-5 z-10 text-center">
           <p className="text-4xl mb-2">✅</p>
           <p className="text-lg font-bold mb-0.5">Addition soldée</p>
-          <p className="text-gray-400 text-sm mb-3">{formatCurrency(grandTotal)} encaissé</p>
+          <p className="text-gray-400 text-sm mb-3">{formatCurrency(grandTotalWithTip)} encaissé{tip > 0 ? ` (dont ${formatCurrency(tip)} pourboire)` : ''}</p>
           <div className="bg-gray-700/50 rounded-xl p-3 mb-4 text-left space-y-1">
             {payments.map((p, i) => (
               <div key={i} className="flex justify-between text-sm">
@@ -403,11 +407,17 @@ function PaymentModal({
           </div>
 
           {/* Totals */}
-          <div className="bg-gray-700/50 rounded-xl px-3 py-2 mb-3 grid grid-cols-3 gap-1 text-center">
+          <div className={`bg-gray-700/50 rounded-xl px-3 py-2 mb-2 grid gap-1 text-center ${tip > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <div>
-              <p className="text-gray-400 text-[10px]">Total</p>
+              <p className="text-gray-400 text-[10px]">Sous-total</p>
               <p className="font-bold text-sm">{formatCurrency(grandTotal)}</p>
             </div>
+            {tip > 0 && (
+              <div>
+                <p className="text-gray-400 text-[10px]">Pourboire</p>
+                <p className="font-bold text-sm text-purple-400">{formatCurrency(tip)}</p>
+              </div>
+            )}
             <div>
               <p className="text-gray-400 text-[10px]">Payé</p>
               <p className="font-bold text-sm text-green-400">{formatCurrency(totalPaid)}</p>
@@ -417,6 +427,43 @@ function PaymentModal({
               <p className="font-bold text-sm text-orange-400">{formatCurrency(remaining)}</p>
             </div>
           </div>
+
+          {/* Pourboire */}
+          {payments.length === 0 && (
+            <div className="mb-2">
+              <p className="text-[10px] text-gray-400 mb-1">Pourboire (optionnel)</p>
+              <div className="flex items-center gap-1">
+                {[0, 5, 10, 15].map(pct => (
+                  <button key={pct} onClick={() => {
+                    const t = pct === 0 ? 0 : Math.round(grandTotal * pct / 100);
+                    setTip(t);
+                    setTipInput(pct === 0 ? '' : String(t));
+                    setAmountStr(String(Math.round(grandTotal + t)));
+                  }}
+                    className={`flex-1 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                      tip === (pct === 0 ? 0 : Math.round(grandTotal * pct / 100)) && (pct > 0 || tip === 0)
+                        ? 'border-purple-500 bg-purple-500/20 text-purple-300'
+                        : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                    }`}>
+                    {pct === 0 ? 'Sans' : `${pct}%`}
+                  </button>
+                ))}
+                <input
+                  type="number" min="0" step="100"
+                  value={tipInput}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setTipInput(v);
+                    const t = Math.max(0, parseInt(v) || 0);
+                    setTip(t);
+                    setAmountStr(String(Math.round(grandTotal + t)));
+                  }}
+                  placeholder="Autre"
+                  className="flex-1 bg-gray-700 rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-purple-500 w-16"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Payments added */}
           {payments.length > 0 && (
@@ -836,6 +883,14 @@ export default function POSPage() {
     refetchInterval: 30_000,
   });
 
+  const { data: caisseSession } = useQuery<{id: string; status: string} | null>({
+    queryKey: ['pos-caisse-session', token],
+    queryFn: () => apiFetch<{id: string; status: string} | null>(token!, '/caisse/current'),
+    enabled: !!token,
+    refetchInterval: 60_000,
+  });
+  const caisseOpen = caisseSession?.status === 'OPEN';
+
   const filteredProducts = useMemo(() =>
     products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())),
     [products, search]);
@@ -1083,6 +1138,15 @@ export default function POSPage() {
           ) : terminal && (
             <span className="text-xs bg-gray-600/40 text-gray-400 border border-gray-600 px-2 py-0.5 rounded-lg">
               Tous les produits
+            </span>
+          )}
+          {token && (
+            <span className={`text-xs px-2 py-0.5 rounded-lg font-medium border ${
+              caisseOpen
+                ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                : 'bg-red-500/20 text-red-400 border-red-500/30 animate-pulse'
+            }`}>
+              {caisseOpen ? '🏧 Caisse ouverte' : '🔒 Caisse fermée'}
             </span>
           )}
         </div>
