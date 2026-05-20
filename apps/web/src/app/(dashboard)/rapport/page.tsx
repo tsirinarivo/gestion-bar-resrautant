@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Calendar, TrendingUp, ShoppingCart, Banknote, CreditCard,
-  AlertTriangle, ChefHat, Printer, RefreshCw, ArrowUpRight, ArrowDownRight, FileText,
+  AlertTriangle, ChefHat, Printer, RefreshCw, ArrowUpRight, ArrowDownRight, FileText, Download,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
@@ -64,6 +64,40 @@ export default function RapportPage() {
   const topProducts = data?.topProducts ?? []
   const expenses = data?.expenses ?? { total: 0, items: [] }
 
+  function exportCSV() {
+    const rows: (string | number)[][] = []
+    rows.push([`Rapport journalier — ${date}`])
+    rows.push([])
+    rows.push(['--- Synthèse ---'])
+    rows.push(['CA total', orders?.totalRevenue ?? 0])
+    rows.push(['Commandes', orders?.count ?? 0])
+    rows.push(['Coût marchandises (COGS)', orders?.totalCOGS ?? 0])
+    rows.push(['Marge brute', orders?.grossMargin ?? 0])
+    rows.push(['TVA collectée', orders?.totalTax ?? 0])
+    rows.push(['Pourboires', orders?.totalTip ?? 0])
+    rows.push(['Remises', orders?.totalDiscount ?? 0])
+    rows.push(['Marge nette', orders?.netMargin ?? 0])
+    rows.push([])
+    rows.push(['--- Paiements par méthode ---'])
+    Object.entries(byMethod).forEach(([m, amt]) => rows.push([m, amt as number]))
+    rows.push([])
+    rows.push(['--- Top produits ---'])
+    rows.push(['Produit', 'Quantité', 'CA'])
+    topProducts.forEach((p: any) => rows.push([p.name, p.quantity ?? 0, p.revenue ?? 0]))
+    if (expenses.items?.length) {
+      rows.push([])
+      rows.push(['--- Dépenses ---'])
+      rows.push(['Catégorie', 'Description', 'Montant'])
+      expenses.items.forEach((e: any) => rows.push([e.category ?? '', e.description ?? '', e.amount ?? 0]))
+      rows.push(['Total dépenses', '', expenses.total ?? 0])
+    }
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `rapport-${date}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       {/* Header */}
@@ -85,6 +119,13 @@ export default function RapportPage() {
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-card border border-brand-border text-sm hover:border-brand-orange transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-card border border-brand-border text-sm hover:border-brand-orange transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            CSV
           </button>
           <button
             onClick={() => window.open(`/rapport-print?date=${date}`, '_blank')}
