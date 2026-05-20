@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Calendar, Plus, Search, Clock, Users, Phone, Mail, CheckCircle, X } from 'lucide-react'
+import { Calendar, Plus, Search, Clock, Users, Phone, CheckCircle, X, Edit2, Save, MessageSquare } from 'lucide-react'
 import { api } from '@/lib/api'
-import { formatDate, formatTime } from '@restaurant/utils'
+import { formatTime } from '@restaurant/utils'
 import { toast } from 'sonner'
 
 const STATUS_CONFIG: Record<string, any> = {
@@ -17,9 +17,89 @@ const STATUS_CONFIG: Record<string, any> = {
   NO_SHOW: { label: 'No-show', color: '#7F1D1D' },
 }
 
+function NewReservationModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+  const defaultDate = tomorrow.toISOString().slice(0, 16)
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', email: '', partySize: '2', date: defaultDate, duration: '90', notes: '', specialRequest: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.firstName || !form.phone || !form.partySize) { setError('Prénom, téléphone et nb pers. requis'); return }
+    setLoading(true)
+    try {
+      await api.post('/reservations', {
+        firstName: form.firstName, lastName: form.lastName, phone: form.phone,
+        email: form.email || undefined, partySize: Number(form.partySize),
+        date: new Date(form.date).toISOString(), duration: Number(form.duration),
+        notes: form.notes || undefined, specialRequest: form.specialRequest || undefined,
+      })
+      onSaved(); onClose()
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erreur lors de la création')
+    } finally { setLoading(false) }
+  }
+
+  const field = (label: string, key: keyof typeof form, type = 'text', placeholder = '') => (
+    <div>
+      <label className="block text-xs font-medium text-brand-muted mb-1">{label}</label>
+      <input type={type} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+        placeholder={placeholder} className="input-field text-sm" />
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-brand-surface rounded-2xl p-6 w-full max-w-lg shadow-xl">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold">Nouvelle réservation</h2>
+          <button onClick={onClose} className="p-2 hover:bg-brand-muted/10 rounded-lg"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            {field('Prénom *', 'firstName', 'text', 'Jean')}
+            {field('Nom', 'lastName', 'text', 'Dupont')}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {field('Téléphone *', 'phone', 'tel', '+261 34 00 000 00')}
+            {field('Email', 'email', 'email', 'jean@email.com')}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {field('Nb pers. *', 'partySize', 'number', '2')}
+            {field('Date & heure *', 'date', 'datetime-local')}
+            {field('Durée (min)', 'duration', 'number', '90')}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Notes</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              rows={2} placeholder="Allergies, préférences..." className="input-field text-sm resize-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">Demande spéciale</label>
+            <textarea value={form.specialRequest} onChange={e => setForm(f => ({ ...f, specialRequest: e.target.value }))}
+              rows={2} placeholder="Anniversaire, table fenêtre..." className="input-field text-sm resize-none" />
+          </div>
+          {error && <p className="text-red-500 text-xs">{error}</p>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Annuler</button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1">
+              {loading ? 'Enregistrement...' : 'Créer la réservation'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
 export default function ReservationsPage() {
   const [search, setSearch] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [showNew, setShowNew] = useState(false)
+  const [editingNotesId, setEditingNotesId] = useState<string | null>(null)
+  const [editingNotesValue, setEditingNotesValue] = useState('')
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -33,6 +113,16 @@ export default function ReservationsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reservations'] })
       toast.success('Statut mis à jour')
+    },
+  })
+
+  const updateNotes = useMutation({
+    mutationFn: ({ id, notes }: { id: string; notes: string }) =>
+      api.patch(`/reservations/${id}`, { notes }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservations'] })
+      setEditingNotesId(null)
+      toast.success('Notes mises à jour')
     },
   })
 
@@ -50,12 +140,13 @@ export default function ReservationsPage() {
 
   return (
     <div className="space-y-6">
+      {showNew && <NewReservationModal onClose={() => setShowNew(false)} onSaved={() => qc.invalidateQueries({ queryKey: ['reservations'] })} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Réservations</h1>
           <p className="text-brand-muted text-sm">{stats.total} réservation{stats.total > 1 ? 's' : ''} • {stats.totalCovers} couverts</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
+        <button onClick={() => setShowNew(true)} className="btn-primary flex items-center gap-2">
           <Plus className="w-4 h-4" />
           Nouvelle réservation
         </button>
@@ -133,9 +224,49 @@ export default function ReservationsPage() {
                           </span>
                         )}
                       </div>
-                      {reservation.notes && (
-                        <p className="text-xs text-brand-muted mt-1 italic">"{reservation.notes}"</p>
+                      {reservation.specialRequest && (
+                        <p className="text-xs text-amber-600 mt-1 italic">⭐ {reservation.specialRequest}</p>
                       )}
+                      <div className="mt-1">
+                        {editingNotesId === reservation.id ? (
+                          <div className="flex items-center gap-2 mt-1">
+                            <textarea
+                              autoFocus
+                              value={editingNotesValue}
+                              onChange={e => setEditingNotesValue(e.target.value)}
+                              rows={2}
+                              className="input-field text-xs resize-none flex-1 py-1"
+                              placeholder="Ajouter une note..."
+                            />
+                            <div className="flex flex-col gap-1">
+                              <button
+                                onClick={() => updateNotes.mutate({ id: reservation.id, notes: editingNotesValue })}
+                                className="p-1 text-green-500 hover:bg-green-500/10 rounded-lg"
+                              >
+                                <Save className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => setEditingNotesId(null)}
+                                className="p-1 text-red-400 hover:bg-red-400/10 rounded-lg"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setEditingNotesId(reservation.id); setEditingNotesValue(reservation.notes || '') }}
+                            className="flex items-center gap-1 text-xs text-brand-muted hover:text-brand-primary transition-colors group"
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            {reservation.notes
+                              ? <span className="italic">"{reservation.notes}"</span>
+                              : <span className="opacity-0 group-hover:opacity-100 transition-opacity">Ajouter une note…</span>
+                            }
+                            <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
