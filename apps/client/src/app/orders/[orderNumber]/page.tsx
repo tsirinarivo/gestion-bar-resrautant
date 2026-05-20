@@ -36,6 +36,24 @@ export default function OrderTrackingPage({ params }: { params: { orderNumber: s
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState('')
+
+  async function cancelOrder() {
+    if (!confirm('Êtes-vous sûr de vouloir annuler cette commande ?')) return
+    setCancelling(true)
+    setCancelError('')
+    try {
+      const res = await fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/orders/${params.orderNumber}/cancel`, { method: 'POST' })
+      const data = await res.json() as { success: boolean; error?: string }
+      if (!data.success) throw new Error(data.error ?? 'Erreur lors de l\'annulation')
+      await fetchOrder()
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : 'Erreur')
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   async function fetchOrder() {
     try {
@@ -177,6 +195,17 @@ export default function OrderTrackingPage({ params }: { params: { orderNumber: s
           className="w-full py-3 rounded-xl border border-amber-300 text-amber-600 font-medium text-sm hover:bg-amber-50 transition-colors">
           🔄 Actualiser le statut
         </button>
+
+        {order.status === 'PENDING' && (
+          <div>
+            <button onClick={cancelOrder} disabled={cancelling}
+              className="w-full py-3 rounded-xl border border-red-300 text-red-500 font-medium text-sm hover:bg-red-50 transition-colors disabled:opacity-50">
+              {cancelling ? 'Annulation...' : '✕ Annuler ma commande'}
+            </button>
+            {cancelError && <p className="text-red-500 text-xs text-center mt-1">{cancelError}</p>}
+            <p className="text-gray-400 text-xs text-center mt-1">Annulation possible uniquement avant confirmation</p>
+          </div>
+        )}
       </div>
     </div>
   )

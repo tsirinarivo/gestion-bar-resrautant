@@ -126,6 +126,35 @@ publicRouter.get('/:slug/orders/:orderNumber', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// POST /api/public/:slug/orders/:orderNumber/cancel — customer self-cancel (PENDING only)
+publicRouter.post('/:slug/orders/:orderNumber/cancel', async (req, res, next) => {
+  try {
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
+
+    const order = await prisma.order.findFirst({
+      where: { restaurantId: restaurant.id, orderNumber: req.params.orderNumber },
+    })
+    if (!order) return res.status(404).json({ success: false, error: 'Commande introuvable' })
+    if (order.status !== 'PENDING') {
+      return res.status(400).json({ success: false, error: 'La commande ne peut plus être annulée' })
+    }
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'CANCELLED',
+        statusHistory: { create: { status: 'CANCELLED', notes: 'Annulée par le client' } },
+      },
+    })
+
+    const io = req.app.get('io')
+    io?.to(restaurant.id).emit('order:status_changed', { orderId: order.id, status: 'CANCELLED' })
+
+    res.json({ success: true })
+  } catch (error) { next(error) }
+})
+
 // GET /api/public/:slug/tables/:tableId
 publicRouter.get('/:slug/tables/:tableId', async (req, res, next) => {
   try {
