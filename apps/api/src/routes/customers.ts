@@ -18,6 +18,7 @@ const customerSchema = z.object({
   postalCode: z.string().optional(),
   acceptsMarketing: z.boolean().default(false),
   acceptsSms: z.boolean().default(false),
+  notes: z.string().nullable().optional(),
 })
 
 customerRouter.get('/', async (req: AuthRequest, res, next) => {

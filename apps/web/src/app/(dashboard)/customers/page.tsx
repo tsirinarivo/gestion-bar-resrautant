@@ -25,6 +25,7 @@ type Customer = {
   email?: string
   phone?: string
   city?: string
+  notes?: string
   createdAt: string
   loyaltyAccount?: {
     id: string
@@ -259,6 +260,9 @@ function PointsAdjustForm({ customerId, currentPoints, onSuccess }: {
 // ─── Customer Detail Panel ────────────────────────────────────────────────────
 function CustomerPanel({ customerId, onClose }: { customerId: string; onClose: () => void }) {
   const [showAdjust, setShowAdjust] = useState(false)
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesValue, setNotesValue] = useState('')
+  const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['customer', customerId],
@@ -273,6 +277,17 @@ function CustomerPanel({ customerId, onClose }: { customerId: string; onClose: (
   const orders = customer?.orders?.slice(0, 5) ?? []
   const transactions = loyalty?.transactions ?? []
   const addresses = customer?.addresses ?? []
+
+  const saveNotes = useMutation({
+    mutationFn: () => api.put(`/customers/${customerId}`, { ...customer, notes: notesValue.trim() || null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer', customerId] })
+      qc.invalidateQueries({ queryKey: ['customers'] })
+      setEditingNotes(false)
+      toast.success('Notes mises à jour')
+    },
+    onError: () => toast.error('Erreur'),
+  })
 
   return (
     <motion.div
@@ -397,6 +412,38 @@ function CustomerPanel({ customerId, onClose }: { customerId: string; onClose: (
                   </motion.div>
                 )}
               </AnimatePresence>
+            </div>
+
+            {/* Notes (allergies, preferences) */}
+            <div className="px-6 py-5 border-b border-brand-border/50">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-semibold text-brand-muted uppercase tracking-wider flex items-center gap-1.5">
+                  📝 Notes internes
+                </h4>
+                {!editingNotes && (
+                  <button onClick={() => { setEditingNotes(true); setNotesValue(customer?.notes ?? '') }}
+                    className="text-xs text-brand-orange hover:underline">
+                    {customer?.notes ? 'Modifier' : 'Ajouter'}
+                  </button>
+                )}
+              </div>
+              {editingNotes ? (
+                <div className="space-y-2">
+                  <textarea autoFocus value={notesValue} onChange={e => setNotesValue(e.target.value)}
+                    rows={3} placeholder="Allergies, préférences, notes pour l'équipe..."
+                    className="w-full input-field text-sm resize-none" />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => setEditingNotes(false)} className="btn-secondary text-xs px-3 py-1">Annuler</button>
+                    <button onClick={() => saveNotes.mutate()} disabled={saveNotes.isPending} className="btn-primary text-xs px-3 py-1">
+                      {saveNotes.isPending ? '…' : 'Enregistrer'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-brand-muted italic">
+                  {customer?.notes || 'Aucune note. Cliquez sur "Ajouter" pour signaler des allergies ou préférences.'}
+                </p>
+              )}
             </div>
 
             {/* Insights */}

@@ -947,6 +947,9 @@ model Customer {
   acceptsSms       Boolean @default(false)
   source           String  @default("ONLINE") // ONLINE, POS, IMPORT
 
+  // Internal notes (allergies, preferences) — staff only
+  notes String?
+
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 

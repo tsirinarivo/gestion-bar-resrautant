@@ -626,7 +626,12 @@ export default function StockPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Gestion des Stocks</h1>
-          <p className="text-brand-muted text-sm">{allItems.length} articles</p>
+          <p className="text-brand-muted text-sm">
+            {allItems.length} articles · Valeur totale :{' '}
+            <span className="font-semibold text-brand-orange">
+              {formatCurrency(allItems.reduce((s, i) => s + (i.currentQuantity * i.costPerUnit), 0))}
+            </span>
+          </p>
         </div>
         <div className="flex gap-2">
           <button
