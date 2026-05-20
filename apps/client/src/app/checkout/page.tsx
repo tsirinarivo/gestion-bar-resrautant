@@ -37,6 +37,14 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setCart(getCart());
+    // Pre-fill from saved account info
+    try {
+      const saved = JSON.parse(localStorage.getItem('customer-info') ?? '{}') as { name?: string; phone?: string; address?: string; city?: string };
+      if (saved.name) setName(saved.name);
+      if (saved.phone) setPhone(saved.phone);
+      if (saved.address) setAddress(saved.address);
+      if (saved.city) setCity(saved.city);
+    } catch {}
     fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/info`)
       .then(r => r.json())
       .then((d: { data: { deliveryFee?: number } }) => { if (d.data?.deliveryFee) setDeliveryFee(d.data.deliveryFee); })
@@ -89,6 +97,8 @@ export default function CheckoutPage() {
       const history = JSON.parse(localStorage.getItem('orders') ?? '[]') as string[];
       history.unshift(num);
       localStorage.setItem('orders', JSON.stringify(history.slice(0, 20)));
+      // Save contact info for future orders
+      localStorage.setItem('customer-info', JSON.stringify({ name, phone, email: '', address, city }));
       localStorage.removeItem('cart');
       window.dispatchEvent(new Event('cart-updated'));
       setStep('done');
