@@ -15,7 +15,7 @@ const CLIENT_URL = process.env.NEXT_PUBLIC_CLIENT_URL || 'https://client.restaur
 
 function QRModal({ table, onClose }: { table: any; onClose: () => void }) {
   const svgRef = useRef<HTMLDivElement>(null)
-  const tableUrl = `${CLIENT_URL}/menu?table=${table.id}`
+  const tableUrl = `${CLIENT_URL}/table/${table.id}`
 
   function downloadQR() {
     const svg = svgRef.current?.querySelector('svg')
