@@ -96,10 +96,11 @@ function NewReservationModal({ onClose, onSaved }: { onClose: () => void; onSave
 
 export default function ReservationsPage() {
   const [search, setSearch] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]!)
   const [showNew, setShowNew] = useState(false)
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null)
   const [editingNotesValue, setEditingNotesValue] = useState('')
+  const [viewMode, setViewMode] = useState<'list' | 'week'>('list')
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -181,19 +182,31 @@ export default function ReservationsPage() {
         ))}
       </div>
 
-      {/* Date & Search */}
-      <div className="flex gap-3">
+      {/* Date & Search & View */}
+      <div className="flex gap-3 flex-wrap">
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
           className="input-field w-auto" />
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted" />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher par nom ou téléphone..." className="input-field pl-10" />
+        <div className="flex gap-1 rounded-xl border border-brand-border p-1">
+          {(['list', 'week'] as const).map(m => (
+            <button key={m} onClick={() => setViewMode(m)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${viewMode === m ? 'bg-brand-orange text-white' : 'text-brand-muted hover:text-white'}`}>
+              {m === 'list' ? '📋 Liste' : '📅 Semaine'}
+            </button>
+          ))}
         </div>
+        {viewMode === 'list' && (
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher par nom ou téléphone..." className="input-field pl-10" />
+          </div>
+        )}
       </div>
 
+      {viewMode === 'week' && <WeekView startDate={date} onSelectDate={d => { setDate(d); setViewMode('list') }} />}
+
       {/* Reservations list */}
-      <div className="space-y-3">
+      {viewMode === 'list' && <div className="space-y-3">
         {isLoading ? (
           Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-24 rounded-2xl" />)
         ) : reservations.length === 0 ? (
@@ -333,7 +346,59 @@ export default function ReservationsPage() {
             )
           })
         )}
-      </div>
+      </div>}
+    </div>
+  )
+}
+
+function WeekView({ startDate, onSelectDate }: { startDate: string; onSelectDate: (d: string) => void }) {
+  // Compute Monday of the week containing startDate
+  const base = new Date(startDate)
+  const dayOfWeek = (base.getDay() + 6) % 7 // 0 = Mon
+  const monday = new Date(base); monday.setDate(base.getDate() - dayOfWeek)
+
+  const days: string[] = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday); d.setDate(monday.getDate() + i)
+    return d.toISOString().split('T')[0]!
+  })
+
+  const queries = useQuery({
+    queryKey: ['reservations-week', days[0]],
+    queryFn: async () => {
+      const results = await Promise.all(days.map(d => api.get(`/reservations?date=${d}&limit=50`).then(r => r.data?.data ?? [])))
+      const map: Record<string, any[]> = {}
+      days.forEach((d, i) => { map[d] = results[i] ?? [] })
+      return map
+    },
+  })
+
+  const weekData = queries.data ?? {}
+  const dayLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+
+  return (
+    <div className="grid grid-cols-7 gap-2">
+      {days.map((d, i) => {
+        const items = weekData[d] ?? []
+        const isToday = d === new Date().toISOString().split('T')[0]
+        return (
+          <div key={d} className={`glass-card p-3 min-h-32 cursor-pointer hover:border-brand-orange/40 transition-all ${isToday ? 'border-brand-orange/60' : ''}`}
+            onClick={() => onSelectDate(d)}>
+            <div className="flex items-baseline justify-between mb-2">
+              <p className="text-xs font-semibold text-brand-muted">{dayLabels[i]}</p>
+              <p className={`text-sm font-bold ${isToday ? 'text-brand-orange' : ''}`}>{Number(d.split('-')[2])}</p>
+            </div>
+            <p className="text-xs text-brand-muted mb-2">{items.length} rés.</p>
+            <div className="space-y-1">
+              {items.slice(0, 4).map((r: any) => (
+                <div key={r.id} className="text-[10px] px-1.5 py-0.5 rounded bg-brand-orange/15 text-brand-orange truncate">
+                  {new Date(r.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} {r.firstName}
+                </div>
+              ))}
+              {items.length > 4 && <p className="text-[10px] text-brand-muted">+{items.length - 4} autres</p>}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
