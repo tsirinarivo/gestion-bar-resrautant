@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ShoppingCart, Plus, RefreshCw, XCircle, X, ChefHat,
   Check, Clock, Utensils, CheckCircle2, Search, ChevronDown, Trash2,
-  Banknote, CreditCard, Split, CalendarDays,
+  Banknote, CreditCard, Split, CalendarDays, Printer,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, formatRelative } from '@restaurant/utils'
@@ -584,6 +584,23 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['orders'] }); setEditingNotes(false); toast.success('Note mise à jour') },
   })
 
+  const reprintReceipt = useMutation({
+    mutationFn: () => api.post('/printer/receipt', {
+      orderNumber: order.orderNumber,
+      tableLabel: order.table?.number ? `Table ${order.table.number}` : order.type === 'TAKEAWAY' ? 'À emporter' : order.type === 'DELIVERY' ? 'Livraison' : 'En ligne',
+      items: (order.items ?? []).map((i: any) => ({
+        name: i.product?.name ?? '?',
+        qty: i.quantity,
+        unitPrice: i.unitPrice,
+        total: i.totalPrice,
+      })),
+      subtotal: order.subtotal ?? order.totalAmount,
+      grandTotal: order.totalAmount,
+    }),
+    onSuccess: () => toast.success('Reçu envoyé à l\'imprimante'),
+    onError: () => toast.error('Erreur d\'impression'),
+  })
+
   return (
     <motion.div
       layout
@@ -701,6 +718,13 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
               <XCircle className="w-5 h-5" />
             </button>
           )}
+          <button
+            onClick={() => reprintReceipt.mutate()}
+            disabled={reprintReceipt.isPending}
+            title="Réimprimer le reçu"
+            className="w-12 flex items-center justify-center rounded-xl bg-blue-500/15 text-blue-400 active:bg-blue-500/30 disabled:opacity-50">
+            <Printer className="w-5 h-5" />
+          </button>
           <button onClick={() => setExpanded(v => !v)}
             className="w-12 flex items-center justify-center rounded-xl bg-white/7 text-brand-muted active:bg-white/12">
             <ChevronDown className={`w-5 h-5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
