@@ -45,6 +45,19 @@ async function fetchMenu() {
   return data.data;
 }
 
+const DAY_KEYS = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+function isCurrentlyOpen(hours: Record<string, { open: boolean; start: string; end: string }> | null | undefined): boolean | null {
+  if (!hours) return null;
+  const now = new Date();
+  const key = DAY_KEYS[now.getDay()];
+  const day = key ? hours[key] : undefined;
+  if (!day || !day.open) return false;
+  const [sh=9, sm=0] = (day.start ?? '09:00').split(':').map(Number);
+  const [eh=22, em=0] = (day.end ?? '22:00').split(':').map(Number);
+  const cur = now.getHours() * 60 + now.getMinutes();
+  return cur >= sh * 60 + sm && cur < eh * 60 + em;
+}
+
 function MenuPageInner() {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -53,6 +66,14 @@ function MenuPageInner() {
   const [tableId, setTableId] = useState<string | null>(null);
   const [callingWaiter, setCallingWaiter] = useState(false);
   const [waiterCalled, setWaiterCalled] = useState(false);
+  const [restaurantInfo, setRestaurantInfo] = useState<{ name?: string; openingHours?: any } | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/info`)
+      .then(r => r.json())
+      .then((d: { data?: any }) => { if (d.data) setRestaurantInfo(d.data) })
+      .catch(() => null);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -97,8 +118,19 @@ function MenuPageInner() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="container-narrow py-4 flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-serif font-bold">Notre Menu</h1>
-            {tableId && <p className="text-xs text-gray-500">Sur place — Table sélectionnée</p>}
+            <h1 className="text-2xl font-serif font-bold">{restaurantInfo?.name ?? 'Notre Menu'}</h1>
+            <div className="flex items-center gap-2">
+              {tableId && <p className="text-xs text-gray-500">Sur place — Table sélectionnée</p>}
+              {(() => {
+                const open = isCurrentlyOpen(restaurantInfo?.openingHours);
+                if (open === null) return null;
+                return (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                    {open ? '● Ouvert' : '● Fermé'}
+                  </span>
+                );
+              })()}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {tableId && (
