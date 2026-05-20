@@ -623,12 +623,24 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
         </div>
 
         {/* Items preview */}
-        <div className="flex gap-1.5 flex-wrap mb-3">
+        <div className={expanded ? 'space-y-1.5 mb-3' : 'flex gap-1.5 flex-wrap mb-3'}>
           {order.items?.slice(0, expanded ? 999 : 3).map((item: any) => (
-            <span key={item.id}
-              className="text-xs px-2.5 py-1 bg-white/7 rounded-lg font-medium">
-              {item.quantity}× {item.product?.name || '?'}
-            </span>
+            expanded ? (
+              <div key={item.id} className="text-xs px-2.5 py-1.5 bg-white/7 rounded-lg">
+                <p className="font-medium">{item.quantity}× {item.product?.name || '?'}</p>
+                {item.modifiers?.length > 0 && (
+                  <p className="text-[10px] text-brand-muted mt-0.5">
+                    + {item.modifiers.map((m: any) => m.name).join(', ')}
+                  </p>
+                )}
+                {item.notes && <p className="text-[10px] text-yellow-400 mt-0.5">⚠️ {item.notes}</p>}
+              </div>
+            ) : (
+              <span key={item.id} className="text-xs px-2.5 py-1 bg-white/7 rounded-lg font-medium">
+                {item.quantity}× {item.product?.name || '?'}
+                {item.modifiers?.length > 0 && <span className="text-brand-muted"> +{item.modifiers.length}</span>}
+              </span>
+            )
           ))}
           {!expanded && order.items?.length > 3 && (
             <button onClick={() => setExpanded(true)}
