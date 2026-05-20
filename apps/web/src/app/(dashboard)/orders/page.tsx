@@ -713,8 +713,9 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
           )}
           {order.status === 'PENDING' && (
             <button
-              onClick={() => onStatusChange(order.id, 'CANCELLED')}
-              className="w-12 flex items-center justify-center rounded-xl bg-red-500/15 text-red-400 active:bg-red-500/30">
+              onClick={() => { if (confirm(`Annuler la commande ${order.orderNumber} ?`)) onStatusChange(order.id, 'CANCELLED') }}
+              className="w-12 flex items-center justify-center rounded-xl bg-red-500/15 text-red-400 active:bg-red-500/30"
+              title="Annuler la commande">
               <XCircle className="w-5 h-5" />
             </button>
           )}
