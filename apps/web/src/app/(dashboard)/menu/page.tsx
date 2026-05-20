@@ -20,7 +20,7 @@ type Product = {
   price: number; costPrice?: number; image?: string
   isAvailable: boolean; isFeatured: boolean; isNew: boolean
   requiresPreparation: boolean; sortOrder: number
-  sku?: string; barcode?: string; kdsStation?: string | null
+  sku?: string; barcode?: string; kdsStation?: string | null; images?: string[]
   prepTime?: number; allergens: string[]; tags: string[]
   categoryId: string; category?: { name: string; icon?: string }
   warehouseId?: string | null; warehouse?: { id: string; name: string }
@@ -73,6 +73,7 @@ function ProductModal({
     sku: product?.sku ?? '',
     barcode: product?.barcode ?? '',
     kdsStation: product?.kdsStation ?? '',
+    images: product?.images?.join('\n') ?? '',
     categoryId: product?.categoryId ?? (categories[0]?.id ?? ''),
     warehouseId: product?.warehouseId ?? '',
     isAvailable: product?.isAvailable ?? true,
@@ -118,6 +119,7 @@ function ProductModal({
       sku: form.sku.trim() || undefined,
       barcode: form.barcode.trim() || undefined,
       kdsStation: form.kdsStation || null,
+      images: form.images.split('\n').map(u => u.trim()).filter(Boolean),
       categoryId: form.categoryId,
       warehouseId: form.warehouseId || null,
       isAvailable: form.isAvailable,
@@ -210,6 +212,28 @@ function ProductModal({
                   className="w-full h-full object-cover"
                   onError={e => { (e.currentTarget as HTMLImageElement).src = ''; (e.currentTarget.parentElement as HTMLElement).innerHTML = '<div class="w-full h-full bg-gray-700 flex items-center justify-center text-2xl">❌</div>' }}
                 />
+              </div>
+            )}
+          </div>
+
+          {/* Image gallery */}
+          <div>
+            <label className="text-sm text-brand-muted mb-1 block">
+              Galerie d'images
+              <span className="ml-2 text-xs opacity-60">Une URL par ligne</span>
+            </label>
+            <textarea value={form.images} onChange={e => setForm(f => ({ ...f, images: e.target.value }))}
+              rows={3} placeholder="https://example.com/img1.jpg&#10;https://example.com/img2.jpg"
+              className="input-field resize-none text-sm font-mono" />
+            {form.images.trim() && (
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {form.images.split('\n').map(u => u.trim()).filter(Boolean).map((url, i) => (
+                  <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-brand-border">
+                    <img src={url} alt={`img ${i+1}`} className="w-full h-full object-cover"
+                      onError={e => { (e.currentTarget as HTMLImageElement).src = ''; (e.currentTarget.parentElement as HTMLElement).innerHTML = '<div class="w-full h-full bg-gray-700 flex items-center justify-center text-lg">❌</div>' }}
+                    />
+                  </div>
+                ))}
               </div>
             )}
           </div>
