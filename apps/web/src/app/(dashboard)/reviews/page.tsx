@@ -145,7 +145,7 @@ export default function ReviewsPage() {
                     title={review.isPublic ? 'Masquer' : 'Afficher'}>
                     {review.isPublic ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                   </button>
-                  <button onClick={() => deleteMutation.mutate(review.id)}
+                  <button onClick={() => { if (confirm('Supprimer cet avis ?')) deleteMutation.mutate(review.id) }}
                     className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors" title="Supprimer">
                     <Trash2 className="w-4 h-4" />
                   </button>

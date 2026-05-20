@@ -239,7 +239,7 @@ export default function PromotionsPage() {
                       className="p-2 hover:bg-white/10 text-brand-muted rounded-lg transition-colors">
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    <button onClick={() => deleteMutation.mutate(promo.id)}
+                    <button onClick={() => { if (confirm(`Supprimer la promotion "${promo.name}" ?`)) deleteMutation.mutate(promo.id) }}
                       className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
