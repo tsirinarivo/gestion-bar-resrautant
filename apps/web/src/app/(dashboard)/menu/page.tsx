@@ -74,6 +74,10 @@ function ProductModal({
     barcode: product?.barcode ?? '',
     kdsStation: product?.kdsStation ?? '',
     images: product?.images?.join('\n') ?? '',
+    calories: (product as any)?.calories?.toString() ?? '',
+    proteins: (product as any)?.proteins?.toString() ?? '',
+    carbs: (product as any)?.carbs?.toString() ?? '',
+    fats: (product as any)?.fats?.toString() ?? '',
     categoryId: product?.categoryId ?? (categories[0]?.id ?? ''),
     warehouseId: product?.warehouseId ?? '',
     isAvailable: product?.isAvailable ?? true,
@@ -120,6 +124,10 @@ function ProductModal({
       barcode: form.barcode.trim() || undefined,
       kdsStation: form.kdsStation || null,
       images: form.images.split('\n').map(u => u.trim()).filter(Boolean),
+      calories: form.calories ? parseInt(form.calories) : undefined,
+      proteins: form.proteins ? parseFloat(form.proteins) : undefined,
+      carbs: form.carbs ? parseFloat(form.carbs) : undefined,
+      fats: form.fats ? parseFloat(form.fats) : undefined,
       categoryId: form.categoryId,
       warehouseId: form.warehouseId || null,
       isAvailable: form.isAvailable,
@@ -359,6 +367,29 @@ function ProductModal({
             <label className="text-sm text-brand-muted mb-1 block">Tags (séparés par virgule)</label>
             <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
               className="input-field" placeholder="végétarien, épicé, populaire" />
+          </div>
+
+          {/* Nutritional info */}
+          <div>
+            <label className="text-sm text-brand-muted mb-2 block">Informations nutritionnelles <span className="text-xs opacity-60">(par portion)</span></label>
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs text-brand-muted mb-1 block">Calories</label>
+                <input type="number" value={form.calories} onChange={e => setForm(f => ({ ...f, calories: e.target.value }))} className="input-field text-sm" placeholder="kcal" />
+              </div>
+              <div>
+                <label className="text-xs text-brand-muted mb-1 block">Protéines</label>
+                <input type="number" step="0.1" value={form.proteins} onChange={e => setForm(f => ({ ...f, proteins: e.target.value }))} className="input-field text-sm" placeholder="g" />
+              </div>
+              <div>
+                <label className="text-xs text-brand-muted mb-1 block">Glucides</label>
+                <input type="number" step="0.1" value={form.carbs} onChange={e => setForm(f => ({ ...f, carbs: e.target.value }))} className="input-field text-sm" placeholder="g" />
+              </div>
+              <div>
+                <label className="text-xs text-brand-muted mb-1 block">Lipides</label>
+                <input type="number" step="0.1" value={form.fats} onChange={e => setForm(f => ({ ...f, fats: e.target.value }))} className="input-field text-sm" placeholder="g" />
+              </div>
+            </div>
           </div>
 
           {/* Allergens */}
