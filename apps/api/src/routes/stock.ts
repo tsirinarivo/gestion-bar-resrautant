@@ -40,6 +40,7 @@ const movementSchema = z.object({
   reason: z.string().optional(),
   notes: z.string().optional(),
   reference: z.string().optional(),
+  expiryDate: z.string().optional(),
 })
 
 stockRouter.get('/', async (req: AuthRequest, res, next) => {
@@ -197,7 +198,7 @@ stockRouter.put('/:id', authorize('manager', 'superadmin'), async (req: AuthRequ
 // POST /api/stock/:id/movements — Record stock movement
 stockRouter.post('/:id/movements', async (req: AuthRequest, res, next) => {
   try {
-    const data = movementSchema.parse(req.body)
+    const { expiryDate, ...data } = movementSchema.parse(req.body)
     const item = await prisma.stockItem.findFirst({
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },
     })
@@ -211,17 +212,16 @@ stockRouter.post('/:id/movements', async (req: AuthRequest, res, next) => {
 
     if (newQuantity < 0) throw new AppError('Quantité insuffisante en stock', 400)
 
+    const stockUpdateData: any = { currentQuantity: newQuantity }
+    if (data.type === 'IN' && expiryDate) stockUpdateData.expiryDate = new Date(expiryDate)
+
     const [movement, updatedItem] = await prisma.$transaction([
       prisma.stockMovement.create({
-        data: {
-          ...data,
-          stockItemId: item.id,
-          createdBy: req.user!.id,
-        },
+        data: { ...data, stockItemId: item.id, createdBy: req.user!.id },
       }),
       prisma.stockItem.update({
         where: { id: item.id },
-        data: { currentQuantity: newQuantity },
+        data: stockUpdateData,
       }),
     ])
 

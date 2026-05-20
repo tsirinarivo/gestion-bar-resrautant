@@ -365,7 +365,7 @@ export default function StockPage() {
   const [filter, setFilter]             = useState('')
   // Movement modal
   const [selectedItem, setSelectedItem] = useState<any>(null)
-  const [movementForm, setMovementForm] = useState({ type: 'IN', quantity: '', notes: '' })
+  const [movementForm, setMovementForm] = useState({ type: 'IN', quantity: '', notes: '', expiryDate: '' })
   // New / edit item modal
   const [showItemModal, setShowItemModal] = useState(false)
   const [editItem, setEditItem]           = useState<any>(null)
@@ -426,7 +426,7 @@ export default function StockPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['stock'] })
       setSelectedItem(null)
-      setMovementForm({ type: 'IN', quantity: '', notes: '' })
+      setMovementForm({ type: 'IN', quantity: '', notes: '', expiryDate: '' })
       toast.success('Mouvement enregistré')
     },
     onError: () => toast.error('Erreur lors de l\'enregistrement'),
@@ -769,11 +769,11 @@ export default function StockPage() {
                         <td className="px-4 py-3 text-sm font-medium">{formatCurrency(item.currentQuantity * item.costPerUnit)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
-                            <button onClick={() => { setSelectedItem(item); setMovementForm({ type: 'IN', quantity: '', notes: '' }) }}
+                            <button onClick={() => { setSelectedItem(item); setMovementForm({ type: 'IN', quantity: '', notes: '', expiryDate: '' }) }}
                               className="p-1.5 text-green-400 hover:bg-green-400/10 rounded-lg" title="Entrée">
                               <ArrowDown className="w-4 h-4" />
                             </button>
-                            <button onClick={() => { setSelectedItem(item); setMovementForm({ type: 'OUT', quantity: '', notes: '' }) }}
+                            <button onClick={() => { setSelectedItem(item); setMovementForm({ type: 'OUT', quantity: '', notes: '', expiryDate: '' }) }}
                               className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg" title="Sortie">
                               <ArrowUp className="w-4 h-4" />
                             </button>
@@ -1096,10 +1096,23 @@ export default function StockPage() {
                     onChange={e => setMovementForm(f => ({ ...f, notes: e.target.value }))}
                     placeholder="Raison du mouvement..." className="input-field" />
                 </div>
+                {movementForm.type === 'IN' && selectedItem.isPerishable && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Date de péremption</label>
+                    <input type="date" value={movementForm.expiryDate}
+                      onChange={e => setMovementForm(f => ({ ...f, expiryDate: e.target.value }))}
+                      className="input-field" />
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button onClick={() => setSelectedItem(null)} className="btn-secondary flex-1">Annuler</button>
                   <button
-                    onClick={() => recordMovement.mutate({ id: selectedItem.id, data: { type: movementForm.type, quantity: parseFloat(movementForm.quantity), notes: movementForm.notes || undefined } })}
+                    onClick={() => recordMovement.mutate({ id: selectedItem.id, data: {
+                      type: movementForm.type,
+                      quantity: parseFloat(movementForm.quantity),
+                      notes: movementForm.notes || undefined,
+                      expiryDate: movementForm.type === 'IN' && movementForm.expiryDate ? movementForm.expiryDate : undefined,
+                    }})}
                     disabled={!movementForm.quantity || recordMovement.isPending}
                     className="btn-primary flex-1">
                     {recordMovement.isPending ? 'Enregistrement...' : 'Enregistrer'}
