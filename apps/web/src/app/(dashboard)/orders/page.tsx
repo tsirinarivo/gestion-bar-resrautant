@@ -809,15 +809,17 @@ export default function OrdersPage() {
   useEffect(() => { if (typeof window !== 'undefined') localStorage.setItem('orders-filter-date', dateFilter) }, [dateFilter])
   const [showNew, setShowNew] = useState(false)
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null)
+  const [sourceFilter, setSourceFilter] = useState<string>('')
   const qc = useQueryClient()
 
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
-    queryKey: ['orders', statusFilter, dateFilter, customerFilter],
+    queryKey: ['orders', statusFilter, dateFilter, customerFilter, sourceFilter],
     queryFn: () => {
       const params = new URLSearchParams({ limit: '80' })
       if (statusFilter) params.set('status', statusFilter)
       if (dateFilter) params.set('date', dateFilter)
       if (customerFilter) params.set('customerName', customerFilter)
+      if (sourceFilter) params.set('source', sourceFilter)
       return api.get(`/orders?${params}`).then(r => r.data)
     },
     refetchInterval: 60_000,
@@ -918,6 +920,16 @@ export default function OrdersPage() {
         >
           Aujourd'hui
         </button>
+      </div>
+
+      {/* Source filter */}
+      <div className="flex gap-2 mb-3">
+        {[{ value: '', label: 'Tous canaux' }, { value: 'POS', label: '🖥️ POS' }, { value: 'ONLINE', label: '🌐 En ligne' }, { value: 'PHONE', label: '📞 Téléphone' }, { value: 'KIOSK', label: '📟 Kiosque' }].map(s => (
+          <button key={s.value} onClick={() => setSourceFilter(s.value)}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${sourceFilter === s.value ? 'bg-brand-orange text-white' : 'bg-white/5 text-brand-muted hover:bg-white/10'}`}>
+            {s.label}
+          </button>
+        ))}
       </div>
 
       {/* Status filter — big touch targets */}

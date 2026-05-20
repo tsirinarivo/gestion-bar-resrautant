@@ -9,7 +9,7 @@ import {
   Package, Users, Calendar, BarChart3, Settings, ChefHat,
   Monitor, LogOut, ChevronLeft, ChevronRight,
   CreditCard, Tag, UserCog, X, Truck, TrendingUp, Printer,
-  Warehouse, Landmark, Building2, FileText, AlertCircle, Clock, Shield, CalendarDays, Star, Megaphone,
+  Warehouse, Landmark, Building2, FileText, AlertCircle, Clock, Shield, CalendarDays, Star, Megaphone, Layers,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/lib/api'
@@ -20,7 +20,8 @@ import { initials } from '@restaurant/utils'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard',         icon: LayoutDashboard },
   { href: '/orders',    label: 'Commandes',          icon: ShoppingCart },
-  { href: '/menu',      label: 'Menu',               icon: UtensilsCrossed,  roles: ['manager', 'superadmin'] },
+  { href: '/menu',           label: 'Menu',               icon: UtensilsCrossed,  roles: ['manager', 'superadmin'] },
+  { href: '/menu/modifiers', label: 'Modificateurs',      icon: Layers,           roles: ['manager', 'superadmin'] },
   { href: '/tables',    label: 'Plan de salle',      icon: Table2 },
   { href: '/waiting',   label: 'Liste d\'attente',   icon: Clock,            roles: ['manager', 'superadmin', 'serveur'] },
   { href: '/reservations', label: 'Réservations',   icon: Calendar,         roles: ['manager', 'superadmin', 'serveur'] },

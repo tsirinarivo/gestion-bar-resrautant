@@ -248,7 +248,7 @@ const createOrderSchema = z.object({
 // GET /api/orders
 orderRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const { status, type, tableId, page = '1', limit = '20', date, orderNumber, customerName } = req.query
+    const { status, type, tableId, page = '1', limit = '20', date, orderNumber, customerName, source } = req.query
 
     const where: any = { restaurantId: req.user!.restaurantId }
     if (orderNumber) where.orderNumber = { contains: orderNumber as string, mode: 'insensitive' }
@@ -276,6 +276,7 @@ orderRouter.get('/', async (req: AuthRequest, res, next) => {
         ],
       }
     }
+    if (source) where.source = source as string
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({

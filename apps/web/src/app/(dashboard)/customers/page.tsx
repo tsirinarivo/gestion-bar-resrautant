@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
+import Link from 'next/link'
 import {
   Users, Search, X, TrendingUp, TrendingDown, ShoppingBag,
-  Calendar, Phone, Mail, Star, Award, Plus, Minus, Clock, Download, Filter, ArrowUpDown,
+  Calendar, Phone, Mail, Star, Award, Plus, Minus, Clock, Download, Filter, ArrowUpDown, ExternalLink,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -771,6 +772,13 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-brand-muted">
                       {formatDate(customer.createdAt)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={`/customers/${customer.id}`} onClick={e => e.stopPropagation()}
+                        className="p-1.5 text-brand-muted hover:text-brand-orange hover:bg-brand-orange/10 rounded-lg transition-colors inline-flex"
+                        title="Voir la fiche client">
+                        <ExternalLink className="w-4 h-4" />
+                      </Link>
                     </td>
                   </motion.tr>
                 )
