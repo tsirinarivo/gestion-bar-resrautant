@@ -20,11 +20,15 @@ type LoginForm = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const router = useRouter()
   const { setUser } = useAuthStore()
 
+  const rememberedEmail = typeof window !== 'undefined' ? localStorage.getItem('remembered-email') ?? '' : ''
+
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
+    defaultValues: { email: rememberedEmail },
   })
 
   async function onSubmit(data: LoginForm) {
@@ -32,6 +36,8 @@ export default function LoginPage() {
       const response = await api.post('/auth/login', data)
       const { user, accessToken } = response.data.data
       setUser(user, accessToken)
+      if (rememberMe) localStorage.setItem('remembered-email', data.email)
+      else localStorage.removeItem('remembered-email')
       const roleName = user.role?.name ?? ''
       const redirectMap: Record<string, string> = {
         cuisinier: '/kds',
@@ -128,7 +134,8 @@ export default function LoginPage() {
 
             <div className="flex items-center justify-between text-sm">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="rounded border-brand-border bg-brand-darker" />
+                <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
+                  className="rounded border-brand-border bg-brand-darker accent-brand-orange" />
                 <span className="text-brand-muted">Se souvenir de moi</span>
               </label>
               <a href="#" className="text-brand-orange hover:text-brand-gold transition-colors">

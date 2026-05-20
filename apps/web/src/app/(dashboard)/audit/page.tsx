@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Shield, Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { Shield, Search, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@restaurant/utils'
 
@@ -123,14 +123,41 @@ export default function AuditPage() {
 
   const resources = Array.from(new Set(logs.map(l => l.resource))).sort()
 
+  async function exportCSV() {
+    const all = await api.get(`/audit?limit=1000${action ? `&action=${action}` : ''}${resource ? `&resource=${resource}` : ''}`).then(r => r.data)
+    const items: AuditLog[] = all.data ?? []
+    const rows = [
+      ['Date', 'Utilisateur', 'Action', 'Ressource', 'ID', 'IP'],
+      ...items.map(l => [
+        new Date(l.createdAt).toISOString(),
+        l.user ? `${l.user.firstName} ${l.user.lastName} <${l.user.email}>` : 'Système',
+        l.action,
+        l.resource,
+        l.resourceId ?? '',
+        l.ipAddress ?? '',
+      ]),
+    ]
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Shield className="w-6 h-6 text-brand-orange" />
-        <div>
-          <h1 className="text-2xl font-bold">Journal d'audit</h1>
-          <p className="text-brand-muted text-sm">{pagination?.total ?? 0} entrées</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Shield className="w-6 h-6 text-brand-orange" />
+          <div>
+            <h1 className="text-2xl font-bold">Journal d'audit</h1>
+            <p className="text-brand-muted text-sm">{pagination?.total ?? 0} entrées</p>
+          </div>
         </div>
+        <button onClick={exportCSV}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-brand-orange/40 hover:text-brand-orange text-sm transition-colors">
+          <Download className="w-4 h-4" /> Exporter CSV
+        </button>
       </div>
 
       {/* Filters */}
