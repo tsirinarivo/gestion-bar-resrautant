@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useForm } from 'react-hook-form'
-import { Tag, Plus, Copy, Pencil, Trash2, X, AlertTriangle } from 'lucide-react'
+import { Tag, Plus, Copy, Pencil, Trash2, X, AlertTriangle, Layers } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatDate, formatCurrency } from '@restaurant/utils'
 import { toast } from 'sonner'
@@ -63,6 +63,132 @@ const TYPE_BADGE: Record<CouponType, string> = {
 function toDateInput(dateStr?: string | null) {
   if (!dateStr) return ''
   return new Date(dateStr).toISOString().split('T')[0]
+}
+
+// ---------------------------------------------------------------------------
+// Bulk Generate Modal
+// ---------------------------------------------------------------------------
+
+function BulkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    count: 10,
+    prefix: '',
+    type: 'PERCENTAGE' as 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_DELIVERY',
+    value: 10,
+    description: '',
+    endDate: '',
+    usageLimit: '',
+  })
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const payload: Record<string, unknown> = {
+        count: form.count,
+        type: form.type,
+        value: form.value,
+      }
+      if (form.prefix) payload.prefix = form.prefix
+      if (form.description) payload.description = form.description
+      if (form.endDate) payload.endDate = form.endDate
+      if (form.usageLimit) payload.usageLimit = parseInt(form.usageLimit)
+
+      const res = await api.post('/coupons/bulk', payload)
+      toast.success(`${res.data.data.created} coupon(s) générés avec succès`)
+      onSaved()
+      onClose()
+    } catch {
+      toast.error('Erreur lors de la génération des coupons')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-md p-6"
+      >
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Layers className="w-5 h-5 text-brand-orange" />
+            Génération en masse
+          </h2>
+          <button onClick={onClose} className="text-brand-muted hover:text-white p-1"><X className="w-4 h-4" /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-brand-muted mb-1">Quantité</label>
+              <input type="number" min={1} max={500} value={form.count}
+                onChange={e => setForm(f => ({ ...f, count: parseInt(e.target.value) || 1 }))}
+                className="input-field w-full" />
+            </div>
+            <div>
+              <label className="block text-xs text-brand-muted mb-1">Préfixe (optionnel)</label>
+              <input type="text" maxLength={10} placeholder="EX: PROMO" value={form.prefix}
+                onChange={e => setForm(f => ({ ...f, prefix: e.target.value }))}
+                className="input-field w-full uppercase" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-brand-muted mb-1">Type de réduction</label>
+            <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as typeof form.type }))}
+              className="input-field w-full">
+              <option value="PERCENTAGE">Pourcentage (%)</option>
+              <option value="FIXED_AMOUNT">Montant fixe (Ar)</option>
+              <option value="FREE_DELIVERY">Livraison gratuite</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-brand-muted mb-1">
+                Valeur {form.type === 'PERCENTAGE' ? '(%)' : form.type === 'FIXED_AMOUNT' ? '(Ar)' : ''}
+              </label>
+              <input type="number" min={0} value={form.value}
+                onChange={e => setForm(f => ({ ...f, value: parseFloat(e.target.value) || 0 }))}
+                className="input-field w-full" />
+            </div>
+            <div>
+              <label className="block text-xs text-brand-muted mb-1">Utilisation max / coupon</label>
+              <input type="number" min={1} placeholder="Illimité" value={form.usageLimit}
+                onChange={e => setForm(f => ({ ...f, usageLimit: e.target.value }))}
+                className="input-field w-full" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-brand-muted mb-1">Description</label>
+            <input type="text" placeholder="Description (optionnel)" value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              className="input-field w-full" />
+          </div>
+
+          <div>
+            <label className="block text-xs text-brand-muted mb-1">Date d'expiration</label>
+            <input type="date" value={form.endDate}
+              onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
+              className="input-field w-full" />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Annuler</button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1">
+              {loading ? 'Génération...' : `Générer ${form.count} coupon(s)`}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -373,6 +499,7 @@ export default function CouponsPage() {
   const qc = useQueryClient()
 
   const [showCreate, setShowCreate] = useState(false)
+  const [showBulk, setShowBulk] = useState(false)
   const [editCoupon, setEditCoupon] = useState<Coupon | null>(null)
   const [deleteCoupon, setDeleteCoupon] = useState<Coupon | null>(null)
 
@@ -404,13 +531,22 @@ export default function CouponsPage() {
           <h1 className="text-2xl font-bold">Promotions & Coupons</h1>
           <p className="text-brand-muted text-sm">{coupons.length} coupon{coupons.length > 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Nouveau coupon
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowBulk(true)}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Layers className="w-4 h-4" />
+            En masse
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Nouveau coupon
+          </button>
+        </div>
       </div>
 
       {/* Grid */}
@@ -539,6 +675,12 @@ export default function CouponsPage() {
 
       {/* Modals */}
       <AnimatePresence>
+        {showBulk && (
+          <BulkModal
+            onClose={() => setShowBulk(false)}
+            onSaved={handleSaved}
+          />
+        )}
         {showCreate && (
           <CouponModal
             onClose={() => setShowCreate(false)}

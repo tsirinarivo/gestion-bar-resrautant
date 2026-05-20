@@ -828,6 +828,142 @@ export default function AnalyticsPage() {
           </div>
         )}
       </motion.div>
+
+      {/* ── Performance cuisine ── */}
+      <KitchenPerformanceSection />
     </div>
+  )
+}
+
+// ─── Kitchen Performance Widget ───────────────────────────────────────────────
+
+function fmtTime(secs: number) {
+  if (secs < 60) return `${secs}s`
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return s > 0 ? `${m}m${s}s` : `${m}min`
+}
+
+const STATION_LABELS: Record<string, string> = {
+  hot: '🔥 Chaud',
+  cold: '❄️ Froid',
+  drinks: '🍹 Boissons',
+  desserts: '🍮 Desserts',
+  general: '📋 Général',
+}
+
+function KitchenPerformanceSection() {
+  const [days, setDays] = useState('7')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['dashboard', 'kitchen-performance', days],
+    queryFn: () => api.get(`/dashboard/kitchen-performance?days=${days}`).then(r => r.data.data),
+    staleTime: 120_000,
+  })
+
+  const overall = data?.overall
+  const byDay: { date: string; avgSecs: number; count: number }[] = data?.byDay ?? []
+  const byStation: { station: string; avgSecs: number; count: number }[] = data?.byStation ?? []
+  const maxAvg = byDay.reduce((m: number, d: any) => Math.max(m, d.avgSecs), 1)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.95 }}
+      className="glass-card p-6"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-brand-orange" />
+          <div>
+            <h2 className="font-semibold">Performance cuisine</h2>
+            <p className="text-xs text-brand-muted mt-0.5">Temps moyen de préparation (de la commande au prêt)</p>
+          </div>
+        </div>
+        <PeriodToggle
+          options={[{ label: '7j', value: '7' }, { label: '14j', value: '14' }, { label: '30j', value: '30' }]}
+          value={days}
+          onChange={setDays}
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          <div className="skeleton h-20 rounded-xl" />
+          <div className="skeleton h-40 rounded-xl" />
+        </div>
+      ) : !overall || overall.count === 0 ? (
+        <p className="text-sm text-brand-muted">Aucune commande complétée sur la période</p>
+      ) : (
+        <div className="space-y-5">
+          {/* KPI cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-brand-surface border border-brand-border rounded-xl p-4 text-center">
+              <p className="text-xs text-brand-muted mb-1">Temps moyen</p>
+              <p className="text-xl font-bold text-brand-orange">{fmtTime(overall.avgSecs)}</p>
+            </div>
+            <div className="bg-brand-surface border border-brand-border rounded-xl p-4 text-center">
+              <p className="text-xs text-brand-muted mb-1">Commandes analysées</p>
+              <p className="text-xl font-bold">{overall.count}</p>
+            </div>
+            <div className="bg-brand-surface border border-brand-border rounded-xl p-4 text-center">
+              <p className="text-xs text-brand-muted mb-1">Objectif &lt; 20min</p>
+              <p className={`text-xl font-bold ${overall.avgMins <= 20 ? 'text-green-400' : 'text-red-400'}`}>
+                {overall.avgMins <= 20 ? '✓' : '✗'} {overall.avgMins}min
+              </p>
+            </div>
+          </div>
+
+          {/* By day bar chart */}
+          {byDay.length > 1 && (
+            <div>
+              <p className="text-xs text-brand-muted mb-3">Évolution par jour (temps moyen en secondes)</p>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={byDay} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2E" />
+                  <XAxis dataKey="date" stroke="#6B7280" tick={{ fontSize: 10 }}
+                    tickFormatter={(d) => { const p = d.split('-'); return `${p[2]}/${p[1]}` }} />
+                  <YAxis stroke="#6B7280" tick={{ fontSize: 10 }} tickFormatter={(v) => `${Math.round(v / 60)}m`} />
+                  <Tooltip {...tooltipStyle}
+                    formatter={(v: any) => [fmtTime(v), 'Temps moy.']}
+                    labelFormatter={(d) => { const p = String(d).split('-'); return `${p[2]}/${p[1]}` }} />
+                  <Bar dataKey="avgSecs" radius={[4, 4, 0, 0]}>
+                    {byDay.map((d, i) => (
+                      <Cell key={i} fill={d.avgSecs > 1200 ? '#EF4444' : d.avgSecs > 900 ? '#F59E0B' : '#10B981'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="flex items-center gap-4 mt-2 text-xs text-brand-muted">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-400 inline-block" /> &lt; 15min</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: '#F59E0B' }} /> 15–20min</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-400 inline-block" /> &gt; 20min</span>
+              </div>
+            </div>
+          )}
+
+          {/* By station */}
+          {byStation.length > 0 && (
+            <div>
+              <p className="text-xs text-brand-muted mb-3">Par station</p>
+              <div className="space-y-2">
+                {byStation.map((s) => (
+                  <div key={s.station} className="flex items-center gap-3 text-sm">
+                    <span className="w-28 flex-shrink-0 text-xs">{STATION_LABELS[s.station] ?? s.station}</span>
+                    <div className="flex-1 h-2 rounded-full bg-brand-border overflow-hidden">
+                      <div className="h-full rounded-full bg-brand-orange transition-all duration-700"
+                        style={{ width: `${Math.min(100, (s.avgSecs / (byStation[0]?.avgSecs ?? 1)) * 100)}%` }} />
+                    </div>
+                    <span className="text-xs text-brand-muted w-14 text-right">{fmtTime(s.avgSecs)}</span>
+                    <span className="text-xs text-brand-muted w-16 text-right">{s.count} cmd</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </motion.div>
   )
 }

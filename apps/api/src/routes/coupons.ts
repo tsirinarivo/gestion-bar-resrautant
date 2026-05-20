@@ -105,6 +105,47 @@ couponRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: Auth
   }
 })
 
+// POST /api/coupons/bulk — Bulk generate coupons
+couponRouter.post('/bulk', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { count, prefix, type, value, description, endDate, usageLimit, minOrderAmount } = z.object({
+      count: z.number().int().min(1).max(500),
+      prefix: z.string().max(10).optional(),
+      type: z.enum(['PERCENTAGE', 'FIXED_AMOUNT', 'FREE_DELIVERY']),
+      value: z.number().positive(),
+      description: z.string().optional(),
+      endDate: z.string().optional(),
+      usageLimit: z.number().int().optional(),
+      minOrderAmount: z.number().optional(),
+    }).parse(req.body)
+
+    const restaurantId = req.user!.restaurantId
+    const codes: string[] = []
+    const maxAttempts = count * 5
+
+    for (let i = 0; i < maxAttempts && codes.length < count; i++) {
+      const raw = generateCouponCode(8)
+      const code = prefix ? `${prefix.toUpperCase()}-${raw}` : raw
+      if (!codes.includes(code)) codes.push(code)
+    }
+
+    const bulkData = codes.map(code => ({
+      code,
+      type,
+      value,
+      description: description || null,
+      endDate: endDate ? new Date(endDate) : null,
+      usageLimit: usageLimit || null,
+      minOrderAmount: minOrderAmount || null,
+      restaurantId,
+      isActive: true,
+    }))
+
+    const result = await prisma.coupon.createMany({ data: bulkData, skipDuplicates: true })
+    res.json({ success: true, data: { created: result.count } })
+  } catch (error) { next(error) }
+})
+
 // POST /api/coupons/validate — Validate coupon code
 couponRouter.post('/validate', async (req: AuthRequest, res, next) => {
   try {

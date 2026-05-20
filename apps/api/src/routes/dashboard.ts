@@ -386,6 +386,81 @@ dashboardRouter.get('/staff-performance', async (req: AuthRequest, res, next) =>
   } catch (error) { next(error) }
 })
 
+// GET /api/dashboard/kitchen-performance
+dashboardRouter.get('/kitchen-performance', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const { from, to, days = '7' } = req.query as Record<string, string>
+    const end = to ? endOfDay(new Date(to)) : endOfDay(new Date())
+    const start = from ? startOfDay(new Date(from)) : startOfDay(subDays(end, parseInt(days) - 1))
+
+    // Fetch completed orders with timing data
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        createdAt: { gte: start, lte: end },
+        readyAt: { not: null },
+        status: { in: ['READY', 'DELIVERED', 'COMPLETED'] },
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        confirmedAt: true,
+        preparedAt: true,
+        readyAt: true,
+        completedAt: true,
+        items: { select: { kdsStation: true } },
+      },
+    })
+
+    // By-day breakdown
+    const byDay: Record<string, { date: string; count: number; totalSecs: number; avgSecs: number }> = {}
+    const byStation: Record<string, { station: string; count: number; totalSecs: number; avgSecs: number }> = {}
+
+    let totalSecs = 0
+    let totalCount = 0
+
+    for (const order of orders) {
+      if (!order.readyAt) continue
+      const secs = (order.readyAt.getTime() - order.createdAt.getTime()) / 1000
+      const dateKey = order.createdAt.toISOString().split('T')[0]!
+
+      if (!byDay[dateKey]) byDay[dateKey] = { date: dateKey, count: 0, totalSecs: 0, avgSecs: 0 }
+      byDay[dateKey]!.count++
+      byDay[dateKey]!.totalSecs += secs
+
+      // Per-station breakdown
+      const stations = [...new Set(order.items.map(i => i.kdsStation || 'general'))]
+      for (const station of stations) {
+        if (!byStation[station]) byStation[station] = { station, count: 0, totalSecs: 0, avgSecs: 0 }
+        byStation[station]!.count++
+        byStation[station]!.totalSecs += secs
+      }
+
+      totalSecs += secs
+      totalCount++
+    }
+
+    // Compute averages
+    for (const d of Object.values(byDay)) d.avgSecs = d.count > 0 ? Math.round(d.totalSecs / d.count) : 0
+    for (const s of Object.values(byStation)) s.avgSecs = s.count > 0 ? Math.round(s.totalSecs / s.count) : 0
+
+    res.json({
+      success: true,
+      data: {
+        period: { from: start, to: end },
+        overall: {
+          count: totalCount,
+          avgSecs: totalCount > 0 ? Math.round(totalSecs / totalCount) : 0,
+          avgMins: totalCount > 0 ? Math.round(totalSecs / totalCount / 60 * 10) / 10 : 0,
+        },
+        byDay: Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date)),
+        byStation: Object.values(byStation).sort((a, b) => b.count - a.count),
+      },
+    })
+  } catch (error) { next(error) }
+})
+
 // GET /api/dashboard/live
 dashboardRouter.get('/live', async (req: AuthRequest, res, next) => {
   try {
