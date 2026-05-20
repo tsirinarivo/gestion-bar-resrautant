@@ -650,6 +650,35 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
   }
 })
 
+// DELETE /api/orders/:id/items/:itemId — remove item from a PENDING order
+orderRouter.delete('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+      include: { items: true },
+    })
+    if (!order) throw new AppError('Commande introuvable', 404)
+    if (order.status !== 'PENDING') throw new AppError('Seules les commandes en attente peuvent être modifiées', 400)
+
+    const item = order.items.find(i => i.id === req.params.itemId)
+    if (!item) throw new AppError('Article introuvable', 404)
+    if (order.items.length === 1) throw new AppError('Impossible de supprimer le dernier article — annulez la commande', 400)
+
+    const newSubtotal = order.subtotal - item.totalPrice
+    const newTotal = order.totalAmount - item.totalPrice
+
+    await prisma.$transaction([
+      prisma.orderItem.delete({ where: { id: item.id } }),
+      prisma.order.update({ where: { id: order.id }, data: { subtotal: newSubtotal, totalAmount: newTotal } }),
+    ])
+
+    const io = req.app.get('io')
+    io?.to(req.user!.restaurantId).emit('order:updated', { orderId: order.id })
+
+    res.json({ success: true, message: 'Article supprimé' })
+  } catch (error) { next(error) }
+})
+
 // PATCH /api/orders/:id/tip — ajouter/modifier le pourboire
 // PATCH /api/orders/:id/items/:itemId/status — per-item status from KDS
 orderRouter.patch('/:id/items/:itemId/status', async (req: AuthRequest, res, next) => {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Bell, Search, Menu, Wifi } from 'lucide-react'
+import { Bell, Search, Menu, Wifi, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -62,11 +62,35 @@ const TYPE_ICON: Record<string, string> = {
   SYSTEM: '⚙️',
 }
 
+const RECENT_SEARCHES_KEY = 'global-search-recent'
+
 function GlobalSearch() {
   const router = useRouter()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(RECENT_SEARCHES_KEY)
+      if (stored) setRecentSearches(JSON.parse(stored))
+    } catch {}
+  }, [])
+
+  function saveRecentSearch(term: string) {
+    const trimmed = term.trim()
+    if (!trimmed) return
+    const updated = [trimmed, ...recentSearches.filter(s => s !== trimmed)].slice(0, 5)
+    setRecentSearches(updated)
+    try { localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated)) } catch {}
+  }
+
+  function removeRecentSearch(term: string) {
+    const updated = recentSearches.filter(s => s !== term)
+    setRecentSearches(updated)
+    try { localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated)) } catch {}
+  }
 
   const { data: customers } = useQuery({
     queryKey: ['global-search-customers', q],
@@ -90,6 +114,7 @@ function GlobalSearch() {
   }, [])
 
   const hasResults = (customers?.length ?? 0) + (products?.length ?? 0) > 0
+  const showRecent = open && q.length < 2 && recentSearches.length > 0
 
   return (
     <div ref={ref} className="relative hidden md:flex items-center">
@@ -98,12 +123,36 @@ function GlobalSearch() {
         type="search" placeholder="Rechercher client, produit…" value={q}
         onChange={e => { setQ(e.target.value); setOpen(true) }}
         onFocus={() => setOpen(true)}
-        onKeyDown={e => { if (e.key === 'Enter' && q.trim()) { router.push(`/customers?search=${encodeURIComponent(q)}`); setOpen(false) } }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && q.trim()) {
+            saveRecentSearch(q)
+            router.push(`/customers?search=${encodeURIComponent(q)}`)
+            setOpen(false)
+          }
+          if (e.key === 'Escape') { setOpen(false); setQ('') }
+        }}
         className="pl-9 pr-4 py-2 text-sm bg-brand-darker border border-brand-border rounded-xl w-72 focus:outline-none focus:border-brand-orange/50 transition-all"
       />
-      {open && q.length >= 2 && (
+      {open && (showRecent || q.length >= 2) && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-brand-darker border border-brand-border rounded-xl shadow-xl overflow-hidden z-50">
-          {!hasResults ? (
+          {showRecent ? (
+            <div className="py-1">
+              <p className="text-[10px] uppercase tracking-wider text-brand-muted px-3 pt-2 pb-1">Recherches récentes</p>
+              {recentSearches.map(term => (
+                <div key={term} className="flex items-center hover:bg-white/5">
+                  <button onClick={() => { setQ(term); saveRecentSearch(term); router.push(`/customers?search=${encodeURIComponent(term)}`); setOpen(false) }}
+                    className="flex-1 px-3 py-2 flex items-center gap-2 text-left text-sm">
+                    <Search className="w-3.5 h-3.5 text-brand-muted flex-shrink-0" />
+                    <span className="truncate">{term}</span>
+                  </button>
+                  <button onClick={() => removeRecentSearch(term)}
+                    className="px-3 py-2 text-brand-muted hover:text-white transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : !hasResults ? (
             <p className="p-4 text-sm text-brand-muted text-center">Aucun résultat</p>
           ) : (
             <div className="max-h-96 overflow-y-auto">
@@ -111,7 +160,7 @@ function GlobalSearch() {
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-brand-muted px-3 pt-2 pb-1">Clients</p>
                   {customers.map((c: any) => (
-                    <button key={c.id} onClick={() => { router.push(`/customers?search=${encodeURIComponent(c.firstName)}`); setOpen(false); setQ('') }}
+                    <button key={c.id} onClick={() => { saveRecentSearch(q); router.push(`/customers?search=${encodeURIComponent(c.firstName)}`); setOpen(false); setQ('') }}
                       className="w-full px-3 py-2 flex items-center gap-3 hover:bg-white/5 text-left">
                       <span className="text-sm">👤</span>
                       <div className="flex-1 min-w-0">
@@ -126,7 +175,7 @@ function GlobalSearch() {
                 <div className="border-t border-brand-border">
                   <p className="text-[10px] uppercase tracking-wider text-brand-muted px-3 pt-2 pb-1">Produits</p>
                   {products.map((p: any) => (
-                    <button key={p.id} onClick={() => { router.push('/menu'); setOpen(false); setQ('') }}
+                    <button key={p.id} onClick={() => { saveRecentSearch(q); router.push('/menu'); setOpen(false); setQ('') }}
                       className="w-full px-3 py-2 flex items-center gap-3 hover:bg-white/5 text-left">
                       <span className="text-sm">🍽️</span>
                       <div className="flex-1 min-w-0">

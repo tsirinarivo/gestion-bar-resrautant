@@ -225,6 +225,45 @@ stockRouter.post('/:id/movements', async (req: AuthRequest, res, next) => {
       }),
     ])
 
+    // Auto-create draft purchase order when stock falls below reorderQuantity
+    if (
+      item.reorderQuantity > 0 &&
+      (data.type === 'OUT' || data.type === 'LOSS') &&
+      newQuantity <= item.reorderQuantity &&
+      item.currentQuantity > item.reorderQuantity &&
+      item.supplierId
+    ) {
+      // Only create if no DRAFT order for this supplier already contains this item
+      const existingDraft = await prisma.purchaseOrder.findFirst({
+        where: { supplierId: item.supplierId, status: 'DRAFT', items: { some: { stockItemId: item.id } } },
+      })
+      if (!existingDraft) {
+        const orderNumber = `BDC-AUTO-${Date.now()}`
+        const reorderQty = Math.max(item.reorderQuantity * 2, item.maxQuantity ? item.maxQuantity - newQuantity : item.reorderQuantity * 2)
+        const unitCost = item.costPerUnit
+        await prisma.purchaseOrder.create({
+          data: {
+            orderNumber,
+            status: 'DRAFT',
+            supplierId: item.supplierId,
+            notes: `Réapprovisionnement automatique — ${item.name} (stock: ${newQuantity} ${item.unit}, seuil: ${item.reorderQuantity})`,
+            totalAmount: reorderQty * unitCost,
+            items: { create: { stockItemId: item.id, quantity: reorderQty, unitCost, receivedQuantity: 0 } },
+          },
+        }).catch(() => {}) // non-blocking
+        prisma.notification.create({
+          data: {
+            type: 'STOCK',
+            title: 'BDC auto-généré',
+            message: `BDC brouillon créé pour ${item.name} (seuil de réapprovisionnement atteint)`,
+            targetRole: 'manager',
+            restaurantId: req.user!.restaurantId,
+            data: { stockItemId: item.id, supplierId: item.supplierId },
+          },
+        }).catch(() => {})
+      }
+    }
+
     // Check for low stock alert
     if (newQuantity <= item.minQuantity && item.currentQuantity > item.minQuantity) {
       const alertType = newQuantity <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'
