@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Package, Plus, Search, AlertTriangle, RefreshCw, ArrowDown, ArrowUp,
   X, Edit2, ClipboardList, ArrowRightLeft, ShoppingCart, Truck, CheckSquare, Square, Star,
-  UtensilsCrossed, History, ChevronLeft, ChevronRight,
+  UtensilsCrossed, History, ChevronLeft, ChevronRight, ExternalLink,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatQuantity, formatCurrency } from '@restaurant/utils'
@@ -391,6 +391,7 @@ export default function StockPage() {
   const [historyPage, setHistoryPage]         = useState(1)
 
   const qc = useQueryClient()
+  const router = useRouter()
 
   const { data, isLoading } = useQuery({
     queryKey: ['stock', search],
@@ -826,6 +827,10 @@ export default function StockPage() {
                                 <ClipboardList className="w-4 h-4" />
                               </button>
                             )}
+                            <button onClick={() => router.push(`/stock/${item.id}`)}
+                              className="p-1.5 text-brand-muted hover:text-white hover:bg-white/10 rounded-lg" title="Voir la fiche détaillée">
+                              <ExternalLink className="w-4 h-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
