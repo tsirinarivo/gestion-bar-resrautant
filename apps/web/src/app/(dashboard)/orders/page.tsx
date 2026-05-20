@@ -675,16 +675,18 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
 export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFilter, setDateFilter] = useState('')
+  const [customerFilter, setCustomerFilter] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null)
   const qc = useQueryClient()
 
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
-    queryKey: ['orders', statusFilter, dateFilter],
+    queryKey: ['orders', statusFilter, dateFilter, customerFilter],
     queryFn: () => {
       const params = new URLSearchParams({ limit: '80' })
       if (statusFilter) params.set('status', statusFilter)
       if (dateFilter) params.set('date', dateFilter)
+      if (customerFilter) params.set('customerName', customerFilter)
       return api.get(`/orders?${params}`).then(r => r.data)
     },
     refetchInterval: 60_000,
@@ -744,6 +746,18 @@ export default function OrdersPage() {
             <Plus className="w-4 h-4" /> Nouvelle
           </button>
         </div>
+      </div>
+
+      {/* Customer search */}
+      <div className="flex items-center gap-2 mb-2">
+        <Search className="w-4 h-4 text-brand-muted flex-shrink-0" />
+        <input
+          type="search"
+          value={customerFilter}
+          onChange={e => setCustomerFilter(e.target.value)}
+          placeholder="Rechercher par nom client…"
+          className="bg-brand-darker border border-brand-border rounded-xl px-3 py-1.5 text-sm outline-none focus:border-brand-orange/50 transition-colors flex-1 max-w-64"
+        />
       </div>
 
       {/* Date filter */}

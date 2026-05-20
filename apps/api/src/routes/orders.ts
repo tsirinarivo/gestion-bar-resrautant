@@ -247,7 +247,7 @@ const createOrderSchema = z.object({
 // GET /api/orders
 orderRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const { status, type, tableId, page = '1', limit = '20', date, orderNumber } = req.query
+    const { status, type, tableId, page = '1', limit = '20', date, orderNumber, customerName } = req.query
 
     const where: any = { restaurantId: req.user!.restaurantId }
     if (orderNumber) where.orderNumber = { contains: orderNumber as string, mode: 'insensitive' }
@@ -265,6 +265,14 @@ orderRouter.get('/', async (req: AuthRequest, res, next) => {
       where.createdAt = {
         gte: new Date(d.setHours(0, 0, 0, 0)),
         lt: new Date(d.setHours(23, 59, 59, 999)),
+      }
+    }
+    if (customerName) {
+      where.customer = {
+        OR: [
+          { firstName: { contains: customerName as string, mode: 'insensitive' } },
+          { lastName: { contains: customerName as string, mode: 'insensitive' } },
+        ],
       }
     }
 

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, Search, X, TrendingUp, TrendingDown, ShoppingBag,
-  Calendar, Phone, Mail, Star, Award, Plus, Minus, Clock,
+  Calendar, Phone, Mail, Star, Award, Plus, Minus, Clock, Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -382,6 +382,33 @@ export default function CustomersPage() {
 
   const customers: Customer[] = data?.data ?? []
 
+  async function exportCSV() {
+    try {
+      const res = await api.get(`/customers?${search ? `search=${encodeURIComponent(search)}&` : ''}limit=500`)
+      const all: Customer[] = res.data.data ?? []
+      const rows = [
+        ['Prénom', 'Nom', 'Email', 'Téléphone', 'Ville', 'Fidélité', 'Points', 'Total pts gagnés', 'Commandes', 'Depuis'],
+        ...all.map(c => [
+          c.firstName,
+          c.lastName,
+          c.email ?? '',
+          c.phone ?? '',
+          c.city ?? '',
+          c.loyaltyAccount?.tier ?? '',
+          c.loyaltyAccount?.points ?? 0,
+          c.loyaltyAccount?.totalEarned ?? 0,
+          c._count?.orders ?? 0,
+          c.createdAt ? new Date(c.createdAt).toLocaleDateString('fr-FR') : '',
+        ]),
+      ]
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = `clients-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+      URL.revokeObjectURL(url)
+    } catch { toast.error('Erreur lors de l\'export') }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -389,10 +416,15 @@ export default function CustomersPage() {
           <h1 className="text-2xl font-bold">Clients</h1>
           <p className="text-brand-muted text-sm">{data?.pagination?.total ?? 0} clients</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
-          <Users className="w-4 h-4" />
-          Nouveau client
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-brand-orange/40 hover:text-brand-orange text-sm transition-colors">
+            <Download className="w-4 h-4" /> Exporter CSV
+          </button>
+          <button className="btn-primary flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            Nouveau client
+          </button>
+        </div>
       </div>
 
       <div className="relative">
