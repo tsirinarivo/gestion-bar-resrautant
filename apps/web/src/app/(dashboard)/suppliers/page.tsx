@@ -486,6 +486,7 @@ export default function SuppliersPage() {
   const [poModal, setPOModal] = useState<{ open: boolean; supplierId?: string }>({ open: false })
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null)
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterSupplier, setFilterSupplier] = useState('')
 
   const { data: suppliers = [], isLoading: loadingSuppliers } = useQuery<Supplier[]>({
     queryKey: ['suppliers'],
@@ -632,10 +633,11 @@ export default function SuppliersPage() {
                       <p className="font-bold text-base">{supplier._count?.stockItems ?? 0}</p>
                       <p className="text-brand-muted">Articles</p>
                     </div>
-                    <div className="flex-1 bg-white/3 rounded-xl p-2">
+                    <button onClick={() => { setFilterSupplier(supplier.id); setTab('orders') }}
+                      className="flex-1 bg-white/3 hover:bg-brand-orange/10 rounded-xl p-2 transition-colors">
                       <p className="font-bold text-base">{supplier._count?.purchaseOrders ?? 0}</p>
                       <p className="text-brand-muted">Commandes</p>
-                    </div>
+                    </button>
                     <div className="flex-1 bg-white/3 rounded-xl p-2">
                       <p className="font-bold text-base">{supplier.leadTimeDays}j</p>
                       <p className="text-brand-muted">Délai</p>
@@ -676,6 +678,14 @@ export default function SuppliersPage() {
       {/* ── Purchase Orders tab ── */}
       {tab === 'orders' && (
         <div className="space-y-4">
+          {filterSupplier && (
+            <div className="flex items-center justify-between bg-brand-orange/10 border border-brand-orange/30 rounded-xl px-4 py-2 text-sm">
+              <span>Fournisseur : <strong>{suppliers.find(s => s.id === filterSupplier)?.name ?? '—'}</strong></span>
+              <button onClick={() => setFilterSupplier('')} className="text-xs text-brand-orange underline">
+                Tout afficher
+              </button>
+            </div>
+          )}
           {/* Status filter */}
           <div className="flex gap-2 overflow-x-auto pb-1">
             {[{ value: '', label: 'Tous' }, ...Object.entries(PO_STATUS).map(([k, v]) => ({ value: k, label: v.label }))].map(s => (
@@ -690,10 +700,15 @@ export default function SuppliersPage() {
 
           {loadingOrders ? (
             <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-16 rounded-xl" />)}</div>
-          ) : orders.length === 0 ? (
+          ) : orders.filter(o => !filterSupplier || o.supplier.id === filterSupplier).length === 0 ? (
             <div className="text-center py-16 text-brand-muted">
               <ShoppingCart className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p>Aucun bon de commande</p>
+              {filterSupplier && (
+                <button onClick={() => setFilterSupplier('')} className="text-xs mt-2 text-brand-orange underline">
+                  Voir tous les fournisseurs
+                </button>
+              )}
             </div>
           ) : (
             <div className="glass-card overflow-hidden">
@@ -710,7 +725,7 @@ export default function SuppliersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map(order => {
+                  {orders.filter(o => !filterSupplier || o.supplier.id === filterSupplier).map(order => {
                     const st = PO_STATUS[order.status]!
                     return (
                       <tr key={order.id} className="border-b border-brand-border/50 hover:bg-white/3 transition-colors">
