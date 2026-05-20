@@ -615,6 +615,12 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
               <span>{formatRelative(order.createdAt)}</span>
               <span>·</span>
               <span>{order.items?.length} article{order.items?.length > 1 ? 's' : ''}</span>
+              {order.estimatedTime && order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                <>
+                  <span>·</span>
+                  <span className="text-amber-400">⏱ ~{order.estimatedTime} min</span>
+                </>
+              )}
             </div>
           </div>
           <div className="text-right flex-shrink-0">

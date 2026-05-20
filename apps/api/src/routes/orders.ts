@@ -238,6 +238,7 @@ const createOrderSchema = z.object({
   deliveryCity: z.string().optional(),
   deliveryPostalCode: z.string().optional(),
   deliveryNotes: z.string().optional(),
+  estimatedTime: z.number().int().positive().optional(),
   items: z.array(orderItemSchema).min(1),
 }).refine(d => d.type !== 'DELIVERY' || !!d.deliveryAddress, {
   message: "L'adresse de livraison est requise pour une commande DELIVERY",
@@ -294,6 +295,7 @@ orderRouter.get('/', async (req: AuthRequest, res, next) => {
           updatedAt: true,
           confirmedAt: true,
           readyAt: true,
+          estimatedTime: true,
           completedAt: true,
           table: { select: { id: true, number: true, name: true, section: true } },
           customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
@@ -442,6 +444,7 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
         deliveryCity: data.deliveryCity,
         deliveryPostalCode: data.deliveryPostalCode,
         deliveryNotes: data.deliveryNotes,
+        estimatedTime: data.estimatedTime,
         subtotal,
         taxAmount,
         discountAmount,
@@ -669,12 +672,13 @@ orderRouter.patch('/:id/tip', async (req: AuthRequest, res, next) => {
 // PATCH /api/orders/:id — edit order notes
 orderRouter.patch('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const { notes, deliveryAddress, deliveryCity, deliveryPostalCode, deliveryNotes } = z.object({
+    const { notes, deliveryAddress, deliveryCity, deliveryPostalCode, deliveryNotes, estimatedTime } = z.object({
       notes: z.string().nullable().optional(),
       deliveryAddress: z.string().nullable().optional(),
       deliveryCity: z.string().nullable().optional(),
       deliveryPostalCode: z.string().nullable().optional(),
       deliveryNotes: z.string().nullable().optional(),
+      estimatedTime: z.number().int().nullable().optional(),
     }).parse(req.body)
 
     const order = await prisma.order.findFirst({
@@ -690,6 +694,7 @@ orderRouter.patch('/:id', async (req: AuthRequest, res, next) => {
         ...(deliveryCity !== undefined && { deliveryCity }),
         ...(deliveryPostalCode !== undefined && { deliveryPostalCode }),
         ...(deliveryNotes !== undefined && { deliveryNotes }),
+        ...(estimatedTime !== undefined && { estimatedTime }),
       },
     })
     res.json({ success: true, data: updated })

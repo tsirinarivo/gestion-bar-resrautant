@@ -112,7 +112,7 @@ publicRouter.get('/:slug/orders/:orderNumber', async (req, res, next) => {
       select: {
         id: true, orderNumber: true, status: true, type: true,
         totalAmount: true, createdAt: true, completedAt: true, readyAt: true,
-        notes: true,
+        notes: true, estimatedTime: true,
         items: {
           select: { quantity: true, unitPrice: true, totalPrice: true, notes: true, status: true,
             product: { select: { name: true, image: true } } }

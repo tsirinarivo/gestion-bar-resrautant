@@ -27,7 +27,7 @@ type OrderItem = {
 
 type Order = {
   id: string; orderNumber: string; status: OrderStatus; type: string;
-  totalAmount: number; createdAt: string; readyAt?: string;
+  totalAmount: number; createdAt: string; readyAt?: string; estimatedTime?: number;
   items: OrderItem[]
   statusHistory: { status: string; notes?: string; createdAt: string }[]
 }
@@ -138,6 +138,9 @@ export default function OrderTrackingPage({ params }: { params: { orderNumber: s
         {/* Status message */}
         <div className="bg-white rounded-2xl p-5 shadow-sm">
           <p className="text-gray-700">{statusInfo.description}</p>
+          {order.estimatedTime && !isCancelled && order.status !== 'COMPLETED' && (
+            <p className="text-sm text-amber-600 mt-2 font-medium">⏱ Temps estimé : environ {order.estimatedTime} min</p>
+          )}
 
           {/* Progress bar */}
           {!isCancelled && (
