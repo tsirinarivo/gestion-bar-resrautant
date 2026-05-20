@@ -8,6 +8,8 @@ import { useAuthStore } from '@/store/auth'
 import { formatDate, formatRelative } from '@restaurant/utils'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { toast } from 'sonner'
+import { io as socketIO } from 'socket.io-client'
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -61,6 +63,40 @@ export function Header({ onMenuToggle }: HeaderProps) {
     const interval = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // Real-time socket listeners
+  useEffect(() => {
+    if (!user?.restaurantId) return
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null
+    const socket = socketIO(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000', {
+      auth: { token },
+      transports: ['websocket'],
+    })
+
+    socket.on('table:call_waiter', (data: { tableNumber: number; message: string }) => {
+      toast('🔔 Appel serveur', {
+        description: data.message || `Table ${data.tableNumber} demande un serveur`,
+        duration: 15_000,
+        position: 'top-right',
+      })
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+    })
+
+    socket.on('stock:alert', (data: { message: string; type: string }) => {
+      toast.warning(`📦 ${data.type === 'OUT_OF_STOCK' ? 'Rupture de stock' : 'Stock faible'}`, {
+        description: data.message,
+        duration: 10_000,
+        position: 'top-right',
+      })
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+    })
+
+    socket.on('notification:new', () => {
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+    })
+
+    return () => { socket.disconnect() }
+  }, [user?.restaurantId, qc])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

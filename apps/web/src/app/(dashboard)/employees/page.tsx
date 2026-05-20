@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { UserCog, Plus, Clock, Calendar, Pencil, Trash2, X, Mail, Phone, Banknote, Palmtree, CheckCircle2, XCircle } from 'lucide-react'
+import { UserCog, Plus, Clock, Calendar, Pencil, Trash2, X, Mail, Phone, Banknote, Palmtree, CheckCircle2, XCircle, BarChart2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { formatDate, initials, formatCurrency } from '@restaurant/utils'
@@ -426,11 +426,28 @@ export default function EmployeesPage() {
   const [leaveEmployee, setLeaveEmployee] = useState<Employee | null>(null)
   const [createForm, setCreateForm] = useState<FormData>(emptyForm)
   const [editForm, setEditForm] = useState<FormData>(emptyForm)
+  const [hoursMonth, setHoursMonth] = useState(() => {
+    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
 
   const { data, isLoading } = useQuery({
     queryKey: ['employees'],
     queryFn: () => api.get('/employees').then(r => r.data.data),
   })
+
+  const hoursFrom = `${hoursMonth}-01`
+  const hoursTo = (() => {
+    const [y, m] = hoursMonth.split('-').map(Number)
+    const last = new Date(y!, m!, 0)
+    return `${y}-${String(m).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
+  })()
+
+  const { data: hoursSummaryData } = useQuery<{ data: { employeeId: string; firstName: string; lastName: string; totalHours: number; sessionCount: number }[] }>({
+    queryKey: ['employees-hours', hoursMonth],
+    queryFn: () => api.get(`/employees/hours-summary?from=${hoursFrom}&to=${hoursTo}`).then(r => r.data),
+    staleTime: 60_000,
+  })
+  const hoursSummary = hoursSummaryData?.data ?? []
 
   const employees: Employee[] = data || []
 
@@ -656,6 +673,63 @@ export default function EmployeesPage() {
               </motion.div>
             )
           })
+        )}
+      </div>
+
+      {/* ── Hours Summary ── */}
+      <div className="glass-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-brand-orange" />
+            <h2 className="font-semibold">Heures travaillées</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const [y, m] = hoursMonth.split('-').map(Number)
+                const d = new Date(y!, m! - 2, 1)
+                setHoursMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+              }}
+              className="p-1 hover:bg-white/5 rounded-lg transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm text-brand-muted min-w-[90px] text-center">
+              {new Date(`${hoursMonth}-15`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+            </span>
+            <button
+              onClick={() => {
+                const [y, m] = hoursMonth.split('-').map(Number)
+                const d = new Date(y!, m!, 1)
+                setHoursMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+              }}
+              className="p-1 hover:bg-white/5 rounded-lg transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {hoursSummary.length === 0 ? (
+          <p className="text-sm text-brand-muted text-center py-6">Aucune donnée de pointage pour cette période</p>
+        ) : (
+          <div className="space-y-2">
+            {hoursSummary.map((emp, i) => {
+              const maxHours = hoursSummary[0]?.totalHours || 1
+              const pct = Math.round((emp.totalHours / maxHours) * 100)
+              return (
+                <div key={emp.employeeId} className="flex items-center gap-3">
+                  <span className="text-xs text-brand-muted w-4 flex-shrink-0">#{i + 1}</span>
+                  <span className="text-sm w-36 flex-shrink-0 truncate">{emp.firstName} {emp.lastName}</span>
+                  <div className="flex-1 bg-brand-darker rounded-full h-2 overflow-hidden">
+                    <div className="h-full bg-brand-orange rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-sm font-medium w-16 text-right text-brand-orange">{emp.totalHours}h</span>
+                  <span className="text-xs text-brand-muted w-20 text-right">{emp.sessionCount} session{emp.sessionCount > 1 ? 's' : ''}</span>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
 

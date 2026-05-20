@@ -227,20 +227,33 @@ stockRouter.post('/:id/movements', async (req: AuthRequest, res, next) => {
 
     // Check for low stock alert
     if (newQuantity <= item.minQuantity && item.currentQuantity > item.minQuantity) {
-      await prisma.stockAlert.create({
-        data: {
-          type: newQuantity <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
-          message: `Stock faible : ${item.name} (${newQuantity} ${item.unit} restants)`,
-          stockItemId: item.id,
-        },
-      })
+      const alertType = newQuantity <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'
+      const alertMessage = newQuantity <= 0
+        ? `Rupture de stock : ${item.name}`
+        : `Stock faible : ${item.name} (${newQuantity} ${item.unit} restants)`
+
+      await Promise.all([
+        prisma.stockAlert.create({
+          data: { type: alertType, message: alertMessage, stockItemId: item.id },
+        }),
+        prisma.notification.create({
+          data: {
+            type: 'STOCK',
+            title: alertType === 'OUT_OF_STOCK' ? 'Rupture de stock' : 'Stock faible',
+            message: alertMessage,
+            targetRole: 'manager',
+            restaurantId: req.user!.restaurantId,
+            data: { stockItemId: item.id, currentQuantity: newQuantity, unit: item.unit },
+          },
+        }),
+      ])
 
       const io = req.app.get('io')
-      io?.to(req.user!.restaurantId).emit('stock:alert', {
-        stockItemId: item.id,
-        type: newQuantity <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
-        message: `Stock faible : ${item.name}`,
-      })
+      if (io) {
+        const payload = { stockItemId: item.id, type: alertType, message: alertMessage }
+        io.to(req.user!.restaurantId).emit('stock:alert', payload)
+        io.to(req.user!.restaurantId).emit('notification:new', payload)
+      }
     }
 
     res.status(201).json({ success: true, data: { movement, stockItem: updatedItem } })

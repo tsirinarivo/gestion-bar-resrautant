@@ -137,7 +137,7 @@ publicRouter.post('/:slug/tables/:tableId/call-waiter', async (req, res, next) =
     // Emit socket event to dashboard
     const io = req.app.get('io')
     if (io) {
-      io.to(`restaurant:${restaurant.id}`).emit('table:call_waiter', {
+      io.to(restaurant.id).emit('table:call_waiter', {
         tableId: table.id,
         tableNumber: table.number,
         message: `Table ${table.number} appelle un serveur`,
