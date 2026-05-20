@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { UserCog, Plus, Clock, Calendar, Pencil, Trash2, X, Mail, Phone, Banknote } from 'lucide-react'
+import { UserCog, Plus, Clock, Calendar, Pencil, Trash2, X, Mail, Phone, Banknote, Palmtree, CheckCircle2, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { formatDate, initials, formatCurrency } from '@restaurant/utils'
@@ -24,6 +24,32 @@ type Employee = {
     role: { name: string; displayName: string } | null
   }
   timeEntries: { clockOut: string | null }[]
+  leaves?: { id: string; status: string; startDate: string; endDate: string; type: string }[]
+}
+
+type Leave = {
+  id: string
+  type: string
+  startDate: string
+  endDate: string
+  days: number
+  reason?: string
+  status: string
+}
+
+const LEAVE_TYPES: { value: string; label: string; color: string }[] = [
+  { value: 'VACATION',       label: 'Congés payés',   color: '#3B82F6' },
+  { value: 'SICK',           label: 'Maladie',         color: '#EF4444' },
+  { value: 'PERSONAL',       label: 'Personnel',       color: '#8B5CF6' },
+  { value: 'UNPAID',         label: 'Non payé',        color: '#6B7280' },
+  { value: 'PUBLIC_HOLIDAY', label: 'Jour férié',      color: '#10B981' },
+]
+
+const LEAVE_STATUS: Record<string, { label: string; color: string }> = {
+  PENDING:   { label: 'En attente', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
+  APPROVED:  { label: 'Approuvé',   color: 'text-green-400 bg-green-500/10 border-green-500/30' },
+  REJECTED:  { label: 'Refusé',     color: 'text-red-400 bg-red-500/10 border-red-500/30' },
+  CANCELLED: { label: 'Annulé',     color: 'text-gray-400 bg-gray-500/10 border-gray-500/30' },
 }
 
 type FormData = {
@@ -244,6 +270,151 @@ function DeleteModal({
   )
 }
 
+// ─── Leave Modal ──────────────────────────────────────────────────────────────
+
+function LeaveModal({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState({ type: 'VACATION', startDate: '', endDate: '', days: '1', reason: '' })
+
+  const { data: leaves = [], isLoading } = useQuery<Leave[]>({
+    queryKey: ['employee-leaves', employee.id],
+    queryFn: () => api.get(`/employees/${employee.id}/leaves`).then(r => r.data.data),
+  })
+
+  const addLeave = useMutation({
+    mutationFn: (d: any) => api.post(`/employees/${employee.id}/leaves`, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['employee-leaves', employee.id] })
+      qc.invalidateQueries({ queryKey: ['employees'] })
+      toast.success('Congé ajouté'); setShowAdd(false)
+      setForm({ type: 'VACATION', startDate: '', endDate: '', days: '1', reason: '' })
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur'),
+  })
+
+  const updateStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.patch(`/employees/leaves/${id}/status`, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['employee-leaves', employee.id] })
+      qc.invalidateQueries({ queryKey: ['employees'] })
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur'),
+  })
+
+  function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    addLeave.mutate({ ...form, days: Number(form.days) })
+  }
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <div className="flex items-center justify-between p-6 border-b border-brand-border">
+        <div>
+          <h2 className="text-lg font-bold">Congés — {employee.user.firstName} {employee.user.lastName}</h2>
+          <p className="text-xs text-brand-muted mt-0.5">{leaves.length} demande{leaves.length > 1 ? 's' : ''}</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setShowAdd(s => !s)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-brand-orange/10 text-brand-orange border border-brand-orange/30 rounded-lg hover:bg-brand-orange/20 transition-colors">
+            <Plus className="w-3.5 h-3.5" /> Ajouter
+          </button>
+          <button onClick={onClose} className="text-brand-muted hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {showAdd && (
+        <form onSubmit={handleAdd} className="p-4 border-b border-brand-border bg-white/2 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-brand-muted mb-1">Type</label>
+              <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-orange">
+                {LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-brand-muted mb-1">Jours</label>
+              <input type="number" min="0.5" step="0.5" value={form.days} onChange={e => setForm(f => ({ ...f, days: e.target.value }))}
+                className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-orange" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-brand-muted mb-1">Début</label>
+              <input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} required
+                className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-orange" />
+            </div>
+            <div>
+              <label className="block text-xs text-brand-muted mb-1">Fin</label>
+              <input type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} required
+                className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-orange" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-brand-muted mb-1">Motif (optionnel)</label>
+            <input type="text" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
+              placeholder="Raison du congé…"
+              className="w-full bg-brand-surface border border-brand-border rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-orange" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setShowAdd(false)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-brand-border hover:border-brand-orange/30 transition-colors">Annuler</button>
+            <button type="submit" disabled={addLeave.isPending}
+              className="btn-primary text-xs px-4 py-1.5 disabled:opacity-50">
+              {addLeave.isPending ? 'Ajout…' : 'Enregistrer'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="divide-y divide-brand-border/30 max-h-96 overflow-y-auto">
+        {isLoading ? (
+          <div className="p-6 text-center text-brand-muted text-sm">Chargement…</div>
+        ) : leaves.length === 0 ? (
+          <div className="p-8 text-center text-brand-muted text-sm">
+            <Palmtree className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p>Aucun congé enregistré</p>
+          </div>
+        ) : leaves.map((leave) => {
+          const ltype = LEAVE_TYPES.find(t => t.value === leave.type)
+          const lstatus = LEAVE_STATUS[leave.status] ?? LEAVE_STATUS['PENDING']!
+          return (
+            <div key={leave.id} className="flex items-center gap-3 px-5 py-3">
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: ltype?.color ?? '#6B7280' }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{ltype?.label ?? leave.type}</p>
+                <p className="text-xs text-brand-muted">
+                  {new Date(leave.startDate).toLocaleDateString('fr-FR')} → {new Date(leave.endDate).toLocaleDateString('fr-FR')}
+                  {' · '}{leave.days}j
+                </p>
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded-full border flex-shrink-0 ${lstatus.color}`}>
+                {lstatus.label}
+              </span>
+              {leave.status === 'PENDING' && (
+                <div className="flex gap-1 flex-shrink-0">
+                  <button onClick={() => updateStatus.mutate({ id: leave.id, status: 'APPROVED' })}
+                    className="p-1 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors" title="Approuver">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => updateStatus.mutate({ id: leave.id, status: 'REJECTED' })}
+                    className="p-1 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" title="Refuser">
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </ModalBackdrop>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EmployeesPage() {
@@ -252,6 +423,7 @@ export default function EmployeesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
   const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null)
+  const [leaveEmployee, setLeaveEmployee] = useState<Employee | null>(null)
   const [createForm, setCreateForm] = useState<FormData>(emptyForm)
   const [editForm, setEditForm] = useState<FormData>(emptyForm)
 
@@ -450,21 +622,35 @@ export default function EmployeesPage() {
                   </div>
                 </div>
 
+                {/* Active leave badge */}
+                {employee.leaves && employee.leaves.length > 0 && (
+                  <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1 flex items-center gap-1.5">
+                    <Palmtree className="w-3 h-3" />
+                    En congé
+                  </div>
+                )}
+
                 {/* Action buttons */}
-                <div className="border-t border-brand-border pt-3 flex gap-2">
+                <div className="border-t border-brand-border pt-3 flex gap-1.5">
                   <button
                     onClick={() => openEdit(employee)}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-lg border border-brand-border hover:border-brand-orange/40 hover:text-brand-orange transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-brand-border hover:border-brand-orange/40 hover:text-brand-orange transition-colors"
                   >
                     <Pencil className="w-3 h-3" />
                     Modifier
                   </button>
                   <button
+                    onClick={() => setLeaveEmployee(employee)}
+                    className="flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-brand-border hover:border-blue-500/40 hover:text-blue-400 transition-colors"
+                  >
+                    <Palmtree className="w-3 h-3" />
+                    Congés
+                  </button>
+                  <button
                     onClick={() => setDeleteEmployee(employee)}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 rounded-lg border border-brand-border hover:border-red-500/40 hover:text-red-400 transition-colors"
+                    className="flex items-center justify-center gap-1 text-xs py-1.5 px-2 rounded-lg border border-brand-border hover:border-red-500/40 hover:text-red-400 transition-colors"
                   >
                     <Trash2 className="w-3 h-3" />
-                    Supprimer
                   </button>
                 </div>
               </motion.div>
@@ -557,6 +743,10 @@ export default function EmployeesPage() {
           onConfirm={() => deleteMutation.mutate(deleteEmployee.id)}
           isLoading={deleteMutation.isPending}
         />
+      )}
+
+      {leaveEmployee && (
+        <LeaveModal employee={leaveEmployee} onClose={() => setLeaveEmployee(null)} />
       )}
     </div>
   )
