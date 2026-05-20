@@ -651,6 +651,48 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
 })
 
 // PATCH /api/orders/:id/tip — ajouter/modifier le pourboire
+// PATCH /api/orders/:id/items/:itemId/status — per-item status from KDS
+orderRouter.patch('/:id/items/:itemId/status', async (req: AuthRequest, res, next) => {
+  try {
+    const { status } = z.object({
+      status: z.enum(['PENDING', 'PREPARING', 'READY', 'SERVED', 'CANCELLED']),
+    }).parse(req.body)
+
+    const item = await prisma.orderItem.findFirst({
+      where: { id: req.params.itemId, orderId: req.params.id, order: { restaurantId: req.user!.restaurantId } },
+    })
+    if (!item) throw new AppError('Item introuvable', 404)
+
+    const updated = await prisma.orderItem.update({
+      where: { id: item.id },
+      data: { status, preparedAt: status === 'READY' ? new Date() : item.preparedAt },
+    })
+
+    // If all items READY → mark order READY (when order was PREPARING)
+    if (status === 'READY') {
+      const order = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        include: { items: { select: { status: true } } },
+      })
+      if (order && order.status === 'PREPARING' && order.items.every(i => i.status === 'READY' || i.status === 'CANCELLED')) {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { status: 'READY', readyAt: new Date(), statusHistory: { create: { status: 'READY', changedBy: req.user!.id } } },
+        })
+        const io = req.app.get('io')
+        const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } })
+        io?.to(req.user!.restaurantId).emit('order:status_changed', { orderId: order.id, status: 'READY', order: updatedOrder })
+      }
+    }
+
+    // Notify KDS of item change
+    const io = req.app.get('io')
+    io?.to(`kds-${req.user!.restaurantId}`).emit('order:item_changed', { orderId: req.params.id, itemId: item.id, status })
+
+    res.json({ success: true, data: updated })
+  } catch (error) { next(error) }
+})
+
 orderRouter.patch('/:id/tip', async (req: AuthRequest, res, next) => {
   try {
     const { tip } = z.object({ tip: z.number().min(0) }).parse(req.body)

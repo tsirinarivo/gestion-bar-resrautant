@@ -65,6 +65,14 @@ async function fetchKDSOrders(token: string): Promise<KDSOrder[]> {
   return data.data ?? [];
 }
 
+async function updateItemStatus(token: string, orderId: string, itemId: string, status: string) {
+  await fetch(`${API_URL}/api/orders/${orderId}/items/${itemId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeader(token) },
+    body: JSON.stringify({ status }),
+  });
+}
+
 async function updateOrderStatus(token: string, orderId: string, status: string) {
   await fetch(`${API_URL}/api/orders/${orderId}/status`, {
     method: 'PATCH',
@@ -197,6 +205,12 @@ function KDSPageInner() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }),
   });
 
+  const itemReadyMutation = useMutation({
+    mutationFn: ({ orderId, itemId }: { orderId: string; itemId: string }) =>
+      updateItemStatus(token!, orderId, itemId, 'READY'),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }),
+  });
+
   // Filter orders by station: show order only if it has at least one item in the selected station
   const filteredOrders = useMemo(() => {
     if (station === 'all') return orders;
@@ -297,25 +311,38 @@ function KDSPageInner() {
                   </div>
 
                   <div className="space-y-2 mb-4">
-                    {order.items.map(item => (
-                      <div key={item.id} className="flex gap-2">
-                        <span className="font-bold text-amber-400 min-w-[24px]">{item.quantity}×</span>
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{item.product.name}</p>
-                          {item.modifiers.length > 0 && (
-                            <p className="text-xs text-gray-400">{item.modifiers.map(m => m.name).join(', ')}</p>
+                    {order.items.map(item => {
+                      const itemReady = item.status === 'READY'
+                      return (
+                        <div key={item.id} className={`flex gap-2 ${itemReady ? 'opacity-50' : ''}`}>
+                          <span className="font-bold text-amber-400 min-w-[24px]">{item.quantity}×</span>
+                          <div className="flex-1">
+                            <p className={`font-medium text-sm ${itemReady ? 'line-through' : ''}`}>{item.product.name}</p>
+                            {item.modifiers.length > 0 && (
+                              <p className="text-xs text-gray-400">{item.modifiers.map(m => m.name).join(', ')}</p>
+                            )}
+                            {item.notes && (
+                              <p className="text-xs text-amber-300 italic">{item.notes}</p>
+                            )}
+                          </div>
+                          {item.kdsStation && item.kdsStation !== 'hot' && (
+                            <span className="text-xs bg-gray-700 rounded px-1 h-fit self-start mt-0.5 text-gray-400">
+                              {STATIONS.find(s => s.key === item.kdsStation)?.emoji ?? item.kdsStation}
+                            </span>
                           )}
-                          {item.notes && (
-                            <p className="text-xs text-amber-300 italic">{item.notes}</p>
+                          {!itemReady && order.status === 'PREPARING' && (
+                            <button
+                              onClick={() => itemReadyMutation.mutate({ orderId: order.id, itemId: item.id })}
+                              disabled={itemReadyMutation.isPending}
+                              title="Marquer cet article comme prêt"
+                              className="text-lg hover:scale-110 transition-transform">
+                              ✓
+                            </button>
                           )}
+                          {itemReady && <span className="text-green-400 text-lg">✓</span>}
                         </div>
-                        {item.kdsStation && item.kdsStation !== 'hot' && (
-                          <span className="text-xs bg-gray-700 rounded px-1 h-fit self-start mt-0.5 text-gray-400">
-                            {STATIONS.find(s => s.key === item.kdsStation)?.emoji ?? item.kdsStation}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
 
                   {order.notes && (
