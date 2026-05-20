@@ -128,9 +128,17 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
 
 function KDSPageInner() {
   const [token, setToken] = useState<string | null>(null);
-  const [station, setStation] = useState<string>('all');
+  const [station, setStation] = useState<string>(() =>
+    typeof window === 'undefined' ? 'all' : (localStorage.getItem('kds-station') ?? 'all')
+  );
+  const [soundOn, setSoundOn] = useState<boolean>(() =>
+    typeof window === 'undefined' ? true : localStorage.getItem('kds-sound') !== 'off'
+  );
   const qc = useQueryClient();
   const [now, setNow] = useState(new Date());
+
+  useEffect(() => { if (typeof window !== 'undefined') localStorage.setItem('kds-station', station) }, [station]);
+  useEffect(() => { if (typeof window !== 'undefined') localStorage.setItem('kds-sound', soundOn ? 'on' : 'off') }, [soundOn]);
 
   const { data: orders = [], error } = useQuery({
     queryKey: ['kds-orders', token],
@@ -172,12 +180,12 @@ function KDSPageInner() {
     });
     socket.on('connect', () => socket.emit('join:kds'));
     socket.on('kds:new_order', () => {
-      playBeep();
+      if (soundOn) playBeep();
       void qc.invalidateQueries({ queryKey: ['kds-orders'] });
     });
     socket.on('order:status_changed', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
     return () => { socket.disconnect(); };
-  }, [qc, token]);
+  }, [qc, token, soundOn]);
 
   const preparingMutation = useMutation({
     mutationFn: (orderId: string) => updateOrderStatus(token!, orderId, 'PREPARING'),
@@ -246,6 +254,11 @@ function KDSPageInner() {
           <p className="text-lg md:text-2xl font-mono font-bold text-amber-400">
             {now.toLocaleTimeString('fr-FR')}
           </p>
+          <button onClick={() => setSoundOn(s => !s)}
+            className={`text-lg ${soundOn ? 'text-amber-400' : 'text-gray-600'} hover:opacity-80 transition-opacity`}
+            title={soundOn ? 'Couper le son' : 'Activer le son'}>
+            {soundOn ? '🔔' : '🔕'}
+          </button>
           <button onClick={() => setToken(null)} className="text-xs text-gray-600 hover:text-gray-400">
             Déco.
           </button>
