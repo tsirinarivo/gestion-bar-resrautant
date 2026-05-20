@@ -1190,6 +1190,13 @@ export default function MenuPage() {
     queryFn: () => api.get('/warehouses').then(r => r.data.data),
   })
 
+  const { data: topProductsData } = useQuery<{ productId: string; totalSold: number; totalRevenue: number }[]>({
+    queryKey: ['top-products-menu'],
+    queryFn: () => api.get('/dashboard/live').then(r => r.data.data?.topProducts ?? []),
+    staleTime: 5 * 60_000,
+  })
+  const topProductMap = Object.fromEntries((topProductsData ?? []).map(p => [p.productId, p]))
+
   const { data: productsData, isLoading } = useQuery<Product[]>({
     queryKey: ['products', selectedCategory, search],
     queryFn: () => api.get(`/products?${selectedCategory ? `categoryId=${selectedCategory}&` : ''}${search ? `search=${encodeURIComponent(search)}&` : ''}limit=100`).then(r => r.data.data),
@@ -1410,6 +1417,11 @@ export default function MenuPage() {
                     {!product.tags?.includes('no-recipe') && (product.recipeItems?.length ?? 0) > 0 && (
                       <span className="px-1.5 py-0.5 bg-purple-500/80 text-white text-xs rounded-md font-bold flex items-center gap-0.5">
                         <ChefHat className="w-2.5 h-2.5" />{product.recipeItems!.length}
+                      </span>
+                    )}
+                    {topProductMap[product.id] && (topProductsData?.findIndex(p => p.productId === product.id) ?? -1) < 5 && (
+                      <span className="px-1.5 py-0.5 bg-green-500/80 text-white text-xs rounded-md font-bold" title={`${topProductMap[product.id]?.totalSold} vendus`}>
+                        🔥 {topProductMap[product.id]?.totalSold}
                       </span>
                     )}
                   </div>

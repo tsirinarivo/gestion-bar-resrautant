@@ -23,7 +23,7 @@ const customerSchema = z.object({
 
 customerRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const { search, page = '1', limit = '20' } = req.query
+    const { search, page = '1', limit = '20', tier, acceptsMarketing, city, hasEmail, hasBirthday, sortBy } = req.query
     const where: any = { restaurantId: req.user!.restaurantId }
 
     if (search) {
@@ -34,6 +34,16 @@ customerRouter.get('/', async (req: AuthRequest, res, next) => {
         { phone: { contains: search as string } },
       ]
     }
+    if (tier) where.loyaltyAccount = { tier: tier as string }
+    if (acceptsMarketing === 'true') where.acceptsMarketing = true
+    if (acceptsMarketing === 'false') where.acceptsMarketing = false
+    if (city) where.city = { contains: city as string, mode: 'insensitive' }
+    if (hasEmail === 'true') where.email = { not: null }
+    if (hasBirthday === 'true') where.birthDate = { not: null }
+
+    const orderBy: any = sortBy === 'orders' ? { orders: { _count: 'desc' } }
+      : sortBy === 'points' ? { loyaltyAccount: { points: 'desc' } }
+      : { createdAt: 'desc' }
 
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
@@ -42,7 +52,7 @@ customerRouter.get('/', async (req: AuthRequest, res, next) => {
           loyaltyAccount: true,
           _count: { select: { orders: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
       }),

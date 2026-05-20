@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, Search, X, TrendingUp, TrendingDown, ShoppingBag,
-  Calendar, Phone, Mail, Star, Award, Plus, Minus, Clock, Download,
+  Calendar, Phone, Mail, Star, Award, Plus, Minus, Clock, Download, Filter, ArrowUpDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -577,20 +577,34 @@ export default function CustomersPage() {
   const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
+  const [tierFilter, setTierFilter] = useState('')
+  const [marketingFilter, setMarketingFilter] = useState('')
+  const [sortBy, setSortBy] = useState('')
   const qc = useQueryClient()
 
+  function buildParams() {
+    const p = new URLSearchParams({ page: String(page), limit: '20' })
+    if (search) p.set('search', search)
+    if (tierFilter) p.set('tier', tierFilter)
+    if (marketingFilter) p.set('acceptsMarketing', marketingFilter)
+    if (sortBy) p.set('sortBy', sortBy)
+    return p.toString()
+  }
+
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', search, page],
-    queryFn: () =>
-      api.get(`/customers?${search ? `search=${encodeURIComponent(search)}&` : ''}page=${page}&limit=20`)
-        .then(r => r.data),
+    queryKey: ['customers', search, page, tierFilter, marketingFilter, sortBy],
+    queryFn: () => api.get(`/customers?${buildParams()}`).then(r => r.data),
   })
 
   const customers: Customer[] = data?.data ?? []
 
   async function exportCSV() {
     try {
-      const res = await api.get(`/customers?${search ? `search=${encodeURIComponent(search)}&` : ''}limit=500`)
+      const exportParams = new URLSearchParams({ limit: '500' })
+      if (search) exportParams.set('search', search)
+      if (tierFilter) exportParams.set('tier', tierFilter)
+      if (marketingFilter) exportParams.set('acceptsMarketing', marketingFilter)
+      const res = await api.get(`/customers?${exportParams}`)
       const all: Customer[] = res.data.data ?? []
       const rows = [
         ['Prénom', 'Nom', 'Email', 'Téléphone', 'Ville', 'Fidélité', 'Points', 'Total pts gagnés', 'Commandes', 'Depuis'],
@@ -634,15 +648,54 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted" />
-        <input
-          value={search}
-          onChange={e => { setSearch(e.target.value); setPage(1) }}
-          placeholder="Rechercher par nom, email, téléphone…"
-          className="input-field pl-10"
-        />
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted" />
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+            placeholder="Rechercher par nom, email, téléphone…"
+            className="input-field pl-10"
+          />
+        </div>
+        {/* Tier filter */}
+        <select value={tierFilter} onChange={e => { setTierFilter(e.target.value); setPage(1) }}
+          className="input-field text-sm w-auto min-w-[120px]">
+          <option value="">Tous niveaux</option>
+          <option value="BRONZE">🥉 Bronze</option>
+          <option value="SILVER">🥈 Argent</option>
+          <option value="GOLD">🥇 Or</option>
+          <option value="PLATINUM">💎 Platine</option>
+        </select>
+        {/* Marketing filter */}
+        <select value={marketingFilter} onChange={e => { setMarketingFilter(e.target.value); setPage(1) }}
+          className="input-field text-sm w-auto min-w-[130px]">
+          <option value="">Marketing : tous</option>
+          <option value="true">✅ Consentis</option>
+          <option value="false">❌ Non consentis</option>
+        </select>
+        {/* Sort */}
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          className="input-field text-sm w-auto min-w-[120px]">
+          <option value="">Trier : récents</option>
+          <option value="orders">Nb commandes</option>
+          <option value="points">Points fidélité</option>
+        </select>
+        {/* Clear filters */}
+        {(tierFilter || marketingFilter || sortBy) && (
+          <button onClick={() => { setTierFilter(''); setMarketingFilter(''); setSortBy(''); setPage(1) }}
+            className="flex items-center gap-1 px-3 py-2 text-sm rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors whitespace-nowrap">
+            <X className="w-3.5 h-3.5" /> Réinitialiser
+          </button>
+        )}
       </div>
+      {/* Active filter summary */}
+      {(tierFilter || marketingFilter) && (
+        <div className="flex items-center gap-2 text-xs text-amber-400">
+          <Filter className="w-3.5 h-3.5" />
+          <span>Filtres actifs : {[tierFilter && `Niveau ${tierFilter}`, marketingFilter === 'true' && 'Consentis marketing', marketingFilter === 'false' && 'Non consentis'].filter(Boolean).join(' · ')}</span>
+        </div>
+      )}
 
       <div className="glass-card overflow-hidden">
         <table className="w-full">
