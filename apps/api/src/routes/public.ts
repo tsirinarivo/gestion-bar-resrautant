@@ -42,13 +42,42 @@ publicRouter.get('/:slug/menu', async (req, res, next) => {
   } catch (error) { next(error) }
 })
 
+// POST /api/public/:slug/coupons/validate — public coupon validation
+publicRouter.post('/:slug/coupons/validate', async (req, res, next) => {
+  try {
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
+    const { code, orderAmount } = req.body as { code: string; orderAmount: number }
+    if (!code) return res.status(400).json({ success: false, error: 'Code requis' })
+
+    const coupon = await prisma.coupon.findFirst({
+      where: { code: code.toUpperCase(), restaurantId: restaurant.id, isActive: true },
+    })
+    if (!coupon) return res.status(404).json({ success: false, error: 'Code promo invalide' })
+    if (coupon.endDate && coupon.endDate < new Date()) return res.status(400).json({ success: false, error: 'Code promo expiré' })
+    if (coupon.startDate && coupon.startDate > new Date()) return res.status(400).json({ success: false, error: 'Code promo pas encore valide' })
+    if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) return res.status(400).json({ success: false, error: 'Code promo épuisé' })
+    if (coupon.minOrderAmount && orderAmount < coupon.minOrderAmount) {
+      return res.status(400).json({ success: false, error: `Montant minimum : Ar ${coupon.minOrderAmount}` })
+    }
+    let discount = 0
+    if (coupon.type === 'PERCENTAGE') {
+      discount = orderAmount * (coupon.value / 100)
+      if (coupon.maxDiscount) discount = Math.min(discount, coupon.maxDiscount)
+    } else if (coupon.type === 'FIXED_AMOUNT') {
+      discount = Math.min(coupon.value, orderAmount)
+    }
+    res.json({ success: true, data: { code: coupon.code, type: coupon.type, value: coupon.value, discount } })
+  } catch (error) { next(error) }
+})
+
 // POST /api/public/:slug/orders — guest order
 publicRouter.post('/:slug/orders', async (req, res, next) => {
   try {
     const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
 
-    const { items, type = 'TAKEAWAY', notes, customerName, customerPhone, deliveryAddress, deliveryCity, tipAmount = 0 } = req.body
+    const { items, type = 'TAKEAWAY', notes, customerName, customerPhone, deliveryAddress, deliveryCity, tipAmount = 0, couponCode } = req.body
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Panier vide' })
@@ -60,7 +89,28 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     const taxRate = restaurant.defaultTaxRate ?? 20
     const taxAmount = subtotal * (taxRate / 100)
     const tip = Number(tipAmount) || 0
-    const totalAmount = subtotal + taxAmount + deliveryFee + tip
+
+    // Coupon validation (optional)
+    let discountAmount = 0
+    let couponId: string | undefined
+    if (couponCode) {
+      const c = await prisma.coupon.findFirst({
+        where: { code: String(couponCode).toUpperCase(), restaurantId: restaurant.id, isActive: true },
+      })
+      if (c && (!c.endDate || c.endDate >= new Date()) &&
+          (!c.startDate || c.startDate <= new Date()) &&
+          (!c.usageLimit || c.usageCount < c.usageLimit) &&
+          (!c.minOrderAmount || subtotal >= c.minOrderAmount)) {
+        if (c.type === 'PERCENTAGE') {
+          discountAmount = subtotal * (c.value / 100)
+          if (c.maxDiscount) discountAmount = Math.min(discountAmount, c.maxDiscount)
+        } else if (c.type === 'FIXED_AMOUNT') {
+          discountAmount = Math.min(c.value, subtotal)
+        }
+        couponId = c.id
+      }
+    }
+    const totalAmount = subtotal + taxAmount + deliveryFee + tip - discountAmount
 
     const contactNote = customerName ? `Client: ${customerName}${customerPhone ? ` — ${customerPhone}` : ''}` : undefined
     const fullNotes = [contactNote, notes].filter(Boolean).join(' | ') || undefined
@@ -79,7 +129,8 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
         taxAmount,
         tipAmount: tip,
         deliveryFee,
-        discountAmount: 0,
+        discountAmount,
+        couponId,
         totalAmount,
         items: {
           create: (items as Array<{ productId: string; quantity: number; unitPrice: number; notes?: string }>).map(item => ({
@@ -96,6 +147,10 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
       },
       include: { items: { include: { product: { select: { name: true } } } } },
     })
+
+    if (couponId) {
+      prisma.coupon.update({ where: { id: couponId }, data: { usageCount: { increment: 1 } } }).catch(() => {})
+    }
 
     res.status(201).json({ success: true, data: order })
   } catch (error) { next(error) }

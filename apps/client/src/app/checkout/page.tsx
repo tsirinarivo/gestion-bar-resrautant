@@ -34,6 +34,10 @@ export default function CheckoutPage() {
   const [error, setError] = useState('');
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [countdown, setCountdown] = useState(5);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponError, setCouponError] = useState('');
+  const [couponChecking, setCouponChecking] = useState(false);
 
   useEffect(() => {
     setCart(getCart());
@@ -65,7 +69,25 @@ export default function CheckoutPage() {
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const fee = type === 'DELIVERY' ? deliveryFee : 0;
-  const total = subtotal + fee + tip;
+  const total = Math.max(0, subtotal + fee + tip - couponDiscount);
+
+  async function applyCoupon() {
+    if (!couponCode.trim()) return;
+    setCouponChecking(true); setCouponError('');
+    try {
+      const res = await fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/coupons/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: couponCode.trim(), orderAmount: subtotal }),
+      });
+      const data = await res.json() as { success: boolean; data?: { discount: number }; error?: string };
+      if (!data.success) throw new Error(data.error ?? 'Code invalide');
+      setCouponDiscount(data.data?.discount ?? 0);
+    } catch (err) {
+      setCouponError(err instanceof Error ? err.message : 'Code invalide');
+      setCouponDiscount(0);
+    } finally { setCouponChecking(false); }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +109,7 @@ export default function CheckoutPage() {
           deliveryCity: type === 'DELIVERY' ? city : undefined,
           notes: notes || undefined,
           tipAmount: tip > 0 ? tip : undefined,
+          couponCode: couponDiscount > 0 ? couponCode.trim() : undefined,
         }),
       });
       const data = (await res.json()) as { success: boolean; data?: { id: string; orderNumber: string }; error?: string };
@@ -242,9 +265,35 @@ export default function CheckoutPage() {
                 <span>Pourboire</span><span>{formatCurrency(tip)}</span>
               </div>
             )}
+            {couponDiscount > 0 && (
+              <div className="flex justify-between text-green-600 text-sm">
+                <span>🎟️ Code promo ({couponCode})</span><span>-{formatCurrency(couponDiscount)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-lg pt-2">
               <span>Total</span><span className="text-amber-600">{formatCurrency(total)}</span>
             </div>
+          </div>
+          {/* Coupon */}
+          <div className="border-t border-gray-100 mt-3 pt-3">
+            <p className="text-sm font-medium text-gray-700 mb-2">Code promo</p>
+            <div className="flex gap-2">
+              <input value={couponCode} onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponError(''); if (!e.target.value) setCouponDiscount(0); }}
+                placeholder="MONCODE" disabled={couponDiscount > 0}
+                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-amber-400 disabled:bg-green-50 disabled:border-green-300" />
+              {couponDiscount > 0 ? (
+                <button type="button" onClick={() => { setCouponDiscount(0); setCouponCode(''); setCouponError('') }}
+                  className="px-3 py-2 rounded-xl text-sm font-semibold bg-red-50 text-red-500 border border-red-200">
+                  Retirer
+                </button>
+              ) : (
+                <button type="button" onClick={applyCoupon} disabled={couponChecking || !couponCode.trim()}
+                  className="px-3 py-2 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 text-white disabled:opacity-50">
+                  {couponChecking ? '…' : 'Appliquer'}
+                </button>
+              )}
+            </div>
+            {couponError && <p className="text-xs text-red-500 mt-1">{couponError}</p>}
           </div>
           {/* Tip */}
           <div className="border-t border-gray-100 mt-3 pt-3">
