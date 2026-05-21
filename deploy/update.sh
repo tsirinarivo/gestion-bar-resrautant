@@ -43,10 +43,17 @@ header "4. Migrations"
 $DC run --rm migrate sh -c "npx prisma db push --accept-data-loss" || true
 log "Migrations exécutées"
 
-header "5. Statut final"
+header "5. Service de backup Postgres"
+mkdir -p ./backups/postgres
+$DC up -d postgres-backup
+log "Backup Postgres actif (dumps dans ./backups/postgres, schedule: 03:00 chaque jour)"
+
+header "6. Statut final"
 $DC ps
 
 echo ""
 log "Mise à jour terminée !"
 echo ""
-echo "Test rapide : curl http://127.0.0.1:4001/api/health"
+echo "Test rapide      : curl http://127.0.0.1:4001/api/health"
+echo "Backups Postgres : ls -lht ./backups/postgres/daily/ 2>/dev/null | head -5"
+echo "Restauration     : bash deploy/restore-postgres.sh"
