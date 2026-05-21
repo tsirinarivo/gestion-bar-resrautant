@@ -63,6 +63,9 @@ COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/database/prisma ./prisma
 
+# Create uploads directory writable by node user
+RUN mkdir -p /app/public/uploads/products && chown -R node:node /app/public
+
 EXPOSE 4000
 
 USER node
