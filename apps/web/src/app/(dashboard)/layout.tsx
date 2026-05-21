@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
+import { CommandPalette } from '@/components/layout/CommandPalette'
 
 // Pages accessible par rôle (undefined = accès complet)
 const ROLE_HOME: Record<string, string> = {
@@ -68,6 +69,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+
+      <CommandPalette />
     </div>
   )
 }
