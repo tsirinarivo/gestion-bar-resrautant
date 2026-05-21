@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronRight, Trash2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { exportToXLSX } from '@/lib/xlsx'
 import { formatCurrency, formatDate } from '@restaurant/utils'
 import { toast } from 'sonner'
 
@@ -386,6 +387,22 @@ export default function InvoicesPage() {
     URL.revokeObjectURL(url)
   }
 
+  function exportXLSX() {
+    const rows = invoices.map(i => ({
+      'Numéro': i.invoiceNumber,
+      'Date': formatDate(i.issueDate),
+      'Client': i.payment?.order?.customer
+        ? `${i.payment.order.customer.firstName} ${i.payment.order.customer.lastName}`
+        : '—',
+      'Commande': i.payment?.order?.orderNumber ?? '—',
+      'Total HT (Ar)': i.totalHT,
+      'TVA (Ar)': i.totalTax,
+      'Total TTC (Ar)': i.totalTTC,
+      'Statut': STATUS_LABEL[i.status],
+    }))
+    exportToXLSX('factures', rows, 'Factures')
+  }
+
   const STATUS_FILTERS = [
     { value: '', label: 'Toutes' },
     { value: 'DRAFT', label: 'Brouillon' },
@@ -408,7 +425,14 @@ export default function InvoicesPage() {
             className="btn-secondary flex items-center gap-2 text-sm"
           >
             <Download className="w-4 h-4" />
-            Exporter
+            CSV
+          </button>
+          <button
+            onClick={exportXLSX}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-emerald-500/40 hover:text-emerald-400 text-sm transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Excel
           </button>
           <button
             onClick={() => setShowGenerate(true)}

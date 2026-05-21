@@ -47,6 +47,7 @@ const navItems = [
   { href: '/reviews',   label: 'Avis clients',        icon: Star,             roles: ['manager', 'superadmin'] },
   { href: '/campaigns', label: 'Campagnes',           icon: Megaphone,        roles: ['manager', 'superadmin'] },
   { href: '/audit',     label: 'Journal d\'audit',   icon: Shield,           roles: ['manager', 'superadmin'] },
+  { href: '/superadmin', label: 'Vue Superadmin',    icon: Building2,        roles: ['superadmin'] },
 ]
 
 const POS_URL = process.env.NEXT_PUBLIC_POS_URL || 'https://pos.restaurant.dago-it.com'

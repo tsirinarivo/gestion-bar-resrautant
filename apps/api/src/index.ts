@@ -39,6 +39,7 @@ import { promotionRouter } from './routes/promotions'
 import { campaignRouter } from './routes/campaigns'
 import { modifierGroupRouter } from './routes/modifier-groups'
 import { invoiceRouter } from './routes/invoices'
+import { superadminRouter } from './routes/superadmin'
 import { errorHandler } from './middleware/errorHandler'
 import { setupSocketHandlers } from './socket/handlers'
 import { prisma } from './lib/prisma'
@@ -119,6 +120,7 @@ app.use('/api/promotions', promotionRouter)
 app.use('/api/campaigns', campaignRouter)
 app.use('/api/modifier-groups', modifierGroupRouter)
 app.use('/api/invoices', invoiceRouter)
+app.use('/api/superadmin', superadminRouter)
 
 app.get('/api/health', async (req, res) => {
   try {

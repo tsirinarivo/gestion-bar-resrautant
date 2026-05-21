@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Shield, Search, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import { api } from '@/lib/api'
+import { exportToXLSX } from '@/lib/xlsx'
 import { formatDateTime } from '@restaurant/utils'
 
 type AuditLog = {
@@ -123,9 +124,13 @@ export default function AuditPage() {
 
   const resources = Array.from(new Set(logs.map(l => l.resource))).sort()
 
-  async function exportCSV() {
+  async function fetchAllAudit(): Promise<AuditLog[]> {
     const all = await api.get(`/audit?limit=1000${action ? `&action=${action}` : ''}${resource ? `&resource=${resource}` : ''}`).then(r => r.data)
-    const items: AuditLog[] = all.data ?? []
+    return all.data ?? []
+  }
+
+  async function exportCSV() {
+    const items = await fetchAllAudit()
     const rows = [
       ['Date', 'Utilisateur', 'Action', 'Ressource', 'ID', 'IP'],
       ...items.map(l => [
@@ -144,6 +149,19 @@ export default function AuditPage() {
     URL.revokeObjectURL(url)
   }
 
+  async function exportXLSX() {
+    const items = await fetchAllAudit()
+    const rows = items.map(l => ({
+      'Date': new Date(l.createdAt).toLocaleString('fr-FR'),
+      'Utilisateur': l.user ? `${l.user.firstName} ${l.user.lastName} <${l.user.email}>` : 'Système',
+      'Action': l.action,
+      'Ressource': l.resource,
+      'ID': l.resourceId ?? '',
+      'IP': l.ipAddress ?? '',
+    }))
+    exportToXLSX('audit', rows, 'Audit')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -154,10 +172,16 @@ export default function AuditPage() {
             <p className="text-brand-muted text-sm">{pagination?.total ?? 0} entrées</p>
           </div>
         </div>
-        <button onClick={exportCSV}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-brand-orange/40 hover:text-brand-orange text-sm transition-colors">
-          <Download className="w-4 h-4" /> Exporter CSV
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-brand-orange/40 hover:text-brand-orange text-sm transition-colors">
+            <Download className="w-4 h-4" /> CSV
+          </button>
+          <button onClick={exportXLSX}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-emerald-500/40 hover:text-emerald-400 text-sm transition-colors">
+            <Download className="w-4 h-4" /> Excel
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
