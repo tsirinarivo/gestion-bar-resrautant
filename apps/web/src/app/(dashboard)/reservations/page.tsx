@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Calendar, Plus, Search, Clock, Users, Phone, CheckCircle, X, Edit2, Save, MessageSquare } from 'lucide-react'
+import { Calendar, Plus, Search, Clock, Users, Phone, CheckCircle, X, Edit2, Save, MessageSquare, Bell, ChevronDown } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatTime } from '@restaurant/utils'
 import { toast } from 'sonner'
@@ -101,6 +101,7 @@ export default function ReservationsPage() {
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null)
   const [editingNotesValue, setEditingNotesValue] = useState('')
   const [viewMode, setViewMode] = useState<'list' | 'week'>('list')
+  const [showReminders, setShowReminders] = useState(false)
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -139,6 +140,21 @@ export default function ReservationsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reservations'] })
       toast.success('Table assignée')
+    },
+  })
+
+  const { data: remindersData } = useQuery({
+    queryKey: ['reservation-reminders'],
+    queryFn: () => api.get('/reservations/reminders?days=7').then(r => r.data.data),
+    refetchInterval: 120_000,
+  })
+  const reminders: any[] = remindersData ?? []
+
+  const markReminderSent = useMutation({
+    mutationFn: (id: string) => api.patch(`/reservations/reminders/${id}/sent`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservation-reminders'] })
+      toast.success('Rappel marqué comme envoyé')
     },
   })
 
@@ -347,6 +363,55 @@ export default function ReservationsPage() {
           })
         )}
       </div>}
+
+      {/* ── Rappels automatiques ── */}
+      {reminders.length > 0 && (
+        <div className="glass-card overflow-hidden">
+          <button
+            onClick={() => setShowReminders(v => !v)}
+            className="w-full flex items-center justify-between p-4 hover:bg-brand-surface/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-brand-orange" />
+              <span className="font-semibold text-sm">Rappels à envoyer</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-brand-orange text-white font-bold">{reminders.length}</span>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-brand-muted transition-transform ${showReminders ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence>
+            {showReminders && (
+              <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                <div className="divide-y divide-brand-border">
+                  {reminders.map((r: any) => (
+                    <div key={r.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">
+                          {r.reservation?.firstName} {r.reservation?.lastName}
+                          <span className="text-brand-muted ml-2 text-xs">({r.reservation?.partySize} pers.)</span>
+                        </p>
+                        <p className="text-xs text-brand-muted mt-0.5">
+                          📅 {new Date(r.reservation?.date).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <p className="text-xs text-brand-orange mt-0.5">
+                          Rappel {r.type} · à envoyer le {new Date(r.scheduledAt).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        {r.reservation?.phone && <p className="text-xs text-brand-muted">📞 {r.reservation.phone}</p>}
+                      </div>
+                      <button
+                        onClick={() => markReminderSent.mutate(r.id)}
+                        disabled={markReminderSent.isPending}
+                        className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-400/10 text-green-400 border border-green-400/30 hover:bg-green-400/20 text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Envoyé
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   )
 }

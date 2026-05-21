@@ -63,6 +63,11 @@ app.use(cookieParser())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
+// Serve uploaded files
+import('path').then(({ default: path }) => {
+  app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')))
+}).catch(() => {})
+
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'],
   credentials: true,

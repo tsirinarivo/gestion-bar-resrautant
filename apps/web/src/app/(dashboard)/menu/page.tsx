@@ -204,6 +204,26 @@ function ProductModal({
                 className="input-field flex-1"
                 placeholder="https://images.unsplash.com/..."
               />
+              <label className="px-3 py-2 bg-gray-700 hover:bg-gray-600 border border-brand-border rounded-xl text-sm transition-colors flex-shrink-0 cursor-pointer flex items-center gap-1.5" title="Téléverser une image">
+                📤
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    const fd = new FormData()
+                    fd.append('image', file)
+                    try {
+                      const res = await api.post('/products/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+                      setForm(f => ({ ...f, image: res.data.data.url }))
+                      toast.success('Image téléversée')
+                    } catch { toast.error('Erreur upload') }
+                  }}
+                />
+                Upload
+              </label>
               <button
                 type="button"
                 title="Chercher sur Unsplash"

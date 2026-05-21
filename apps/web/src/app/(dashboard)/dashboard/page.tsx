@@ -8,7 +8,7 @@ import {
   TrendingUp, TrendingDown, ShoppingCart, Users, Table2,
   Euro, Clock, Star, AlertTriangle, ArrowUp, ArrowDown,
   BarChart2, Activity, Utensils, Package, CalendarX, Cake,
-  CalendarDays, ChefHat, Receipt, Plus
+  CalendarDays, ChefHat, Receipt, Plus, Users2
 } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -135,6 +135,14 @@ export default function DashboardPage() {
     refetchInterval: 60_000,
   })
   const onDuty: any[] = activeEmployees ?? []
+
+  const todayStr = new Date().toISOString().split('T')[0]
+  const { data: shiftsData } = useQuery({
+    queryKey: ['shifts-today'],
+    queryFn: () => api.get(`/employees/shifts?from=${todayStr}&to=${todayStr}`).then(r => r.data.data),
+    staleTime: 300_000,
+  })
+  const todayShifts: any[] = shiftsData ?? []
 
   const kpis = kpisData
 
@@ -510,6 +518,42 @@ export default function DashboardPage() {
                     {c.daysUntil === 0 ? '🎂 Aujourd\'hui' : `dans ${c.daysUntil}j`}
                   </span>
                 </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Today's Shifts */}
+      {todayShifts.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.79 }}
+          className="glass-card p-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Users2 className="w-4 h-4 text-indigo-400" />
+            <h2 className="font-semibold">Planning du jour</h2>
+            <span className="ml-auto text-xs bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full">
+              {todayShifts.length} shift(s)
+            </span>
+          </div>
+          <div className="space-y-2">
+            {todayShifts.map((shift: any) => (
+              <div key={shift.id} className="flex items-center justify-between text-sm p-2 rounded-xl bg-brand-surface border border-brand-border">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold">
+                    {shift.employee?.user?.firstName?.[0]}{shift.employee?.user?.lastName?.[0]}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{shift.employee?.user?.firstName} {shift.employee?.user?.lastName}</p>
+                    {shift.station && <p className="text-xs text-brand-muted">{shift.station}</p>}
+                  </div>
+                </div>
+                <span className="text-xs font-mono text-brand-muted bg-brand-darker px-2 py-1 rounded-lg">
+                  {shift.startTime} – {shift.endTime}
+                </span>
               </div>
             ))}
           </div>

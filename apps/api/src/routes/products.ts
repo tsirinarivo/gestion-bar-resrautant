@@ -4,9 +4,40 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { slugify, convertUnit } from '@restaurant/utils'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
 
 export const productRouter = Router()
 productRouter.use(authenticate)
+
+// ── Image Upload ─────────────────────────────────────────────────────────────
+const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'products')
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg'
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`)
+  },
+})
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    cb(null, allowed.includes(file.mimetype))
+  },
+})
+
+// POST /api/products/upload-image
+productRouter.post('/upload-image', authorize('manager', 'superadmin'), upload.single('image'), (req: AuthRequest, res) => {
+  if (!req.file) { res.status(400).json({ success: false, error: 'Aucune image fournie' }); return }
+  const baseUrl = process.env.API_BASE_URL || `http://localhost:4000`
+  const url = `${baseUrl}/uploads/products/${req.file.filename}`
+  res.json({ success: true, data: { url } })
+})
 
 const productSchema = z.object({
   name: z.string().min(1),

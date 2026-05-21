@@ -209,3 +209,56 @@ reservationRouter.delete('/:id', async (req: AuthRequest, res, next) => {
     next(error)
   }
 })
+
+// GET /api/reservations/reminders — list upcoming reminders
+reservationRouter.get('/reminders', async (req: AuthRequest, res, next) => {
+  try {
+    const { status = 'PENDING', days = '7' } = req.query as Record<string, string>
+    const restaurantId = req.user!.restaurantId
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() + parseInt(days))
+
+    const reminders = await prisma.reservationReminder.findMany({
+      where: {
+        status,
+        scheduledAt: { lte: cutoff },
+        reservation: { restaurantId },
+      },
+      include: {
+        reservation: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+            date: true,
+            partySize: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 100,
+    })
+
+    res.json({ success: true, data: reminders })
+  } catch (error) { next(error) }
+})
+
+// PATCH /api/reservations/reminders/:id/sent — mark reminder as sent
+reservationRouter.patch('/reminders/:id/sent', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const existing = await prisma.reservationReminder.findFirst({
+      where: { id: req.params.id, reservation: { restaurantId } },
+    })
+    if (!existing) { res.status(404).json({ success: false, error: 'Rappel introuvable' }); return }
+
+    const updated = await prisma.reservationReminder.update({
+      where: { id: req.params.id },
+      data: { sentAt: new Date(), status: 'SENT' },
+    })
+    res.json({ success: true, data: updated })
+  } catch (error) { next(error) }
+})
