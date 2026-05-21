@@ -138,6 +138,15 @@ export default function PrinterSettingsPage() {
     onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur actualisation'),
   })
 
+  const reprint = useMutation({
+    mutationFn: (logId: string) => api.post(`/printer/logs/${logId}/reprint`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['printer-logs'] })
+      toast.success('Réimpression envoyée')
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur réimpression'),
+  })
+
   function handleSave() {
     if (!form) return
     saveConfig.mutate(form)
@@ -370,7 +379,7 @@ export default function PrinterSettingsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-brand-border text-left">
-                {['Date', 'Type', 'Commande', 'Statut', 'Erreur'].map(h => (
+                {['Date', 'Type', 'Commande', 'Statut', 'Erreur', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-xs font-medium text-brand-muted uppercase">{h}</th>
                 ))}
               </tr>
@@ -379,12 +388,12 @@ export default function PrinterSettingsPage() {
               {logsLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-brand-border/50">
-                    <td colSpan={5} className="px-4 py-3"><div className="skeleton h-4 rounded" /></td>
+                    <td colSpan={6} className="px-4 py-3"><div className="skeleton h-4 rounded" /></td>
                   </tr>
                 ))
               ) : (logsData?.data?.data ?? []).length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-10 text-brand-muted">
+                  <td colSpan={6} className="text-center py-10 text-brand-muted">
                     <Printer className="w-8 h-8 mx-auto mb-2 opacity-30" />
                     <p className="text-sm">Aucune impression enregistrée</p>
                   </td>
@@ -410,6 +419,15 @@ export default function PrinterSettingsPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-red-400 max-w-xs truncate">
                     {log.error ?? '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {log.status === 'failed' && (
+                      <button onClick={() => reprint.mutate(log.id)} disabled={reprint.isPending}
+                        className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-brand-border hover:bg-white/5 disabled:opacity-50 transition-colors whitespace-nowrap">
+                        <Printer className="w-3 h-3" />
+                        Réimprimer
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

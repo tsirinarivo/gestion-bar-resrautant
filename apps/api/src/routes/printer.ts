@@ -214,6 +214,26 @@ printerRouter.post('/refresh-logs', async (req: AuthRequest, res, next) => {
   }
 })
 
+// POST /api/printer/logs/:id/reprint — re-send a previous print job
+printerRouter.post('/logs/:id/reprint', async (req: AuthRequest, res, next) => {
+  try {
+    const log = await prisma.printLog.findFirst({
+      where: { id: req.params.id, ownerId: req.user!.restaurantId },
+    })
+    if (!log) return res.status(404).json({ success: false, error: 'Impression introuvable' })
+
+    await sendPrintAndLog(req.user!.restaurantId, log.content, {
+      kind:      log.kind,
+      relatedId: log.relatedId ?? undefined,
+      orderId:   log.orderId ?? undefined,
+      copies:    log.copies,
+    } as any)
+    res.json({ success: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // GET /api/printer/debug — diagnostic avec vrais credentials
 printerRouter.get('/debug', async (req: AuthRequest, res, next) => {
   try {
