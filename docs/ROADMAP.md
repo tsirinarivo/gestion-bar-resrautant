@@ -89,6 +89,7 @@
 - [x] Historique d'impression + bouton "Réimprimer" pour les tickets en erreur
 - [x] Alertes dates d'expiration (badges stock + widget dashboard)
 - [x] Page `/superadmin` — vue multi-restaurant avec KPIs jour
+- [x] Bottom bar mobile + manifest PWA pour le dashboard
 
 ---
 
@@ -121,11 +122,6 @@
 #### Sprint C6 — API publique documentée (Swagger)
 - Générer documentation Swagger/OpenAPI sur `GET /api/docs`
 - Utile pour intégration avec des outils tiers
-
-#### Sprint C7 — Tableau de bord mobile (PWA dashboard)
-- Rendre le dashboard admin utilisable sur mobile (responsive amélioré)
-- Navigation bottom bar sur mobile
-- PWA manifest pour le dashboard (actuellement seulement sur client)
 
 #### Sprint C9 — Livraison : suivi chauffeur temps réel
 - Assigner un employé comme chauffeur pour une commande DELIVERY
