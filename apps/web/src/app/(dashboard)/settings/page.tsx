@@ -175,6 +175,14 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium mb-2">Temps de préparation (min)</label>
               <input {...register('estimatedPrepTime', { valueAsNumber: true })} type="number" className="input-field" />
             </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-2">
+                Objectif CA mensuel (Ar)
+                <span className="text-xs text-brand-muted ml-2">— affiché sur le dashboard</span>
+              </label>
+              <input {...register('monthlyRevenueTarget', { valueAsNumber: true, setValueAs: (v: any) => v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v) })}
+                type="number" step="1000" min="0" placeholder="Ex : 5000000" className="input-field" />
+            </div>
           </div>
         </div>
 

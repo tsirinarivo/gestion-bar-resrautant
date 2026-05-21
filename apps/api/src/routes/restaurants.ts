@@ -37,6 +37,7 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       minOrderAmount: z.number().optional(),
       deliveryFee: z.number().optional(),
       estimatedPrepTime: z.number().optional(),
+      monthlyRevenueTarget: z.number().nullable().optional(),
     }).parse(req.body)
 
     const restaurant = await prisma.restaurant.update({

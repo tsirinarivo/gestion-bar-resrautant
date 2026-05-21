@@ -41,6 +41,9 @@ model Restaurant {
   deliveryFee       Float   @default(0)
   estimatedPrepTime Int     @default(20) // minutes
 
+  // Monthly revenue target
+  monthlyRevenueTarget Float?
+
   // Stripe
   stripeAccountId String?
 

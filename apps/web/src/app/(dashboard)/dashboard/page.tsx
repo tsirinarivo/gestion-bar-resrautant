@@ -144,7 +144,16 @@ export default function DashboardPage() {
   })
   const todayShifts: any[] = shiftsData ?? []
 
+  const { data: restaurant } = useQuery({
+    queryKey: ['restaurant', 'me'],
+    queryFn: () => api.get('/restaurants/me').then(r => r.data.data),
+    staleTime: 3_600_000,
+  })
+
   const kpis = kpisData
+  const monthRevenue = kpis?.revenue?.thisMonth || 0
+  const monthlyTarget: number | null = restaurant?.monthlyRevenueTarget ?? null
+  const targetProgress = monthlyTarget && monthlyTarget > 0 ? (monthRevenue / monthlyTarget) * 100 : null
 
   return (
     <div className="space-y-6">
@@ -228,6 +237,43 @@ export default function DashboardPage() {
           </>
         )}
       </motion.div>
+
+      {/* Monthly revenue target progress */}
+      {monthlyTarget && monthlyTarget > 0 && targetProgress !== null && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.4 }}
+          className="glass-card p-5"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-brand-orange" />
+              <h2 className="font-semibold text-sm">Objectif mensuel</h2>
+              {targetProgress >= 100 && <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">🎉 Atteint</span>}
+              {targetProgress >= 80 && targetProgress < 100 && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">⚡ Presque !</span>}
+            </div>
+            <p className="text-sm text-brand-muted">
+              <span className="font-bold text-white">{Math.round(monthRevenue).toLocaleString('fr-FR')}</span> / {monthlyTarget.toLocaleString('fr-FR')} Ar
+            </p>
+          </div>
+          <div className="h-3 rounded-full bg-white/5 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${
+                targetProgress >= 100 ? 'bg-gradient-to-r from-emerald-500 to-green-400'
+                  : targetProgress >= 80 ? 'bg-gradient-to-r from-amber-500 to-orange-400'
+                  : 'bg-gradient-to-r from-brand-orange to-orange-400'
+              }`}
+              style={{ width: `${Math.min(100, targetProgress)}%` }}
+            />
+          </div>
+          <p className="text-xs text-brand-muted mt-2">
+            {targetProgress.toFixed(1)}% — {targetProgress >= 100
+              ? 'Objectif dépassé, bravo !'
+              : `Reste à faire : ${Math.max(0, monthlyTarget - monthRevenue).toLocaleString('fr-FR')} Ar`}
+          </p>
+        </motion.div>
+      )}
 
       {/* Quick actions */}
       <motion.div
