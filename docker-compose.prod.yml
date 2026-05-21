@@ -60,6 +60,20 @@ services:
     networks:
       - restaurant_internal
 
+  # ── Watchdog (rapporte les pannes API + alertes Discord optionnelles) ──────
+  watchdog:
+    image: alpine:3.20
+    container_name: restaurant_watchdog
+    restart: unless-stopped
+    environment:
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+    volumes:
+      - ./deploy/watchdog.sh:/watchdog.sh:ro
+      - ./logs:/logs
+    command: ["sh", "/watchdog.sh"]
+    networks:
+      - restaurant_internal
+
   # ── Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -97,6 +111,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ./uploads:/app/public/uploads
     networks:
       - restaurant_internal
     healthcheck:
