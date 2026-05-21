@@ -1,45 +1,165 @@
-# RestaurantOS — Notes Claude
+# RestaurantOS — Mémoire projet Claude
+
+## Le projet en une phrase
+
+SaaS de gestion de restaurant complet (commandes, caisse, stock, fidélité, KDS, réservations) ciblant Madagascar, déployé en production sur VPS.
+
+---
+
+## Stack technique
+
+| Couche | Technologie |
+|---|---|
+| Monorepo | Turborepo |
+| API | Express.js + Prisma ORM + PostgreSQL (port 4000) |
+| Dashboard admin | Next.js 14 App Router (port 3000) → `admin.restaurant.dago-it.com` |
+| POS | Next.js standalone (port 3001) → `pos.restaurant.dago-it.com` |
+| KDS | Next.js kitchen display (port 3002) |
+| Client | Next.js app client (port 3003) |
+| Auth | JWT (accessToken localStorage + refreshToken cookie) |
+| Temps réel | Socket.io |
+| Schéma DB | `packages/database/prisma/schema.prisma` |
+| Styles | Tailwind CSS |
+| Data fetching | TanStack Query (`useQuery` / `useMutation`) |
+| Notifications | Sonner toasts |
+| Animations | Framer Motion (`AnimatePresence` + `motion.div`) |
+| Icons | lucide-react |
+| Upload fichiers | multer (installé dans apps/api) |
+
+---
+
+## Branche Git de travail
+
+```
+claude/restaurant-management-app-cFnVm
+```
+
+Toujours développer et pousser sur cette branche. Jamais sur `main`.
+
+---
 
 ## Déploiement
 
-Après chaque commit/push, déployer avec :
+Après chaque commit/push :
 
 ```bash
 cd /opt/restaurant && bash deploy/update.sh
 ```
 
-> **Règle** : ne jamais demander à l'utilisateur de copier-coller une commande — toujours terminer avec le script ci-dessus directement cliquable.
+**Règle absolue** : ne jamais demander à l'utilisateur de copier-coller une commande — toujours terminer avec le script ci-dessus directement dans le chat.
 
-## Stack
+Le script fait : `git pull` → `docker compose build` → `restart` → `prisma db push --accept-data-loss`
 
-- **Monorepo** Turborepo
-- **apps/api** — Express + Prisma (port 4000)
-- **apps/web** — Next.js 14 dashboard admin (port 3000) → `admin.restaurant.dago-it.com`
-- **apps/pos** — Next.js POS standalone (port 3001) → `pos.restaurant.dago-it.com`
-- **apps/kds** — Kitchen Display (port 3002)
-- **apps/client** — Client app (port 3003)
-- **Branch** : `claude/restaurant-management-app-cFnVm`
+---
 
 ## Moyens de paiement (Madagascar)
 
 `CASH | MVOLA | ORANGE_MONEY | AIRTEL_MONEY | CARD | BNI_MOBILE | BOA_MOBILE | VIREMENT | CHEQUE | VOUCHER | WALLET`
 
-## Règles de développement
+**WALLET** = rachat de points fidélité (1 point = 10 MGA, constante `POINTS_RATE = 10`)
 
-- Toujours commit + push avant de proposer le déploiement
-- Le script deploy fait : `git pull` → `docker compose build` → `restart` → `prisma db push --accept-data-loss`
-- Migrations Prisma : toujours avec `--accept-data-loss` pour éviter les prompts interactifs
-- Imprimante cloud : XPyun via package `imprimantcloud` — URLs corrigées dans Dockerfile (`sg.open.xpyun.net`, `gm.open.xpyun.net`)
-- Format reçu : balises XPyun `<C>`, `<L>`, `<B>`, `<BR>` — 48 chars/ligne (80mm)
+---
+
+## Conventions de code strictes
+
+### API (Express + Prisma)
+- **Routes statiques AVANT dynamiques** : `/bulk`, `/stats`, `/upload-image` doivent être déclarées AVANT `/:id` — sinon Express les capture comme ID.
+- **Side-effects non-bloquants** : toujours `.catch(() => {})` sur les créations de notifications, reminders, etc.
+- **Migrations Prisma** : toujours `--accept-data-loss` pour éviter les prompts interactifs.
+- **Champ inventory** : utiliser `createdBy` (pas `performedBy`) sur `StockMovement`.
+- **Authentification** : middleware `authenticate` + `authorize('role1', 'role2')` sur chaque route protégée.
+- **Audit** : `AuditLog` est alimenté automatiquement — ne pas doublon-logger manuellement.
+
+### Frontend (Next.js)
+- **Axios instance** : `import { api } from '@/lib/api'` — base URL déjà configurée, token injecté automatiquement.
+- **TypeScript strict** : `noUncheckedIndexedAccess` — toujours typer les tableaux (`arr[0]` peut être undefined).
+- **Pattern page** : `useQuery` pour GET, `useMutation` + `queryClient.invalidateQueries` pour mutations.
+- **Modals** : `AnimatePresence` + `motion.div` avec overlay backdrop `bg-black/50`.
+- **Toasts** : `toast.success()` / `toast.error()` de Sonner.
+- **Currency** : `formatCurrency(amount)` depuis `@restaurant/utils` (formate en Ar).
+- **Pas de commentaires** sauf si la raison est non-évidente.
+
+### Erreurs connues à ignorer
+- `apps/web/src/app/(dashboard)/tables/page.tsx` : erreur TypeScript `qrcode.react` (types manquants) — pré-existante, ne pas toucher.
+
+---
+
+## Mode de fonctionnement attendu
+
+**Mode autonome** : implémenter les features en boucle sans demander permission à chaque étape.
+
+**Format de rapport après chaque sprint** (court) :
+```
+✅ Sprint N — [Titre]
+- [Feature 1] : [description 1 ligne]
+- [Feature 2] : [description 1 ligne]
+Commit : [hash court]
+→ Déploiement disponible : cd /opt/restaurant && bash deploy/update.sh
+```
+
+**Workflow à chaque nouvelle session** :
+1. `git log --oneline -10` → voir où on en est
+2. Lire `docs/ROADMAP.md` → File d'attente → prendre le prochain sprint
+3. Explorer les fichiers concernés avant de coder (éviter les doublons)
+4. Implémenter, vérifier TypeScript (`cd apps/api && npx tsc --noEmit` et `cd apps/web && npx tsc --noEmit`)
+5. Commit + push
+6. Mettre à jour `docs/ROADMAP.md` (déplacer de "File d'attente" vers "Livrés")
+7. Déployer
+8. Reprendre au point 2
+
+---
+
+## État actuel du projet (mai 2026)
+
+### Pages dashboard admin (30+ routes)
+Dashboard KPIs, Commandes, Tables/plan de salle, Menu + Modificateurs, Stock + détail article, Entrepôts, Fournisseurs/BDC, Clients + détail + segmentation, Dettes clients, Employés, Planning des shifts, Réservations + rappels, Liste d'attente, KDS multi-station, Caisse, Banque, Finances, Rapport journalier, Analytics + performance cuisine, Coupons + génération en masse, Promotions, Factures, Terminaux POS, Avis clients, Campagnes marketing, Journal d'audit, Imprimante, Paramètres.
+
+### Apps
+- **POS** : sélection table, envoi cuisine, paiements mixtes multi-méthodes, reçu cloud XPyun + navigateur, rachat points WALLET, saisie pourboire
+- **KDS** : filtrage multi-station (chaud/froid/boissons/desserts), login, son, état vide célébratoire
+- **Client** : menu public, panier, checkout, historique commandes, suivi commande temps réel, appel serveur QR
+
+### Infrastructure
+- Déployé sur VPS Ubuntu avec Docker Compose + Nginx Proxy Manager
+- Imprimante thermique cloud via XPyun (package `imprimantcloud`)
+- Socket.io pour temps réel (commandes, KDS, notifications)
+
+---
 
 ## Caisse
 
-- Chaque paiement (`POST /api/payments`) crée automatiquement une `CaisseTransaction SALE` dans la session ouverte
+- Chaque `POST /api/payments` crée automatiquement une `CaisseTransaction SALE`
 - Chaque remboursement crée une `CaisseTransaction REFUND`
 - Pas de session ouverte → paiement passe quand même (non-bloquant)
 
-## POS (`pos.restaurant.dago-it.com`)
+## Imprimante cloud
 
-- Sélection de table + envoi en cuisine + paiements mixtes multi-méthodes
-- Modal reçu : bouton ☁️ (cloud XPyun) + 🖨️ (navigateur)
-- Paiements mixtes : on ajoute des tranches jusqu'à solder (ex: Ar 10 000 Espèces + Ar 16 000 MVola)
+- XPyun via package `imprimantcloud`
+- URLs dans Dockerfile : `sg.open.xpyun.net`, `gm.open.xpyun.net`
+- Format reçu : balises `<C>` (centre), `<L>` (gauche), `<B>` (gras), `<BR>` (saut) — 48 chars/ligne (80mm)
+
+---
+
+## Pièges connus
+
+- **Express route ordering** : toujours mettre `/bulk`, `/stats`, `/upload-image`, `/inventory-count`, `/reminders` AVANT `/:id` dans le même router.
+- **`performedBy` n'existe pas** sur `StockMovement` — utiliser `createdBy`.
+- **`noUncheckedIndexedAccess`** : `arr[0]` peut être `undefined` même si le tableau est non-vide — toujours utiliser optional chaining ou vérification explicite.
+- **Multer déjà installé** dans `apps/api/package.json` — ne pas réinstaller.
+- **`date-fns` déjà installé** dans `apps/api` — utiliser `subDays`, `startOfDay`, `endOfDay` directement.
+- **Ne pas toucher** `tables/page.tsx` (erreur qrcode.react pré-existante).
+- _(Section à compléter au fil du temps)_
+
+---
+
+## Ce qu'il ne faut PAS faire
+
+- Ne pas pousser sur `main` ou une autre branche.
+- Ne pas demander permission pour chaque feature en mode autonome.
+- Ne pas utiliser `prisma migrate` — toujours `prisma db push --accept-data-loss`.
+- Ne pas ajouter de commentaires "ce code fait X" — seulement les WHY non-évidents.
+- Ne pas créer de fichiers README ou documentation sauf si explicitement demandé.
+- Ne pas implémenter des abstractions inutiles pour une feature one-shot.
+- Ne pas ajouter de gestion d'erreur pour des cas impossibles (trust Prisma/Express).
+- Ne pas réinstaller des packages déjà présents (vérifier `package.json` d'abord).
+- Ne pas `git push --force` ni amender des commits déjà poussés.
