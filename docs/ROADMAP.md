@@ -78,6 +78,16 @@
 - [x] Page `/orders/:id` — suivi commande temps réel (socket)
 - [x] Page `/account` — profil + fidélité
 - [x] PWA manifest
+- [x] Page publique `/review/:orderNumber` (post-meal feedback)
+- [x] Filtres allergènes + badges sur le menu
+
+### Productivité Admin
+- [x] Centre de notifications temps réel (Header bell)
+- [x] Cmd+K / Ctrl+K — palette de recherche globale
+- [x] Export Excel (xlsx) sur Clients, Stock, Commandes, TVA
+- [x] Objectif CA mensuel — barre de progression dashboard
+- [x] Historique d'impression + bouton "Réimprimer" pour les tickets en erreur
+- [x] Alertes dates d'expiration (badges stock + widget dashboard)
 
 ---
 
@@ -85,94 +95,18 @@
 
 > Sprints regroupés par thème, dans l'ordre de priorité recommandé.
 
-### 🔴 Priorité haute — Opérationnel quotidien
-
-#### Sprint A1 — Centre de notifications temps réel
-- Cloche dans le Header avec badge compteur (non lus)
-- Dropdown 10 dernières notifications (commandes, stock, réservations)
-- Socket listener `notification:new` côté frontend
-- `GET /api/notifications`, `PATCH /:id/read`, `PATCH /read-all`
-- *Modèle Prisma `Notification` déjà prêt, route `notifications.ts` existe*
-
-#### Sprint A2 — Scan code-barres au POS
-- Input de recherche barcode dans le POS (focus automatique)
-- Ajout direct au panier si produit trouvé (`Product.barcode` existe)
-- Support scanner USB HID (clavier simulé — pas d'API spéciale nécessaire)
-
-#### Sprint A3 — Remboursement depuis le POS
-- Mode "Retour" dans le POS : recherche par numéro de commande
-- Sélection articles à rembourser + montant partiel ou total
-- Appel `POST /api/payments/:id/refund` (route déjà existante)
-
-#### Sprint A4 — Alertes dates d'expiration (Stock)
-- Badge "Expire bientôt" / "Expiré" sur les articles périssables dans la page Stock
-- `GET /api/stock/expiring?days=7` → articles qui expirent dans N jours
-- Widget dans le Dashboard
-- UI pour saisir `expiryDate` lors d'une réception
-
-#### Sprint A5 — Historique d'impression (PrintLog)
-- Tableau des dernières impressions dans la page Imprimante (statut, heure, contenu tronqué)
-- Bouton "Réimprimer" pour les tickets en erreur
-- `GET /api/printer/logs` (modèle `PrintLog` déjà alimenté)
-
----
-
-### 🟠 Priorité moyenne — Gestion & Reporting
-
-#### Sprint B1 — Congés employés
-- `GET/POST /api/employees/:id/leaves`, `PATCH /:leaveId/status`
-- Section "Congés" dans la page employés (tableau demandes + formulaire)
-- Badge dans la liste employés si congé en cours
-- *Modèle `Leave` (VACATION/SICK/PERSONAL/UNPAID, PENDING/APPROVED/REJECTED) déjà prêt*
-
-#### Sprint B2 — Rapport TVA / Export comptable
-- `GET /api/finances/tax-report?from=&to=` → TVA collectée par taux et par période
-- Export CSV des lignes pour le comptable
-- Section dans la page Finances
-
-#### Sprint B3 — Performance du personnel
-- `GET /api/dashboard/staff-performance?from=&to=` → nb commandes, CA, panier moyen par serveur
-- Tableau dans Analytics (section Employés)
-- *`Order.createdBy` déjà tracké*
-
-#### Sprint B4 — Sondage de satisfaction post-repas (SMS/email)
-- Déclencher un envoi de SMS/email après clôture de commande (status COMPLETED)
-- Lien vers page publique `/review/:orderId` — formulaire simple (1-5 étoiles + commentaire)
-- Résultats dans la page Avis clients
-
-#### Sprint B5 — Dashboard multi-restaurant (vue superadmin)
-- Page `/superadmin` accessible uniquement au rôle `superadmin`
-- Liste tous les restaurants avec KPIs (CA du jour, nb commandes, alertes)
-- Switcher de restaurant dans le header
-
-#### Sprint B6 — Export Excel des rapports
-- Bouton "Exporter XLS" sur les pages : Commandes, Clients, Stock, Finances
-- Utiliser la librairie `xlsx` (à installer)
-- Format : colonnes propres avec en-têtes, filtres Excel activés
-
-#### Sprint B7 — Objectifs de vente (targets)
-- Définir un objectif CA mensuel dans les Paramètres restaurant
-- Barre de progression dans le Dashboard (CA actuel vs objectif)
-- Alerte si on dépasse 80% puis 100%
-
----
-
 ### 🟡 Priorité basse — Améliorations UX
 
 #### Sprint C1 — QR code par table (appel serveur)
 - Génération QR code dans la page Tables (déjà prévu mais à compléter)
 - Notification temps réel dans le dashboard quand table appelle (socket `table:call_waiter`)
 - Badge sur la carte de table concernée
+- *Note : `tables/page.tsx` a une erreur qrcode.react pré-existante à ne pas toucher*
 
 #### Sprint C2 — Mode sombre / clair
 - Toggle theme dans les Paramètres utilisateur
 - Stocker la préférence dans localStorage
 - Classes Tailwind `dark:` déjà présentes dans l'app
-
-#### Sprint C3 — Recherche globale (Cmd+K)
-- Palette de commande accessible via `Cmd+K` / `Ctrl+K`
-- Recherche : commandes, clients, produits, tables
-- Navigation rapide vers la ressource trouvée
 
 #### Sprint C4 — Impression plan de salle
 - Bouton "Imprimer le plan" dans la page Tables
@@ -191,11 +125,6 @@
 - Rendre le dashboard admin utilisable sur mobile (responsive amélioré)
 - Navigation bottom bar sur mobile
 - PWA manifest pour le dashboard (actuellement seulement sur client)
-
-#### Sprint C8 — Gestion des allergènes
-- Champ `allergens: String[]` sur `Product` (migration Prisma nécessaire)
-- Badges allergènes sur les cartes produit (menu + POS + client app)
-- Filtre "sans gluten", "sans lactose" dans le menu client
 
 #### Sprint C9 — Livraison : suivi chauffeur temps réel
 - Assigner un employé comme chauffeur pour une commande DELIVERY
@@ -236,3 +165,4 @@
 | Date | Sprint | Décision notable |
 |------|--------|-----------------|
 | 2026-05 | Batches 1-5 | 22 features implémentées en mode autonome sur la branche claude/restaurant-management-app-cFnVm |
+| 2026-05 | Resume #1 | Sprints A4, A5, B4, B6, B7, C3, C8 + fix latent `/stock/expiring` (déclaré après `/:id`). Skip C1 car `tables/page.tsx` non touchable. |
