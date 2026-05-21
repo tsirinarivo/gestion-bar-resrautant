@@ -84,10 +84,11 @@
 ### Productivité Admin
 - [x] Centre de notifications temps réel (Header bell)
 - [x] Cmd+K / Ctrl+K — palette de recherche globale
-- [x] Export Excel (xlsx) sur Clients, Stock, Commandes, TVA
+- [x] Export Excel (xlsx) sur Clients, Stock, Commandes, TVA, Audit, Factures
 - [x] Objectif CA mensuel — barre de progression dashboard
 - [x] Historique d'impression + bouton "Réimprimer" pour les tickets en erreur
 - [x] Alertes dates d'expiration (badges stock + widget dashboard)
+- [x] Page `/superadmin` — vue multi-restaurant avec KPIs jour
 
 ---
 
