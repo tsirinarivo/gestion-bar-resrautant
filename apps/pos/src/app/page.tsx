@@ -384,6 +384,84 @@ function RefundModal({ token, onClose }: { token: string; onClose: () => void })
   )
 }
 
+// ─── Open Caisse modal (gating) ───────────────────────────────────────────────
+
+function OpenCaisseModal({ token, onOpened, onLogout }: { token: string; onOpened: () => void; onLogout: () => void }) {
+  const [openingFloat, setOpeningFloat] = useState('0')
+  const [notes, setNotes] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit() {
+    const amount = parseFloat(openingFloat || '0')
+    if (Number.isNaN(amount) || amount < 0) { setError('Fond de caisse invalide'); return }
+    setBusy(true); setError('')
+    try {
+      const res = await fetch(`${API_URL}/api/caisse/open`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify({ openingFloat: amount, notes: notes || undefined }),
+      })
+      const data = await res.json() as { success: boolean; error?: string }
+      if (!data.success) throw new Error(data.error ?? 'Erreur')
+      onOpened()
+    } catch (e: any) {
+      setError(e?.message ?? 'Erreur ouverture caisse')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+      <div className="w-full max-w-sm bg-gray-800 rounded-2xl shadow-2xl border border-gray-700">
+        <div className="p-5 border-b border-gray-700">
+          <div className="flex items-center gap-3 mb-1">
+            <span className="text-3xl">🔒</span>
+            <h2 className="text-lg font-bold text-white">Ouvrir la caisse</h2>
+          </div>
+          <p className="text-xs text-gray-400">
+            Aucune session de caisse n'est ouverte. Vous devez ouvrir la caisse avant de commencer à vendre.
+          </p>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs text-gray-400 mb-1.5 font-medium">Fond de caisse (Ar)</label>
+            <input type="number" min="0" step="100" value={openingFloat}
+              onChange={e => setOpeningFloat(e.target.value)}
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && submit()}
+              className="w-full bg-gray-700 text-white text-2xl font-bold rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <p className="text-[10px] text-gray-500 mt-1">Montant en espèces présent dans la caisse à l'ouverture</p>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-400 mb-1.5 font-medium">Notes (optionnel)</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)}
+              rows={2} placeholder="Ex: changement d'équipe…"
+              className="w-full bg-gray-700 text-white text-sm rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+            />
+          </div>
+
+          {error && <p className="text-red-400 text-xs bg-red-900/30 rounded-lg px-3 py-2">{error}</p>}
+
+          <button onClick={submit} disabled={busy}
+            className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-colors">
+            {busy ? 'Ouverture...' : '🏧 Ouvrir la caisse'}
+          </button>
+
+          <button onClick={onLogout}
+            className="w-full text-xs text-gray-500 hover:text-gray-300 transition-colors">
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Payment modal (multi-méthode) ────────────────────────────────────────────
 
 function PaymentModal({
@@ -1175,13 +1253,14 @@ export default function POSPage() {
     refetchInterval: 30_000,
   });
 
-  const { data: caisseSession } = useQuery<{id: string; status: string} | null>({
+  const { data: caisseSession, isFetched: caisseFetched } = useQuery<{id: string; status: string} | null>({
     queryKey: ['pos-caisse-session', token],
     queryFn: () => apiFetch<{id: string; status: string} | null>(token!, '/caisse/current'),
     enabled: !!token,
     refetchInterval: 60_000,
   });
   const caisseOpen = caisseSession?.status === 'OPEN';
+  const needsCaisseOpen = !!token && !!terminal && caisseFetched && !caisseOpen;
 
   const filteredProducts = useMemo(() => {
     if (!search) return products
@@ -1407,6 +1486,22 @@ export default function POSPage() {
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl ${toast.ok ? 'bg-green-800 text-green-100' : 'bg-red-800 text-red-100'}`}>
           {toast.msg}
         </div>
+      )}
+
+      {/* Caisse-open gate — blocks the POS until a session is opened */}
+      {needsCaisseOpen && (
+        <OpenCaisseModal
+          token={token!}
+          onOpened={() => {
+            qc.invalidateQueries({ queryKey: ['pos-caisse-session', token] })
+            showToast('Caisse ouverte', true)
+          }}
+          onLogout={() => {
+            localStorage.removeItem('pos_token')
+            localStorage.removeItem('pos_terminal_id')
+            setToken(null); setTerminalId(null); setTerminal(null)
+          }}
+        />
       )}
 
       {/* Refund modal */}
