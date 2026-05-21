@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
 import { CommandPalette } from '@/components/layout/CommandPalette'
+import { MobileBottomBar } from '@/components/layout/MobileBottomBar'
 
 // Pages accessible par rôle (undefined = accès complet)
 const ROLE_HOME: Record<string, string> = {
@@ -65,12 +66,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Header onMenuToggle={() => setMobileOpen(o => !o)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
           {children}
         </main>
       </div>
 
       <CommandPalette />
+      <MobileBottomBar onMenuToggle={() => setMobileOpen(o => !o)} />
     </div>
   )
 }

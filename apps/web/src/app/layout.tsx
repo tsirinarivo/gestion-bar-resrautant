@@ -19,8 +19,15 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: 'RestaurantOS — Gestion Restaurant',
   description: 'Système de gestion complet pour restaurants et fast-foods',
+  manifest: '/manifest.json',
+  themeColor: '#FF4D00',
   icons: {
     icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50" y="70" font-size="80" text-anchor="middle">🍽️</text></svg>',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'RestaurantOS',
   },
 }
 
