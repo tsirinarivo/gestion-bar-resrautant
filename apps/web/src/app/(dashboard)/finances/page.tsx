@@ -11,6 +11,7 @@ import {
   Plus, Edit2, Trash2, X, ChevronDown, Target, Receipt, Download,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { exportToXLSX } from '@/lib/xlsx'
 import { formatCurrency } from '@restaurant/utils'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -237,6 +238,17 @@ export default function FinancesPage() {
     const a = document.createElement('a')
     a.href = url; a.download = `tva-${period}.csv`; a.click()
     URL.revokeObjectURL(url)
+  }
+
+  function exportTaxXLSX() {
+    if (!taxReport) return
+    const rows = (taxReport.orders ?? []).map(o => ({
+      'Commande': o.orderNumber,
+      'Date': new Date(o.date).toLocaleDateString('fr-FR'),
+      'TVA (Ar)': o.taxAmount,
+      'Total TTC (Ar)': o.total,
+    }))
+    exportToXLSX(`tva-${period}`, rows, 'TVA')
   }
 
   const createExpense = useMutation({
@@ -615,11 +627,18 @@ export default function FinancesPage() {
               <Receipt className="w-4 h-4 text-brand-orange" />
               <h2 className="font-semibold">Rapport TVA</h2>
             </div>
-            <button onClick={exportTaxCSV}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg hover:border-brand-orange/40 transition-colors">
-              <Download className="w-3.5 h-3.5" />
-              Exporter CSV
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button onClick={exportTaxCSV}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg hover:border-brand-orange/40 transition-colors">
+                <Download className="w-3.5 h-3.5" />
+                CSV
+              </button>
+              <button onClick={exportTaxXLSX}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg hover:border-emerald-500/40 hover:text-emerald-400 transition-colors">
+                <Download className="w-3.5 h-3.5" />
+                Excel
+              </button>
+            </div>
           </div>
 
           {/* Summary KPIs */}

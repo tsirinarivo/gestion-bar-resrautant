@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { exportToXLSX } from '@/lib/xlsx'
 import { formatDate, formatDateTime, formatCurrency, initials } from '@restaurant/utils'
 
 const TIER_CONFIG = {
@@ -599,14 +600,18 @@ export default function CustomersPage() {
 
   const customers: Customer[] = data?.data ?? []
 
+  async function fetchAllForExport(): Promise<Customer[]> {
+    const exportParams = new URLSearchParams({ limit: '500' })
+    if (search) exportParams.set('search', search)
+    if (tierFilter) exportParams.set('tier', tierFilter)
+    if (marketingFilter) exportParams.set('acceptsMarketing', marketingFilter)
+    const res = await api.get(`/customers?${exportParams}`)
+    return res.data.data ?? []
+  }
+
   async function exportCSV() {
     try {
-      const exportParams = new URLSearchParams({ limit: '500' })
-      if (search) exportParams.set('search', search)
-      if (tierFilter) exportParams.set('tier', tierFilter)
-      if (marketingFilter) exportParams.set('acceptsMarketing', marketingFilter)
-      const res = await api.get(`/customers?${exportParams}`)
-      const all: Customer[] = res.data.data ?? []
+      const all = await fetchAllForExport()
       const rows = [
         ['Prénom', 'Nom', 'Email', 'Téléphone', 'Ville', 'Fidélité', 'Points', 'Total pts gagnés', 'Commandes', 'Depuis'],
         ...all.map(c => [
@@ -630,6 +635,25 @@ export default function CustomersPage() {
     } catch { toast.error('Erreur lors de l\'export') }
   }
 
+  async function exportXLSX() {
+    try {
+      const all = await fetchAllForExport()
+      const rows = all.map(c => ({
+        'Prénom': c.firstName,
+        'Nom': c.lastName,
+        'Email': c.email ?? '',
+        'Téléphone': c.phone ?? '',
+        'Ville': c.city ?? '',
+        'Fidélité': c.loyaltyAccount?.tier ?? '',
+        'Points': c.loyaltyAccount?.points ?? 0,
+        'Total pts gagnés': c.loyaltyAccount?.totalEarned ?? 0,
+        'Commandes': c._count?.orders ?? 0,
+        'Depuis': c.createdAt ? new Date(c.createdAt).toLocaleDateString('fr-FR') : '',
+      }))
+      exportToXLSX('clients', rows, 'Clients')
+    } catch { toast.error('Erreur lors de l\'export') }
+  }
+
   return (
     <div className="space-y-6">
       {showNew && <NewCustomerModal onClose={() => setShowNew(false)} onSaved={() => qc.invalidateQueries({ queryKey: ['customers'] })} />}
@@ -640,7 +664,10 @@ export default function CustomersPage() {
         </div>
         <div className="flex gap-2">
           <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-brand-orange/40 hover:text-brand-orange text-sm transition-colors">
-            <Download className="w-4 h-4" /> Exporter CSV
+            <Download className="w-4 h-4" /> CSV
+          </button>
+          <button onClick={exportXLSX} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-emerald-500/40 hover:text-emerald-400 text-sm transition-colors">
+            <Download className="w-4 h-4" /> Excel
           </button>
           <button onClick={() => setShowNew(true)} className="btn-primary flex items-center gap-2">
             <Users className="w-4 h-4" />

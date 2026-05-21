@@ -9,6 +9,7 @@ import {
   Banknote, CreditCard, Split, CalendarDays, Printer, ArrowRightLeft,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { exportToXLSX } from '@/lib/xlsx'
 import { formatCurrency, formatRelative } from '@restaurant/utils'
 import { toast } from 'sonner'
 
@@ -931,6 +932,26 @@ export default function OrdersPage() {
   // Active orders count for badge
   const activeCount = orders.filter(o => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'].includes(o.status)).length
 
+  function exportOrdersXLSX() {
+    if (!orders.length) { toast.error('Aucune commande à exporter'); return }
+    const rows = orders.map(o => ({
+      'N° commande': o.orderNumber,
+      'Date': new Date(o.createdAt).toLocaleString('fr-FR'),
+      'Type': o.type,
+      'Statut': o.status,
+      'Source': o.source ?? '',
+      'Client': o.customer ? `${o.customer.firstName ?? ''} ${o.customer.lastName ?? ''}`.trim() : '',
+      'Table': o.table?.number ?? '',
+      'Articles': (o.items ?? []).length,
+      'Sous-total (Ar)': o.subtotal ?? 0,
+      'Remise (Ar)': o.discountAmount ?? 0,
+      'TVA (Ar)': o.taxAmount ?? 0,
+      'Pourboire (Ar)': o.tipAmount ?? 0,
+      'Total (Ar)': o.totalAmount ?? 0,
+    }))
+    exportToXLSX('commandes', rows, 'Commandes')
+  }
+
   return (
     <div className="pb-24">
       <AnimatePresence>
@@ -963,6 +984,10 @@ export default function OrdersPage() {
           <button onClick={() => refetch()}
             className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/6 active:bg-white/12 text-brand-muted">
             <RefreshCw className="w-4 h-4" />
+          </button>
+          <button onClick={exportOrdersXLSX}
+            className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-emerald-500/40 hover:text-emerald-400 text-sm transition-colors">
+            Excel
           </button>
           <button onClick={() => setShowNew(true)}
             className="btn-primary flex items-center gap-2 px-4">

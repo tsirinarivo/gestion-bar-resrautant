@@ -10,6 +10,7 @@ import {
   UtensilsCrossed, History, ChevronLeft, ChevronRight, ExternalLink,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { exportToXLSX } from '@/lib/xlsx'
 import { formatQuantity, formatCurrency } from '@restaurant/utils'
 import { toast } from 'sonner'
 
@@ -607,6 +608,27 @@ export default function StockPage() {
     }))
   }
 
+  function exportStockXLSX() {
+    try {
+      const rows = allItems.map((i: any) => ({
+        'SKU': i.sku ?? '',
+        'Article': i.name,
+        'Unité': i.unit,
+        'Stock actuel': i.currentQuantity,
+        'Stock min': i.minQuantity,
+        'Réappro à': i.reorderQuantity,
+        'Coût unitaire (Ar)': i.costPerUnit,
+        'Valeur stock (Ar)': i.currentQuantity * i.costPerUnit,
+        'Statut': STOCK_STATUS[i.stockStatus as keyof typeof STOCK_STATUS]?.label ?? i.stockStatus,
+        'Périssable': i.isPerishable ? 'Oui' : 'Non',
+        'DLC': i.expiryDate ? new Date(i.expiryDate).toLocaleDateString('fr-FR') : '',
+        'Fournisseur': i.supplier?.name ?? '',
+        'Entrepôt': i.warehouse?.name ?? '',
+      }))
+      exportToXLSX('stock', rows, 'Stock')
+    } catch { toast.error('Erreur lors de l\'export') }
+  }
+
   async function submitInventory() {
     const entries = Object.entries(inventoryCounts).filter(([, v]) => v !== '')
     if (entries.length === 0) { toast.error('Aucune quantité saisie'); return }
@@ -643,6 +665,10 @@ export default function StockPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <button onClick={exportStockXLSX}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border text-brand-muted hover:border-emerald-500/40 hover:text-emerald-400 text-sm transition-colors">
+            <ClipboardList className="w-4 h-4" /> Excel
+          </button>
           <button
             onClick={() => {
               const counts: Record<string, string> = {}
