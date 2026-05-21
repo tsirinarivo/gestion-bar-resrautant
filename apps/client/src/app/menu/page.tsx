@@ -58,9 +58,34 @@ function isCurrentlyOpen(hours: Record<string, { open: boolean; start: string; e
   return cur >= sh * 60 + sm && cur < eh * 60 + em;
 }
 
+const ALLERGEN_LABELS: Record<string, string> = {
+  GLUTEN: 'Gluten',
+  LACTOSE: 'Lactose',
+  EGGS: 'Œufs',
+  PEANUTS: 'Arachides',
+  NUTS: 'Fruits à coque',
+  SOY: 'Soja',
+  FISH: 'Poisson',
+  CRUSTACEANS: 'Crustacés',
+  MOLLUSCS: 'Mollusques',
+  CELERY: 'Céleri',
+  MUSTARD: 'Moutarde',
+  SESAME: 'Sésame',
+  SULPHITES: 'Sulfites',
+  LUPIN: 'Lupin',
+}
+
+const FILTER_OPTIONS: Array<{ code: string; label: string }> = [
+  { code: 'GLUTEN', label: 'Sans gluten' },
+  { code: 'LACTOSE', label: 'Sans lactose' },
+  { code: 'NUTS', label: 'Sans fruits à coque' },
+  { code: 'EGGS', label: 'Sans œufs' },
+]
+
 function MenuPageInner() {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [excludedAllergens, setExcludedAllergens] = useState<Set<string>>(new Set());
   const [cartCount, setCartCount] = useState(0);
   const [added, setAdded] = useState<string | null>(null);
   const [tableId, setTableId] = useState<string | null>(null);
@@ -108,9 +133,19 @@ function MenuPageInner() {
 
   const categories = data?.categories ?? [];
   const allProducts = categories.flatMap(c => c.products);
-  const products = selectedCategory
+  const filterByAllergens = (list: Product[]) =>
+    excludedAllergens.size === 0 ? list : list.filter(p => !(p.allergens ?? []).some(a => excludedAllergens.has(a)))
+  const products = filterByAllergens(selectedCategory
     ? (categories.find(c => c.id === selectedCategory)?.products ?? [])
-    : allProducts;
+    : allProducts)
+
+  function toggleAllergenFilter(code: string) {
+    setExcludedAllergens(s => {
+      const next = new Set(s)
+      if (next.has(code)) next.delete(code); else next.add(code)
+      return next
+    })
+  }
 
   const handleAdd = (product: Product) => {
     addToCart({ productId: product.id, name: product.name, price: product.price, quantity: 1 });
@@ -208,6 +243,30 @@ function MenuPageInner() {
         </div>
       </div>
 
+      {/* Allergen filters */}
+      <div className="bg-white border-b border-gray-100 overflow-x-auto">
+        <div className="container-narrow py-2.5 flex items-center gap-2">
+          <span className="text-xs text-gray-500 font-medium whitespace-nowrap flex-shrink-0">🌿 Filtres :</span>
+          {FILTER_OPTIONS.map(opt => {
+            const active = excludedAllergens.has(opt.code)
+            return (
+              <button key={opt.code} onClick={() => toggleAllergenFilter(opt.code)}
+                className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  active ? 'bg-amber-500 border-amber-500 text-white' : 'border-gray-200 text-gray-600 hover:border-amber-300'
+                }`}>
+                {opt.label}
+              </button>
+            )
+          })}
+          {excludedAllergens.size > 0 && (
+            <button onClick={() => setExcludedAllergens(new Set())}
+              className="text-xs text-gray-400 hover:text-gray-700 ml-1">
+              Effacer
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="container-narrow py-8">
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -225,7 +284,19 @@ function MenuPageInner() {
                 <div className="p-4">
                   <h3 className="font-semibold text-lg mb-1 leading-tight">{product.name}</h3>
                   {product.description && (
-                    <p className="text-gray-500 text-sm line-clamp-2 mb-3">{product.description}</p>
+                    <p className="text-gray-500 text-sm line-clamp-2 mb-2">{product.description}</p>
+                  )}
+                  {product.allergens && product.allergens.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {product.allergens.slice(0, 3).map(a => (
+                        <span key={a} className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                          ⚠ {ALLERGEN_LABELS[a] ?? a}
+                        </span>
+                      ))}
+                      {product.allergens.length > 3 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">+{product.allergens.length - 3}</span>
+                      )}
+                    </div>
                   )}
                   <div className="flex items-center justify-between">
                     <span className="text-xl font-bold text-amber-600">{formatCurrency(product.price)}</span>
