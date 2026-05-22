@@ -29,10 +29,12 @@ set -a; source .env.prod; set +a
 
 DC="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 
-header "2. Prépare les volumes host (uploads + backups)"
-mkdir -p ./uploads/products ./backups/postgres
+header "2. Prépare les volumes host (uploads + backups + logs)"
+mkdir -p ./uploads/products ./backups/postgres ./logs
 # node user inside the api container is UID 1000
 chown -R 1000:1000 ./uploads 2>/dev/null || warn "Impossible de chown ./uploads — exécute en root si les uploads ne fonctionnent pas"
+# postgres user inside prodrigestivill/postgres-backup-local is UID 70
+chown -R 70:70 ./backups/postgres 2>/dev/null || warn "Impossible de chown ./backups/postgres — le conteneur de backup ne pourra pas écrire"
 log "Volumes prêts"
 
 header "3. Backup Postgres pré-migration (filet de sécurité)"
