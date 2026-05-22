@@ -33,8 +33,9 @@ header "2. Prépare les volumes host (uploads + backups + logs)"
 mkdir -p ./uploads/products ./backups/postgres ./logs
 # node user inside the api container is UID 1000
 chown -R 1000:1000 ./uploads 2>/dev/null || warn "Impossible de chown ./uploads — exécute en root si les uploads ne fonctionnent pas"
-# postgres user inside prodrigestivill/postgres-backup-local is UID 70
-chown -R 70:70 ./backups/postgres 2>/dev/null || warn "Impossible de chown ./backups/postgres — le conteneur de backup ne pourra pas écrire"
+# postgres-backup-local runs as a non-root user (UID varies between Alpine/Debian
+# image variants), so allow read/write/execute for all instead of guessing the UID
+chmod -R 777 ./backups/postgres 2>/dev/null || warn "Impossible de chmod ./backups/postgres"
 log "Volumes prêts"
 
 header "3. Backup Postgres pré-migration (filet de sécurité)"
