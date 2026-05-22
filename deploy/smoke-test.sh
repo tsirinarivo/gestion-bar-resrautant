@@ -11,6 +11,11 @@
 
 set +e  # ne pas s'arrêter au premier échec — on veut le rapport complet
 
+# Load env (POSTGRES_USER, POSTGRES_DB, REDIS_PASSWORD, …) if available
+if [ -f ./.env.prod ]; then
+  set -a; . ./.env.prod; set +a
+fi
+
 GREEN="\033[0;32m"
 RED="\033[0;31m"
 YELLOW="\033[0;33m"
@@ -25,16 +30,17 @@ check() {
   local name="$1"
   local url="$2"
   local expected="${3:-200}"
+  local method="${4:-GET}"
   TOTAL=$((TOTAL + 1))
 
   local status
-  status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null)
+  status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -X "$method" "$url" 2>/dev/null)
 
   if [ "$status" = "$expected" ]; then
     echo -e "  ${GREEN}✓${RESET} $name ($status)"
     PASSED=$((PASSED + 1))
   else
-    echo -e "  ${RED}✗${RESET} $name (got $status, expected $expected) — $url"
+    echo -e "  ${RED}✗${RESET} $name (got $status, expected $expected) — $method $url"
     FAILED=$((FAILED + 1))
   fi
 }
@@ -60,9 +66,9 @@ check_json() {
 echo -e "${BOLD}Smoke tests RestaurantOS${RESET}\n"
 
 echo -e "${BOLD}API${RESET}"
-check_json "API health"               "http://127.0.0.1:4001/api/health" '"status":"ok"'
-check      "API auth (login expected 400)" "http://127.0.0.1:4001/api/auth/login" 400
-check      "API protégée sans token (expected 401)" "http://127.0.0.1:4001/api/orders" 401
+check_json "API health"                              "http://127.0.0.1:4001/api/health" '"status":"ok"'
+check      "API login POST sans body (expected 400)" "http://127.0.0.1:4001/api/auth/login" 400 POST
+check      "API protégée sans token (expected 401)"  "http://127.0.0.1:4001/api/orders" 401
 
 echo -e "\n${BOLD}Frontends${RESET}"
 check "Web admin (Next.js)"        "http://127.0.0.1:4002/login"
