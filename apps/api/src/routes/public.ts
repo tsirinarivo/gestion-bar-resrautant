@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { generateOrderNumber } from '@restaurant/utils'
 
@@ -47,8 +48,10 @@ publicRouter.post('/:slug/coupons/validate', async (req, res, next) => {
   try {
     const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
-    const { code, orderAmount } = req.body as { code: string; orderAmount: number }
-    if (!code) return res.status(400).json({ success: false, error: 'Code requis' })
+    const { code, orderAmount } = z.object({
+      code: z.string().min(1).max(64),
+      orderAmount: z.number().nonnegative().finite(),
+    }).parse(req.body)
 
     const coupon = await prisma.coupon.findFirst({
       where: { code: code.toUpperCase(), restaurantId: restaurant.id, isActive: true },
@@ -298,8 +301,12 @@ publicRouter.post('/:slug/reviews', async (req, res, next) => {
   try {
     const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
-    const { rating, title, content, orderNumber } = req.body as { rating: number; title?: string; content?: string; orderNumber?: string }
-    if (!rating || rating < 1 || rating > 5) return res.status(400).json({ success: false, error: 'Note invalide (1-5)' })
+    const { rating, title, content, orderNumber } = z.object({
+      rating: z.number().int().min(1).max(5),
+      title: z.string().max(200).optional(),
+      content: z.string().max(2000).optional(),
+      orderNumber: z.string().max(64).optional(),
+    }).parse(req.body)
     let orderId: string | undefined
     if (orderNumber) {
       const order = await prisma.order.findFirst({ where: { restaurantId: restaurant.id, orderNumber } })

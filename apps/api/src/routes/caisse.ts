@@ -66,12 +66,17 @@ caisseRouter.post('/open', async (req: AuthRequest, res, next) => {
       .object({ openingFloat: z.number().min(0).default(0), notes: z.string().optional() })
       .parse(req.body)
     const restaurantId = req.user!.restaurantId
-    const existing = await prisma.caisseSession.findFirst({
-      where: { restaurantId, status: 'OPEN' },
-    })
-    if (existing) throw new AppError('Une session de caisse est déjà ouverte', 400)
-    const session = await prisma.caisseSession.create({
-      data: { restaurantId, openingFloat, notes, openedById: req.user!.id },
+
+    // Atomic check + create: if another OPEN session is created concurrently,
+    // the second tx's findFirst sees the first and aborts.
+    const session = await prisma.$transaction(async tx => {
+      const existing = await tx.caisseSession.findFirst({
+        where: { restaurantId, status: 'OPEN' },
+      })
+      if (existing) throw new AppError('Une session de caisse est déjà ouverte', 400)
+      return tx.caisseSession.create({
+        data: { restaurantId, openingFloat, notes, openedById: req.user!.id },
+      })
     })
     res.status(201).json({ success: true, data: session })
   } catch (error) { next(error) }

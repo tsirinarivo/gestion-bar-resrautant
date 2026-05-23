@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma'
-import { authenticate, AuthRequest } from '../middleware/auth'
+import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 
 export const customerRouter = Router()
@@ -158,7 +158,7 @@ customerRouter.post('/', async (req: AuthRequest, res, next) => {
   }
 })
 
-customerRouter.put('/:id', async (req: AuthRequest, res, next) => {
+customerRouter.put('/:id', authorize('manager', 'superadmin', 'caissier'), async (req: AuthRequest, res, next) => {
   try {
     const data = customerSchema.partial().parse(req.body)
     const customer = await prisma.customer.findFirst({
@@ -195,7 +195,7 @@ const adjustSchema = z.object({
 })
 
 // POST /api/customers/:id/loyalty/adjust — Manual points adjustment
-customerRouter.post('/:id/loyalty/adjust', async (req: AuthRequest, res, next) => {
+customerRouter.post('/:id/loyalty/adjust', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const { points, reason } = adjustSchema.parse(req.body)
 

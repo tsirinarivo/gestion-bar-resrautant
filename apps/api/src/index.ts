@@ -44,12 +44,30 @@ import { errorHandler } from './middleware/errorHandler'
 import { setupSocketHandlers } from './socket/handlers'
 import { prisma } from './lib/prisma'
 
+// ─── Required env vars validation (fail fast at startup) ────────────────────
+const REQUIRED_ENV = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'DATABASE_URL'] as const
+const missing = REQUIRED_ENV.filter(k => !process.env[k])
+if (missing.length > 0) {
+  console.error(`[FATAL] Missing required env vars: ${missing.join(', ')}`)
+  process.exit(1)
+}
+
+const DEV_ORIGINS = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003']
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : (process.env.NODE_ENV === 'production' ? [] : DEV_ORIGINS)
+
+if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
+  console.error('[FATAL] ALLOWED_ORIGINS must be set in production')
+  process.exit(1)
+}
+
 const app = express()
 const httpServer = createServer(app)
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'],
+    origin: allowedOrigins,
     credentials: true,
   },
 })
@@ -70,7 +88,7 @@ import('path').then(({ default: path }) => {
 }).catch(() => {})
 
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'],
+  origin: allowedOrigins,
   credentials: true,
 }))
 

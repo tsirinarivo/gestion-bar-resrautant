@@ -5,7 +5,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { autoPostPaymentToBank } from './bank'
 import { autoPrintReceiptWithTable } from '../lib/printer'
-import { deductStockForOrder } from './orders'
+import { deductStockForOrder, earnLoyaltyPoints } from './orders'
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Especes', MVOLA: 'MVola', ORANGE_MONEY: 'Orange Money',
@@ -105,7 +105,7 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       })
       const loyaltyAccount = orderWithCustomer?.customer?.loyaltyAccount
       if (!loyaltyAccount) throw new AppError('Aucun compte fidélité associé à cette commande', 400)
-      const pointsToDeduct = Math.ceil(data.amount / 10)
+      const pointsToDeduct = Math.round(data.amount / 10)
       if (loyaltyAccount.points < pointsToDeduct) {
         throw new AppError(`Solde de points insuffisant (${loyaltyAccount.points} pts disponibles, ${pointsToDeduct} requis)`, 400)
       }
@@ -153,6 +153,9 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       })
       // BUG 2.1 — déduction stock manquante sur paiement POS
       await deductStockForOrder(order.id, order.orderNumber, req.user!.id).catch(() => {})
+
+      // Loyalty: customer earns 1 point per 100 MGA spent (excluding WALLET redemption)
+      await earnLoyaltyPoints(order.id, order.orderNumber).catch(() => {})
 
       // Libérer la table si plus aucune commande active dessus
       if (order.tableId) {

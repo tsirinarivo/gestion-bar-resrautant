@@ -54,6 +54,44 @@ function buildReceiptPayload(updatedOrder: any, originalOrder: any, cashierName?
   }
 }
 
+// 1 point earned for every 100 MGA spent (excluding the part paid in WALLET points)
+const POINTS_EARN_RATE = 100
+
+export async function earnLoyaltyPoints(orderId: string, orderNumber: string): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      customer: { include: { loyaltyAccount: true } },
+      payments: { where: { status: 'COMPLETED' }, select: { method: true, amount: true } },
+    },
+  })
+  if (!order?.customer?.loyaltyAccount) return
+
+  const nonWalletPaid = order.payments
+    .filter(p => p.method !== 'WALLET')
+    .reduce((s, p) => s + p.amount, 0)
+  const pointsEarned = Math.floor(nonWalletPaid / POINTS_EARN_RATE)
+  if (pointsEarned <= 0) return
+
+  const account = order.customer.loyaltyAccount
+  const alreadyEarned = await prisma.loyaltyTransaction.findFirst({
+    where: { accountId: account.id, type: 'EARN', description: `Commande ${orderNumber}` },
+  })
+  if (alreadyEarned) return
+
+  const newBalance = account.points + pointsEarned
+  await prisma.loyaltyAccount.update({
+    where: { id: account.id },
+    data: {
+      points: newBalance,
+      totalEarned: { increment: pointsEarned },
+      transactions: {
+        create: { type: 'EARN', points: pointsEarned, balance: newBalance, description: `Commande ${orderNumber}` },
+      },
+    },
+  })
+}
+
 // ─── Shared stock deduction (called from both PATCH /status and payments route) ─
 export async function deductStockForOrder(
   orderId: string,
@@ -466,17 +504,38 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
     }, 0)
 
     const [coupon, restaurant] = await Promise.all([
-      data.couponId ? prisma.coupon.findUnique({ where: { id: data.couponId } }) : Promise.resolve(null),
+      data.couponId
+        ? prisma.coupon.findFirst({ where: { id: data.couponId, restaurantId } })
+        : Promise.resolve(null),
       prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { deliveryFee: true } }),
     ])
 
     let discountAmount = 0
-    if (coupon && coupon.isActive) {
+    if (data.couponId && !coupon) {
+      throw new AppError('Coupon introuvable', 404)
+    }
+    if (coupon) {
+      const now = new Date()
+      if (!coupon.isActive) throw new AppError('Coupon désactivé', 400)
+      if (coupon.startDate && coupon.startDate > now) throw new AppError('Coupon pas encore valide', 400)
+      if (coupon.endDate && coupon.endDate < now) throw new AppError('Coupon expiré', 400)
+      if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) throw new AppError('Coupon épuisé', 400)
+      if (coupon.minOrderAmount && subtotal < coupon.minOrderAmount) {
+        throw new AppError(`Montant minimum ${coupon.minOrderAmount} MGA non atteint`, 400)
+      }
+      if (data.customerId && coupon.usagePerUser > 0) {
+        const used = await prisma.couponUsage.count({
+          where: { couponId: coupon.id, customerId: data.customerId },
+        })
+        if (used >= coupon.usagePerUser) {
+          throw new AppError('Limite d\'utilisation par client atteinte pour ce coupon', 400)
+        }
+      }
       if (coupon.type === 'PERCENTAGE') {
         discountAmount = subtotal * (coupon.value / 100)
         if (coupon.maxDiscount) discountAmount = Math.min(discountAmount, coupon.maxDiscount)
       } else if (coupon.type === 'FIXED_AMOUNT') {
-        discountAmount = coupon.value
+        discountAmount = Math.min(coupon.value, subtotal)
       }
     }
     const deliveryFee = data.type === 'DELIVERY' ? (restaurant?.deliveryFee || 0) : 0
@@ -543,6 +602,11 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
         : Promise.resolve(null),
       data.couponId
         ? prisma.coupon.update({ where: { id: data.couponId }, data: { usageCount: { increment: 1 } } })
+        : Promise.resolve(null),
+      data.couponId && data.customerId
+        ? prisma.couponUsage.create({
+            data: { couponId: data.couponId, customerId: data.customerId, discount: discountAmount },
+          }).catch(() => {})
         : Promise.resolve(null),
     ])
 
@@ -654,6 +718,7 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
     // ── Déduction automatique du stock quand commande COMPLETED ──────────
     if (status === 'COMPLETED') {
       await deductStockForOrder(order.id, updatedOrder.orderNumber, req.user!.id).catch(() => {})
+      await earnLoyaltyPoints(order.id, updatedOrder.orderNumber).catch(() => {})
     }
 
     // ── Impression automatique ticket (uniquement au paiement) ──────────────

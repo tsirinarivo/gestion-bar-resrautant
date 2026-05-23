@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma'
-import { authenticate, AuthRequest } from '../middleware/auth'
+import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { generateReservationRef } from '@restaurant/utils'
 
@@ -58,6 +58,41 @@ reservationRouter.get('/', async (req: AuthRequest, res, next) => {
   }
 })
 
+reservationRouter.get('/reminders', async (req: AuthRequest, res, next) => {
+  try {
+    const { status = 'PENDING', days = '7' } = req.query as Record<string, string>
+    const restaurantId = req.user!.restaurantId
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() + parseInt(days))
+
+    const reminders = await prisma.reservationReminder.findMany({
+      where: {
+        status,
+        scheduledAt: { lte: cutoff },
+        reservation: { restaurantId },
+      },
+      include: {
+        reservation: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+            date: true,
+            partySize: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 100,
+    })
+
+    res.json({ success: true, data: reminders })
+  } catch (error) { next(error) }
+})
+
 reservationRouter.get('/:id', async (req: AuthRequest, res, next) => {
   try {
     const reservation = await prisma.reservation.findFirst({
@@ -78,6 +113,24 @@ reservationRouter.post('/', async (req: AuthRequest, res, next) => {
       throw new AppError('La date de réservation doit être dans le futur', 400)
     }
     const restaurantId = req.user!.restaurantId
+
+    // Double-booking check: same table reserved within ±90 min window
+    if (data.tableId) {
+      const reservationStart = new Date(data.date)
+      const windowStart = new Date(reservationStart.getTime() - 90 * 60 * 1000)
+      const windowEnd   = new Date(reservationStart.getTime() + 90 * 60 * 1000)
+      const conflict = await prisma.reservation.findFirst({
+        where: {
+          restaurantId,
+          tableId: data.tableId,
+          status: { notIn: ['CANCELLED', 'NO_SHOW', 'COMPLETED'] },
+          date: { gte: windowStart, lte: windowEnd },
+        },
+      })
+      if (conflict) {
+        throw new AppError(`Table déjà réservée à ${new Date(conflict.date).toLocaleString('fr-FR')} (réf. ${conflict.reservationRef})`, 409)
+      }
+    }
 
     const reservation = await prisma.reservation.create({
       data: {
@@ -197,7 +250,7 @@ reservationRouter.patch('/:id', async (req: AuthRequest, res, next) => {
   }
 })
 
-reservationRouter.delete('/:id', async (req: AuthRequest, res, next) => {
+reservationRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const reservation = await prisma.reservation.findFirst({
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },
@@ -208,42 +261,6 @@ reservationRouter.delete('/:id', async (req: AuthRequest, res, next) => {
   } catch (error) {
     next(error)
   }
-})
-
-// GET /api/reservations/reminders — list upcoming reminders
-reservationRouter.get('/reminders', async (req: AuthRequest, res, next) => {
-  try {
-    const { status = 'PENDING', days = '7' } = req.query as Record<string, string>
-    const restaurantId = req.user!.restaurantId
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() + parseInt(days))
-
-    const reminders = await prisma.reservationReminder.findMany({
-      where: {
-        status,
-        scheduledAt: { lte: cutoff },
-        reservation: { restaurantId },
-      },
-      include: {
-        reservation: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-            email: true,
-            date: true,
-            partySize: true,
-            status: true,
-          },
-        },
-      },
-      orderBy: { scheduledAt: 'asc' },
-      take: 100,
-    })
-
-    res.json({ success: true, data: reminders })
-  } catch (error) { next(error) }
 })
 
 // PATCH /api/reservations/reminders/:id/sent — mark reminder as sent

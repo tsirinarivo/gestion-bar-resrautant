@@ -557,15 +557,7 @@ function PaymentModal({
         toDistribute -= pay;
       }
 
-      // Deduct loyalty points for WALLET payments
-      if (method === 'WALLET' && customer) {
-        const pointsUsed = -Math.ceil(amount / POINTS_RATE);
-        await apiPost(token, `/customers/${customer.id}/loyalty/adjust`, {
-          points: pointsUsed,
-          reason: `Rachat POS — ${tableLabel}`,
-        }).catch(() => {});
-      }
-
+      // WALLET point deduction is handled atomically by POST /payments — no extra call needed
       setOrderQueue(newQueue);
       setPayments(prev => [...prev, { method, amount }]);
       const newRemaining = remaining - amount;
