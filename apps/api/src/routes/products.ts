@@ -339,6 +339,11 @@ productRouter.put('/:id/variants/:variantId', authorize('manager', 'superadmin')
     })
     if (!product) { res.status(404).json({ success: false, error: 'Produit introuvable' }); return }
 
+    const existingVariant = await prisma.productVariant.findFirst({
+      where: { id: req.params.variantId, productId: product.id },
+    })
+    if (!existingVariant) { res.status(404).json({ success: false, error: 'Variante introuvable' }); return }
+
     if (data.isDefault) {
       await prisma.productVariant.updateMany({
         where: { productId: req.params.id, id: { not: req.params.variantId } },
@@ -362,7 +367,12 @@ productRouter.delete('/:id/variants/:variantId', authorize('manager', 'superadmi
     })
     if (!product) { res.status(404).json({ success: false, error: 'Produit introuvable' }); return }
 
-    await prisma.productVariant.delete({ where: { id: req.params.variantId } })
+    const variant = await prisma.productVariant.findFirst({
+      where: { id: req.params.variantId, productId: product.id },
+    })
+    if (!variant) { res.status(404).json({ success: false, error: 'Variante introuvable' }); return }
+
+    await prisma.productVariant.delete({ where: { id: variant.id } })
     res.json({ success: true })
   } catch (error) { next(error) }
 })
