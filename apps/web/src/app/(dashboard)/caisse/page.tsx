@@ -289,9 +289,11 @@ function CloseSessionModal({
 function AddTransactionModal({
   onClose,
   onSave,
+  loading = false,
 }: {
   onClose: () => void
   onSave: (data: { type: TransactionType; amount: number; description: string; reference: string }) => void
+  loading?: boolean
 }) {
   const [form, setForm] = useState({
     type: 'SALE' as TransactionType,
@@ -367,7 +369,7 @@ function AddTransactionModal({
           </div>
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 btn-secondary">Annuler</button>
-            <button type="submit" className="flex-1 btn-primary">Enregistrer</button>
+            <button type="submit" disabled={loading} className="flex-1 btn-primary disabled:opacity-50">{loading ? 'Enregistrement...' : 'Enregistrer'}</button>
           </div>
         </form>
       </motion.div>
@@ -447,6 +449,7 @@ export default function CaissePage() {
       api.post(`/caisse/sessions/${id}/transaction`, d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['caisse-current'] })
+      qc.invalidateQueries({ queryKey: ['caisse-sessions'] })
       toast.success('Transaction enregistrée')
       setTxModal(false)
     },
@@ -744,6 +747,7 @@ export default function CaissePage() {
           <AddTransactionModal
             onClose={() => setTxModal(false)}
             onSave={d => addTransaction.mutate({ id: session.id, d })}
+            loading={addTransaction.isPending}
           />
         )}
       </AnimatePresence>

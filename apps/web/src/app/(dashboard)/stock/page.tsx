@@ -438,6 +438,8 @@ export default function StockPage() {
     mutationFn: ({ id, data }: { id: string; data: any }) => api.post(`/stock/${id}/movements`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['stock'] })
+      qc.invalidateQueries({ queryKey: ['stock-movements'] })
+      qc.invalidateQueries({ queryKey: ['stock-item'] })
       setSelectedItem(null)
       setMovementForm({ type: 'IN', quantity: '', notes: '', expiryDate: '' })
       toast.success('Mouvement enregistré')
