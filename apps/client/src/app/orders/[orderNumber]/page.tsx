@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { formatCurrency } from '@restaurant/utils'
 
@@ -34,6 +34,7 @@ type Order = {
 
 export default function OrderTrackingPage({ params }: { params: { orderNumber: string } }) {
   const [order, setOrder] = useState<Order | null>(null)
+  const orderRef = useRef<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(false)
@@ -77,6 +78,7 @@ export default function OrderTrackingPage({ params }: { params: { orderNumber: s
       const res = await fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/orders/${params.orderNumber}`)
       const data = await res.json() as { success: boolean; data: Order; error?: string }
       if (!data.success) throw new Error(data.error ?? 'Commande introuvable')
+      orderRef.current = data.data
       setOrder(data.data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur réseau')
@@ -87,9 +89,10 @@ export default function OrderTrackingPage({ params }: { params: { orderNumber: s
 
   useEffect(() => {
     fetchOrder()
-    // Poll every 30s if order not yet completed/cancelled
+    // Poll every 30s — use ref to avoid stale closure on order state
     const interval = setInterval(() => {
-      if (order && (order.status === 'COMPLETED' || order.status === 'CANCELLED')) return
+      const current = orderRef.current
+      if (current && (current.status === 'COMPLETED' || current.status === 'CANCELLED')) return
       fetchOrder()
     }, 30_000)
     return () => clearInterval(interval)

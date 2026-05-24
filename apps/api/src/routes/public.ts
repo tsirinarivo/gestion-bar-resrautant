@@ -80,14 +80,29 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
 
-    const { items, type = 'TAKEAWAY', notes, customerName, customerPhone, deliveryAddress, deliveryCity, tipAmount = 0, couponCode } = req.body
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, error: 'Panier vide' })
+    const orderBodySchema = z.object({
+      items: z.array(z.object({
+        productId: z.string(),
+        quantity: z.number().int().positive(),
+        unitPrice: z.number().nonnegative(),
+        notes: z.string().optional(),
+      })).min(1),
+      type: z.enum(['DINE_IN', 'TAKEAWAY', 'DELIVERY']).default('TAKEAWAY'),
+      notes: z.string().optional(),
+      customerName: z.string().min(1).max(100).optional(),
+      customerPhone: z.string().min(1).max(20).optional(),
+      deliveryAddress: z.string().optional(),
+      deliveryCity: z.string().optional(),
+      tipAmount: z.number().nonnegative().default(0),
+      couponCode: z.string().optional(),
+    })
+    const parsed = orderBodySchema.safeParse(req.body)
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.errors[0]?.message ?? 'Données invalides' })
     }
+    const { items, type, notes, customerName, customerPhone, deliveryAddress, deliveryCity, tipAmount, couponCode } = parsed.data
 
-    const subtotal = (items as Array<{ unitPrice: number; quantity: number }>)
-      .reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+    const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
     const deliveryFee = type === 'DELIVERY' ? (restaurant.deliveryFee ?? 0) : 0
     const taxRate = restaurant.defaultTaxRate ?? 20
     const taxAmount = subtotal * (taxRate / 100)
