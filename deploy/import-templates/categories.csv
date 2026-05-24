@@ -1,0 +1,7 @@
+slug,name,description,sortOrder,icon,color
+"entrees","Entrées","Salades, samosas, soupes",1,"🥗","#10b981"
+"plats","Plats principaux","Riz, viandes, poissons",2,"🍛","#f59e0b"
+"desserts","Desserts","Pâtisseries et fruits",3,"🍰","#ec4899"
+"boissons","Boissons","Jus, sodas, eau",4,"🥤","#3b82f6"
+"bieres","Bières","Bières locales et import",5,"🍺","#eab308"
+"vins","Vins","Cartes des vins",6,"🍷","#dc2626"

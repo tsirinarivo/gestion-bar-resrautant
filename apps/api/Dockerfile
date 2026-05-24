@@ -52,6 +52,16 @@ RUN node_modules/.bin/esbuild packages/database/prisma/seed.ts \
   --format=cjs \
   --external:@prisma/client
 
+RUN node_modules/.bin/esbuild packages/database/prisma/import.ts \
+  --bundle \
+  --platform=node \
+  --target=node20 \
+  --outfile=apps/api/dist/import.js \
+  --format=cjs \
+  --external:@prisma/client \
+  --external:bcryptjs \
+  --external:bcrypt
+
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 RUN apk add --no-cache libc6-compat openssl dumb-init

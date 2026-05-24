@@ -1,0 +1,13 @@
+categorySlug,slug,name,description,price,sku,taxRate,kdsStation,prepTime,isAvailable
+"entrees","salade-malgache","Salade malgache","Tomates, carottes, oignons, vinaigrette locale",8000,"ENT-001",20,"cold",10,true
+"entrees","samoussas","Samoussas (4 pcs)","Beignets fourrés viande hachée",6000,"ENT-002",20,"hot",12,true
+"plats","romazava","Romazava","Plat national malgache, brèdes mafane et viande de zébu",18000,"PLT-001",20,"hot",25,true
+"plats","poulet-coco","Poulet au coco","Poulet mijoté au lait de coco, riz blanc",16000,"PLT-002",20,"hot",20,true
+"plats","poisson-grille","Poisson grillé","Capitaine grillé, riz, légumes vapeur",22000,"PLT-003",20,"hot",25,true
+"desserts","mousse-chocolat","Mousse au chocolat","Mousse maison",6000,"DES-001",20,"cold",5,true
+"desserts","ananas-victoria","Ananas Victoria","Ananas frais de saison",4000,"DES-002",20,"cold",3,true
+"boissons","eau-eau-vive","Eau Eau Vive 50cl","",2000,"BOI-001",20,"drinks",1,true
+"boissons","jus-orange","Jus d'orange pressé","",5000,"BOI-002",20,"drinks",3,true
+"boissons","coca-33cl","Coca-Cola 33cl","",3000,"BOI-003",20,"drinks",1,true
+"bieres","thb-pression","THB Pression 33cl","",5000,"BIE-001",20,"drinks",1,true
+"bieres","three-horses","Three Horses Beer 65cl","",8000,"BIE-002",20,"drinks",1,true

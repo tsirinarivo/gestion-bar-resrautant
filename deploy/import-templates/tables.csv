@@ -1,0 +1,12 @@
+number,name,capacity,section,shape
+1,"T1",2,"Salle principale","rectangle"
+2,"T2",2,"Salle principale","rectangle"
+3,"T3",4,"Salle principale","rectangle"
+4,"T4",4,"Salle principale","rectangle"
+5,"T5",6,"Salle principale","rectangle"
+6,"T6",8,"Salle principale","rectangle"
+10,"Terrasse 1",4,"Terrasse","rectangle"
+11,"Terrasse 2",4,"Terrasse","rectangle"
+12,"Terrasse 3",4,"Terrasse","rectangle"
+20,"Bar 1",2,"Bar","circle"
+21,"Bar 2",2,"Bar","circle"

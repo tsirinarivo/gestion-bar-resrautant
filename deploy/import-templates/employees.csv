@@ -1,0 +1,6 @@
+email,firstName,lastName,role,password,phone
+"manager@monresto.mg","Prenom","Nom","manager","ChangezMoi123!","+261 34 12 345 67"
+"caissier1@monresto.mg","Prenom","Nom","caissier","ChangezMoi123!","+261 34 12 345 68"
+"serveur1@monresto.mg","Prenom","Nom","serveur","ChangezMoi123!","+261 34 12 345 69"
+"serveur2@monresto.mg","Prenom","Nom","serveur","ChangezMoi123!","+261 34 12 345 70"
+"cuisinier1@monresto.mg","Prenom","Nom","cuisinier","ChangezMoi123!","+261 34 12 345 71"
