@@ -177,8 +177,12 @@ posTerminalRouter.post('/:id/users', async (req: AuthRequest, res) => {
 // DELETE /api/pos-terminals/:id/users/:userId  — remove user
 posTerminalRouter.delete('/:id/users/:userId', async (req: AuthRequest, res) => {
   try {
+    const terminal = await prisma.posTerminal.findFirst({
+      where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    })
+    if (!terminal) { res.status(404).json({ success: false, error: 'Terminal introuvable' }); return }
     await prisma.posTerminalUser.deleteMany({
-      where: { terminalId: req.params.id, userId: req.params.userId },
+      where: { terminalId: terminal.id, userId: req.params.userId },
     })
     res.json({ success: true })
   } catch {

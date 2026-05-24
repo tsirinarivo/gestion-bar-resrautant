@@ -135,7 +135,9 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
 }
 
 function KDSPageInner() {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : localStorage.getItem('kds-token')
+  );
   const [station, setStation] = useState<string>(() =>
     typeof window === 'undefined' ? 'all' : (localStorage.getItem('kds-station') ?? 'all')
   );
@@ -155,8 +157,14 @@ function KDSPageInner() {
     refetchInterval: 10_000,
   });
 
+  function handleSetToken(t: string | null) {
+    if (t) localStorage.setItem('kds-token', t)
+    else localStorage.removeItem('kds-token')
+    setToken(t)
+  }
+
   useEffect(() => {
-    if (error && (error as Error).message === '401') setToken(null);
+    if (error && (error as Error).message === '401') handleSetToken(null);
   }, [error]);
 
   useEffect(() => {
@@ -222,7 +230,7 @@ function KDSPageInner() {
       .filter(order => order.items.length > 0);
   }, [orders, station]);
 
-  if (!token) return <LoginScreen onLogin={setToken} />;
+  if (!token) return <LoginScreen onLogin={handleSetToken} />;
 
   const getWaitTime = (createdAt: string) =>
     Math.floor((now.getTime() - new Date(createdAt).getTime()) / 60000);
@@ -273,7 +281,7 @@ function KDSPageInner() {
             title={soundOn ? 'Couper le son' : 'Activer le son'}>
             {soundOn ? '🔔' : '🔕'}
           </button>
-          <button onClick={() => setToken(null)} className="text-xs text-gray-600 hover:text-gray-400">
+          <button onClick={() => handleSetToken(null)} className="text-xs text-gray-600 hover:text-gray-400">
             Déco.
           </button>
         </div>

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma'
-import { authenticate, AuthRequest } from '../middleware/auth'
+import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 
 export const promotionRouter = Router()
@@ -31,7 +31,7 @@ promotionRouter.get('/', async (req: AuthRequest, res, next) => {
   } catch (error) { next(error) }
 })
 
-promotionRouter.post('/', async (req: AuthRequest, res, next) => {
+promotionRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const data = promoSchema.parse(req.body)
     const promo = await prisma.promotion.create({
@@ -66,7 +66,7 @@ promotionRouter.patch('/:id', async (req: AuthRequest, res, next) => {
   } catch (error) { next(error) }
 })
 
-promotionRouter.delete('/:id', async (req: AuthRequest, res, next) => {
+promotionRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const promo = await prisma.promotion.findFirst({
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },

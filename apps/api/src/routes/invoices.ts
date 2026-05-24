@@ -113,7 +113,7 @@ invoiceRouter.post('/', authorize('manager', 'superadmin', 'caissier'), async (r
     // Determine sequence number for current month
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const count = await prisma.invoice.count({ where: { issueDate: { gte: startOfMonth } } })
+    const count = await prisma.invoice.count({ where: { issueDate: { gte: startOfMonth }, payment: { order: { restaurantId } } } })
     const invoiceNumber = generateInvoiceNumber(count + 1)
 
     // Build invoice items from order items

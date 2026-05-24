@@ -6,7 +6,10 @@ export function setupSocketHandlers(io: Server) {
     const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '')
 
     if (!token) {
+      // Allow unauthenticated connections for public client app (QR waiter call)
+      // but scope restaurantId from handshake only — never from emitted event data
       socket.data.restaurantId = socket.handshake.auth.restaurantId
+      socket.data.isPublic = true
       return next()
     }
 
@@ -30,18 +33,19 @@ export function setupSocketHandlers(io: Server) {
       if (['manager', 'superadmin'].includes(roleName)) socket.join(`admin-${restaurantId}`)
     }
 
-    // BUG 7 — accepter join:kds sans restaurantId (fallback sur socket.data depuis JWT)
-    socket.on('join:kds', (data?: { restaurantId?: string }) => {
-      const rId = data?.restaurantId || socket.data.restaurantId
+    socket.on('join:kds', () => {
+      const rId = socket.data.restaurantId
       if (rId) socket.join(`kds-${rId}`)
     })
 
-    socket.on('kds:item_ready', (data: { orderId: string; itemId: string; restaurantId: string }) => {
-      io.to(data.restaurantId).emit('kds:item_prepared', data)
+    socket.on('kds:item_ready', (data: { orderId: string; itemId: string; restaurantId?: string }) => {
+      const rId = socket.data.restaurantId
+      if (rId) io.to(rId).emit('kds:item_prepared', { ...data, restaurantId: rId })
     })
 
-    socket.on('table:call_waiter', (data: { tableId: string; restaurantId: string }) => {
-      io.to(data.restaurantId).emit('table:waiter_requested', data)
+    socket.on('table:call_waiter', (data: { tableId: string; restaurantId?: string }) => {
+      const rId = socket.data.restaurantId
+      if (rId) io.to(rId).emit('table:waiter_requested', { ...data, restaurantId: rId })
     })
   })
 }

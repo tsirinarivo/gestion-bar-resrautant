@@ -32,7 +32,7 @@ waitingListRouter.get('/', async (req: AuthRequest, res, next) => {
 })
 
 // POST /api/waiting-list
-waitingListRouter.post('/', async (req: AuthRequest, res, next) => {
+waitingListRouter.post('/', authorize('manager', 'superadmin', 'serveur'), async (req: AuthRequest, res, next) => {
   try {
     const data = entrySchema.parse(req.body)
     const entry = await prisma.waitingList.create({
@@ -43,7 +43,7 @@ waitingListRouter.post('/', async (req: AuthRequest, res, next) => {
 })
 
 // PATCH /api/waiting-list/:id/status
-waitingListRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
+waitingListRouter.patch('/:id/status', authorize('manager', 'superadmin', 'serveur'), async (req: AuthRequest, res, next) => {
   try {
     const { status } = z.object({
       status: z.enum(['WAITING', 'NOTIFIED', 'SEATED', 'LEFT']),

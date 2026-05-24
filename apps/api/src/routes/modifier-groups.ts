@@ -68,6 +68,17 @@ modifierGroupRouter.post('/', authorize('manager', 'superadmin'), async (req: Au
 modifierGroupRouter.put('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const data = groupSchema.partial().parse(req.body)
+    const restaurantId = req.user!.restaurantId
+    const existing = await prisma.modifierGroup.findFirst({
+      where: {
+        id: req.params.id,
+        OR: [
+          { products: { some: { product: { restaurantId } } } },
+          { products: { none: {} } },
+        ],
+      },
+    })
+    if (!existing) throw new AppError('Groupe de modificateurs introuvable', 404)
     const group = await prisma.modifierGroup.update({
       where: { id: req.params.id },
       data,
@@ -80,6 +91,17 @@ modifierGroupRouter.put('/:id', authorize('manager', 'superadmin'), async (req: 
 // DELETE /api/modifier-groups/:id
 modifierGroupRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
+    const restaurantId = req.user!.restaurantId
+    const existing = await prisma.modifierGroup.findFirst({
+      where: {
+        id: req.params.id,
+        OR: [
+          { products: { some: { product: { restaurantId } } } },
+          { products: { none: {} } },
+        ],
+      },
+    })
+    if (!existing) throw new AppError('Groupe de modificateurs introuvable', 404)
     await prisma.modifierGroup.delete({ where: { id: req.params.id } })
     res.json({ success: true })
   } catch (error) { next(error) }
