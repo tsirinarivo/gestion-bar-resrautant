@@ -392,7 +392,7 @@ dashboardRouter.get('/kitchen-performance', async (req: AuthRequest, res, next) 
     const restaurantId = req.user!.restaurantId
     const { from, to, days = '7' } = req.query as Record<string, string>
     const end = to ? endOfDay(new Date(to)) : endOfDay(new Date())
-    const start = from ? startOfDay(new Date(from)) : startOfDay(subDays(end, parseInt(days) - 1))
+    const start = from ? startOfDay(new Date(from)) : startOfDay(subDays(end, (parseInt(days) || 7) - 1))
 
     // Fetch completed orders with timing data
     const orders = await prisma.order.findMany({

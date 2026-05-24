@@ -63,7 +63,7 @@ reservationRouter.get('/reminders', async (req: AuthRequest, res, next) => {
     const { status = 'PENDING', days = '7' } = req.query as Record<string, string>
     const restaurantId = req.user!.restaurantId
     const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() + parseInt(days))
+    cutoff.setDate(cutoff.getDate() + (parseInt(days) || 7))
 
     const reminders = await prisma.reservationReminder.findMany({
       where: {

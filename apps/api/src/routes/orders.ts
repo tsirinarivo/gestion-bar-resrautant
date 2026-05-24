@@ -257,7 +257,7 @@ const orderItemSchema = z.object({
   kdsStation: z.string().optional(),
   modifiers: z.array(z.object({
     name: z.string(),
-    price: z.number(),
+    price: z.number().nonnegative(),
     type: z.string(),
     modifierId: z.string().optional(),
     variantId: z.string().optional(),
