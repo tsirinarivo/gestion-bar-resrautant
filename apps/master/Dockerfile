@@ -40,6 +40,7 @@ ENV HOSTNAME=0.0.0.0
 # Copy standalone output (Next.js)
 COPY --from=builder /app/apps/master/.next/standalone ./
 COPY --from=builder /app/apps/master/.next/static ./apps/master/.next/static
+COPY --from=builder /app/apps/master/public ./apps/master/public
 
 # Prisma client generated dans node_modules
 COPY --from=builder /app/packages/master-database/node_modules/.prisma ./packages/master-database/node_modules/.prisma
