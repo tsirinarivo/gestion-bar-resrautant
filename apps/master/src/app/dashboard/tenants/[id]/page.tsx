@@ -2,10 +2,13 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { masterPrisma } from '@restaurant/master-database'
+import { readSession } from '@/lib/auth'
+import { DeleteTenantButton } from '@/components/DeleteTenantButton'
 
 export const dynamic = 'force-dynamic'
 
 export default async function TenantDetailPage({ params }: { params: { id: string } }) {
+  const session = readSession()
   const tenant = await masterPrisma.tenant.findUnique({
     where: { id: params.id },
     include: {
@@ -29,12 +32,21 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
         </Link>
       </div>
 
-      <header className="mb-6 flex items-start justify-between">
+      <header className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{tenant.name}</h1>
           <p className="mt-1 font-mono text-sm text-slate-500">{tenant.slug}</p>
         </div>
-        <StatusBadge status={tenant.status} />
+        <div className="flex items-center gap-3">
+          <StatusBadge status={tenant.status} />
+          {session?.role === 'OWNER' && (
+            <DeleteTenantButton
+              tenantId={tenant.id}
+              tenantSlug={tenant.slug}
+              tenantName={tenant.name}
+            />
+          )}
+        </div>
       </header>
 
       <div className="grid gap-6 md:grid-cols-2">

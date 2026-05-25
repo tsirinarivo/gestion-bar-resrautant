@@ -41,13 +41,34 @@ flock -n 9 || { say "déjà en cours, skip"; exit 0; }
 
 shopt -s nullglob
 FLAGS=("$TENANTS_DIR"/*/.needs-ssl)
-[ ${#FLAGS[@]} -eq 0 ] && exit 0
+RELOAD_FLAG="$TENANTS_DIR/.needs-nginx-reload"
+NEEDS_RELOAD=false
+[ -e "$RELOAD_FLAG" ] && NEEDS_RELOAD=true
+
+# Si rien à faire (ni SSL ni reload) → exit
+if [ ${#FLAGS[@]} -eq 0 ] && [ "$NEEDS_RELOAD" = false ]; then
+  exit 0
+fi
+
+# Reload-only (cas d'une suppression sans SSL à émettre)
+if [ ${#FLAGS[@]} -eq 0 ] && [ "$NEEDS_RELOAD" = true ]; then
+  say "─── finalize: reload nginx (suite à suppression tenant) ───"
+  if nginx -t >> "$LOG" 2>&1; then
+    systemctl reload nginx
+    rm -f "$RELOAD_FLAG"
+    say "✓ nginx rechargé"
+  else
+    say "✗ nginx -t a échoué — abandon"
+  fi
+  exit 0
+fi
 
 say "─── finalize: ${#FLAGS[@]} tenant(s) à traiter ───"
 
 # Reload nginx UNE SEULE FOIS pour tous les tenants détectés
 if nginx -t >> "$LOG" 2>&1; then
   systemctl reload nginx
+  rm -f "$RELOAD_FLAG"
   say "✓ nginx rechargé"
 else
   say "✗ nginx -t a échoué — abandon"

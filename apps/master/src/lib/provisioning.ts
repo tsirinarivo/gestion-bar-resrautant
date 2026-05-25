@@ -10,6 +10,7 @@ const BASE_PORT = 4100
 const PORTS_PER_TENANT = 10
 const ROOT_DIR = process.env.RESTAURANT_ROOT || '/opt/restaurant'
 const SCRIPT_NEW = path.join(ROOT_DIR, 'deploy', 'new-tenant.sh')
+const SCRIPT_DELETE = path.join(ROOT_DIR, 'deploy', 'delete-tenant.sh')
 
 export type CreateTenantInput = {
   slug: string
@@ -106,6 +107,33 @@ export async function runProvisioningScript(
       env,
       cwd: ROOT_DIR,
       timeout: 10 * 60 * 1000,
+      maxBuffer: 10 * 1024 * 1024,
+    })
+    return { ok: true, stdout, stderr }
+  } catch (err) {
+    const e = err as { stdout?: string; stderr?: string; message: string }
+    return {
+      ok: false,
+      stdout: e.stdout ?? '',
+      stderr: (e.stderr ?? '') + '\n' + e.message,
+    }
+  }
+}
+
+export async function runDeletionScript(
+  tenant: Pick<Tenant, 'slug' | 'dbName'>
+): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    TENANT_SLUG: tenant.slug,
+    TENANT_DB_NAME: tenant.dbName,
+  }
+
+  try {
+    const { stdout, stderr } = await execFileP('bash', [SCRIPT_DELETE], {
+      env,
+      cwd: ROOT_DIR,
+      timeout: 5 * 60 * 1000,
       maxBuffer: 10 * 1024 * 1024,
     })
     return { ok: true, stdout, stderr }
