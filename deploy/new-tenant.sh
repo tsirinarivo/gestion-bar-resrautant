@@ -96,10 +96,10 @@ DC_MASTER="docker compose -f $ROOT_DIR/docker-compose.prod.yml --env-file $ROOT_
 PG_USER="${POSTGRES_USER:-restaurant_user}"
 
 # Crée la DB si elle n'existe pas (idempotent)
-$DC_MASTER exec -T postgres psql -U "$PG_USER" -tc \
+$DC_MASTER exec -T postgres psql -U "$PG_USER" -d postgres -tc \
   "SELECT 1 FROM pg_database WHERE datname='$TENANT_DB_NAME'" \
   | grep -q 1 \
-  || $DC_MASTER exec -T postgres psql -U "$PG_USER" -c "CREATE DATABASE $TENANT_DB_NAME"
+  || $DC_MASTER exec -T postgres psql -U "$PG_USER" -d postgres -c "CREATE DATABASE $TENANT_DB_NAME"
 
 log "DB $TENANT_DB_NAME prête"
 

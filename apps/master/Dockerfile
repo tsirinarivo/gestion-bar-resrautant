@@ -29,7 +29,7 @@ RUN cd apps/master && npm run build
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat openssl docker-cli bash gettext curl
+RUN apk add --no-cache libc6-compat openssl docker-cli docker-cli-compose bash gettext curl
 WORKDIR /app
 
 ENV NODE_ENV=production
