@@ -48,7 +48,7 @@ docker run --rm \
   -v "$ROOT_DIR/packages/master-database/prisma:/schema" \
   -e MASTER_DATABASE_URL="$MASTER_URL" \
   restaurant_api:latest \
-  sh -c "cp /schema/schema.prisma /tmp/schema.prisma && npx prisma db push --schema=/tmp/schema.prisma --accept-data-loss"
+  sh -c "cp /schema/schema.prisma /tmp/schema.prisma && npx prisma db push --schema=/tmp/schema.prisma --accept-data-loss --skip-generate"
 
 log "Schema master poussé"
 
