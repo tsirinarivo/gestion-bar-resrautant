@@ -168,6 +168,18 @@ else
   warn "API health check échoué — vérifier: docker logs tenant_${TENANT_SLUG}_api"
 fi
 
+# ── 10. Flag SSL pour le finalize daemon sur l'hôte ────────────────────────
+header "Demande de SSL au finalize daemon"
+
+cat > "$TENANT_DIR/.tenant-info" <<EOF
+TENANT_SLUG=$TENANT_SLUG
+TENANT_SUBDOMAIN=$TENANT_SUBDOMAIN
+TENANT_API_PORT=$TENANT_API_PORT
+EOF
+
+touch "$TENANT_DIR/.needs-ssl"
+log "Flag .needs-ssl créé — finalize-tenants.sh (cron sur hôte) prendra le relais"
+
 # ── 10. Récap ──────────────────────────────────────────────────────────────
 header "Provisioning terminé"
 
@@ -187,10 +199,9 @@ Compte admin :
   Email    : $ADMIN_EMAIL
   Password : (celui passé en argument)
 
-Prochaine étape (manuelle, à faire 1 fois) :
-  certbot --nginx -d ${TENANT_SUBDOMAIN}.sakafio.mg \\
-                  -d admin-${TENANT_SUBDOMAIN}.sakafio.mg \\
-                  -d pos-${TENANT_SUBDOMAIN}.sakafio.mg \\
-                  -d kds-${TENANT_SUBDOMAIN}.sakafio.mg \\
-                  -d api-${TENANT_SUBDOMAIN}.sakafio.mg
+Prochaine étape (automatique, via finalize-tenants.sh sur l'hôte) :
+  - nginx -t && systemctl reload nginx
+  - certbot --nginx -d <5 sous-domaines>
+  Latence : ~1 min (cron toutes les minutes).
+  Vérifier : tail -f /var/log/sakafio-finalize.log
 EOF
