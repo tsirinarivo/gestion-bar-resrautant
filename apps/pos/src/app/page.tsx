@@ -216,7 +216,7 @@ function ReceiptModal({
         {/* Receipt body */}
         <div className="p-5 font-mono text-sm" id="receipt-content">
           <div className="text-center mb-4">
-            <p className="text-lg font-bold tracking-wide">🍽️ RestaurantOS</p>
+            <p className="text-lg font-bold tracking-wide">🍽️ Sakafio</p>
             <p className="text-xs text-gray-500">{dateStr} à {timeStr}</p>
             <p className="text-xs text-gray-500">{tableLabel}</p>
           </div>
@@ -1418,7 +1418,7 @@ export default function POSPage() {
 
   // Aucun terminal configuré → inviter l'admin à en créer un
   if (terminalsList !== null && terminalsList.length === 0 && !terminalId) {
-    const adminUrl = process.env['NEXT_PUBLIC_ADMIN_URL'] || 'https://admin.restaurant.dago-it.com';
+    const adminUrl = process.env['NEXT_PUBLIC_ADMIN_URL'] || 'https://admin.sakafio.mg';
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6 text-center">
         <p className="text-5xl mb-4">🖥️</p>

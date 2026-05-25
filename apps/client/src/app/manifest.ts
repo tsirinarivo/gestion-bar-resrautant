@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'RestaurantOS — Commander',
-    short_name: 'Restaurant',
+    name: 'Sakafio — Commander',
+    short_name: 'Sakafio',
     description: 'Commandez en ligne ou sur place',
     start_url: '/',
     display: 'standalone',

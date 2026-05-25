@@ -14,9 +14,9 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
   })
   if (!tenant) return notFound()
 
-  const adminUrl = `https://admin-${tenant.subdomain}.restaurant.dago-it.com`
-  const posUrl = `https://pos-${tenant.subdomain}.restaurant.dago-it.com`
-  const apiUrl = `https://api-${tenant.subdomain}.restaurant.dago-it.com`
+  const adminUrl = `https://admin-${tenant.subdomain}.sakafio.mg`
+  const posUrl = `https://pos-${tenant.subdomain}.sakafio.mg`
+  const apiUrl = `https://api-${tenant.subdomain}.sakafio.mg`
 
   return (
     <div className="px-6 py-8 md:px-10">

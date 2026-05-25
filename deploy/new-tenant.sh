@@ -177,20 +177,20 @@ DB           : $TENANT_DB_NAME
 Ports        : api=$TENANT_API_PORT web=$TENANT_WEB_PORT pos=$TENANT_POS_PORT kds=$TENANT_KDS_PORT client=$TENANT_CLIENT_PORT
 
 URLs publiques (après SSL via certbot):
-  Client : https://${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-  Admin  : https://admin-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-  POS    : https://pos-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-  KDS    : https://kds-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-  API    : https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+  Client : https://${TENANT_SUBDOMAIN}.sakafio.mg
+  Admin  : https://admin-${TENANT_SUBDOMAIN}.sakafio.mg
+  POS    : https://pos-${TENANT_SUBDOMAIN}.sakafio.mg
+  KDS    : https://kds-${TENANT_SUBDOMAIN}.sakafio.mg
+  API    : https://api-${TENANT_SUBDOMAIN}.sakafio.mg
 
 Compte admin :
   Email    : $ADMIN_EMAIL
   Password : (celui passé en argument)
 
 Prochaine étape (manuelle, à faire 1 fois) :
-  certbot --nginx -d ${TENANT_SUBDOMAIN}.restaurant.dago-it.com \\
-                  -d admin-${TENANT_SUBDOMAIN}.restaurant.dago-it.com \\
-                  -d pos-${TENANT_SUBDOMAIN}.restaurant.dago-it.com \\
-                  -d kds-${TENANT_SUBDOMAIN}.restaurant.dago-it.com \\
-                  -d api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+  certbot --nginx -d ${TENANT_SUBDOMAIN}.sakafio.mg \\
+                  -d admin-${TENANT_SUBDOMAIN}.sakafio.mg \\
+                  -d pos-${TENANT_SUBDOMAIN}.sakafio.mg \\
+                  -d kds-${TENANT_SUBDOMAIN}.sakafio.mg \\
+                  -d api-${TENANT_SUBDOMAIN}.sakafio.mg
 EOF

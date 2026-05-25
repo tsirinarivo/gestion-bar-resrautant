@@ -21,9 +21,9 @@ services:
       JWT_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
       MASTER_CROSS_SECRET: ${TENANT_CROSS_SECRET}
-      ALLOWED_ORIGINS: https://${TENANT_SUBDOMAIN}.restaurant.dago-it.com,https://admin-${TENANT_SUBDOMAIN}.restaurant.dago-it.com,https://pos-${TENANT_SUBDOMAIN}.restaurant.dago-it.com,https://kds-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      ALLOWED_ORIGINS: https://${TENANT_SUBDOMAIN}.sakafio.mg,https://admin-${TENANT_SUBDOMAIN}.sakafio.mg,https://pos-${TENANT_SUBDOMAIN}.sakafio.mg,https://kds-${TENANT_SUBDOMAIN}.sakafio.mg
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
     ports:
       - "127.0.0.1:${TENANT_API_PORT}:4000"
     volumes:
@@ -45,8 +45,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: "0.0.0.0"
-      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
     ports:
       - "127.0.0.1:${TENANT_WEB_PORT}:3000"
     depends_on:
@@ -62,8 +62,8 @@ services:
       NODE_ENV: production
       PORT: 3001
       HOSTNAME: "0.0.0.0"
-      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
     ports:
       - "127.0.0.1:${TENANT_POS_PORT}:3001"
     depends_on:
@@ -79,8 +79,8 @@ services:
       NODE_ENV: production
       PORT: 3002
       HOSTNAME: "0.0.0.0"
-      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
     ports:
       - "127.0.0.1:${TENANT_KDS_PORT}:3002"
     depends_on:
@@ -96,8 +96,8 @@ services:
       NODE_ENV: production
       PORT: 3003
       HOSTNAME: "0.0.0.0"
-      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
-      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.sakafio.mg
     ports:
       - "127.0.0.1:${TENANT_CLIENT_PORT}:3003"
     depends_on:

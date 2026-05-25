@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 
 const QRCodeSVG = dynamic(() => import('qrcode.react').then(m => m.QRCodeSVG), { ssr: false })
 
-const CLIENT_URL = process.env.NEXT_PUBLIC_CLIENT_URL || 'https://client.restaurant.dago-it.com'
+const CLIENT_URL = process.env.NEXT_PUBLIC_CLIENT_URL || 'https://client.sakafio.mg'
 
 function QRModal({ table, onClose }: { table: any; onClose: () => void }) {
   const svgRef = useRef<HTMLDivElement>(null)

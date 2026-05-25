@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen">
       <aside className="hidden w-60 shrink-0 border-r border-slate-200 bg-white md:flex md:flex-col">
         <div className="border-b border-slate-200 px-5 py-4">
-          <div className="text-sm font-semibold text-slate-900">RestaurantOS</div>
+          <div className="text-sm font-semibold text-slate-900">Sakafio</div>
           <div className="text-xs text-slate-500">Master Console</div>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-4">

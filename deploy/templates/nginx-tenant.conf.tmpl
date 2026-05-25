@@ -5,7 +5,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name ${TENANT_SUBDOMAIN}.restaurant.dago-it.com;
+    server_name ${TENANT_SUBDOMAIN}.sakafio.mg;
 
     location / {
         proxy_pass         http://127.0.0.1:${TENANT_CLIENT_PORT};
@@ -25,7 +25,7 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name admin-${TENANT_SUBDOMAIN}.restaurant.dago-it.com;
+    server_name admin-${TENANT_SUBDOMAIN}.sakafio.mg;
 
     location / {
         proxy_pass         http://127.0.0.1:${TENANT_WEB_PORT};
@@ -45,7 +45,7 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name pos-${TENANT_SUBDOMAIN}.restaurant.dago-it.com;
+    server_name pos-${TENANT_SUBDOMAIN}.sakafio.mg;
 
     location / {
         proxy_pass         http://127.0.0.1:${TENANT_POS_PORT};
@@ -64,7 +64,7 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name kds-${TENANT_SUBDOMAIN}.restaurant.dago-it.com;
+    server_name kds-${TENANT_SUBDOMAIN}.sakafio.mg;
 
     location / {
         proxy_pass         http://127.0.0.1:${TENANT_KDS_PORT};
@@ -83,7 +83,7 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com;
+    server_name api-${TENANT_SUBDOMAIN}.sakafio.mg;
 
     location /socket.io/ {
         proxy_pass         http://127.0.0.1:${TENANT_API_PORT};

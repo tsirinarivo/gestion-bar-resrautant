@@ -87,11 +87,11 @@ log "Base de données initialisée"
 header "6. Nginx — configs proxy"
 
 DOMAINS=(
-  "restaurant.dago-it.com"
-  "admin.restaurant.dago-it.com"
-  "pos.restaurant.dago-it.com"
-  "kds.restaurant.dago-it.com"
-  "api.restaurant.dago-it.com"
+  "sakafio.mg"
+  "admin.sakafio.mg"
+  "pos.sakafio.mg"
+  "kds.sakafio.mg"
+  "api.sakafio.mg"
 )
 
 for DOMAIN in "${DOMAINS[@]}"; do
@@ -107,17 +107,17 @@ log "Nginx rechargé"
 header "7. Certificat SSL (Let's Encrypt)"
 
 if certbot --nginx \
-  -d restaurant.dago-it.com \
-  -d admin.restaurant.dago-it.com \
-  -d pos.restaurant.dago-it.com \
-  -d kds.restaurant.dago-it.com \
-  -d api.restaurant.dago-it.com \
+  -d sakafio.mg \
+  -d admin.sakafio.mg \
+  -d pos.sakafio.mg \
+  -d kds.sakafio.mg \
+  -d api.sakafio.mg \
   --non-interactive \
   --redirect; then
   log "Certificat SSL obtenu et Nginx mis à jour automatiquement"
 else
   warn "Certbot échoué — les DNS ne sont pas encore propagés."
-  warn "Une fois vos DNS créés, relancez : certbot --nginx -d restaurant.dago-it.com -d admin.restaurant.dago-it.com -d pos.restaurant.dago-it.com -d kds.restaurant.dago-it.com -d api.restaurant.dago-it.com --non-interactive --redirect"
+  warn "Une fois vos DNS créés, relancez : certbot --nginx -d sakafio.mg -d admin.sakafio.mg -d pos.sakafio.mg -d kds.sakafio.mg -d api.sakafio.mg --non-interactive --redirect"
 fi
 
 # ── 8. Vérification ──────────────────────────────────────────────────────────
@@ -126,7 +126,7 @@ header "8. Statut final"
 $DC ps
 
 echo ""
-if curl -sk "https://api.restaurant.dago-it.com/api/health" 2>/dev/null | grep -q '"status":"ok"'; then
+if curl -sk "https://api.sakafio.mg/api/health" 2>/dev/null | grep -q '"status":"ok"'; then
   log "API opérationnelle !"
 else
   info "Test local : $(curl -s http://127.0.0.1:4001/api/health 2>/dev/null || echo 'API pas encore prête')"
@@ -136,11 +136,11 @@ fi
 echo ""
 echo -e "${BOLD}${GREEN}🎉 Déploiement terminé !${RESET}"
 echo ""
-echo "  https://restaurant.dago-it.com        — Commandes client"
-echo "  https://admin.restaurant.dago-it.com  — Back-office"
-echo "  https://pos.restaurant.dago-it.com    — Caisse POS"
-echo "  https://kds.restaurant.dago-it.com    — Cuisine KDS"
-echo "  https://api.restaurant.dago-it.com    — API"
+echo "  https://sakafio.mg        — Commandes client"
+echo "  https://admin.sakafio.mg  — Back-office"
+echo "  https://pos.sakafio.mg    — Caisse POS"
+echo "  https://kds.sakafio.mg    — Cuisine KDS"
+echo "  https://api.sakafio.mg    — API"
 echo ""
 echo "  manager@demo.com  / demo1234"
 echo "  caissier@demo.com / demo1234"

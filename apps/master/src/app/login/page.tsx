@@ -41,7 +41,7 @@ export default function LoginPage() {
           <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg">
             <ShieldCheck className="h-7 w-7" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">RestaurantOS Master</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Sakafio Master</h1>
           <p className="mt-2 text-sm text-slate-500">
             Console de gestion des clients
           </p>

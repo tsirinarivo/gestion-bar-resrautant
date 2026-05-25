@@ -3,8 +3,8 @@ import { Toaster } from 'sonner'
 import { Providers } from './providers'
 
 export const metadata = {
-  title: 'RestaurantOS — Master',
-  description: 'Gestion centralisée des clients RestaurantOS',
+  title: 'Sakafio — Master',
+  description: 'Gestion centralisée des clients Sakafio',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

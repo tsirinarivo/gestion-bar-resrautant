@@ -50,7 +50,7 @@ const navItems = [
   { href: '/superadmin', label: 'Vue Superadmin',    icon: Building2,        roles: ['superadmin'] },
 ]
 
-const POS_URL = process.env.NEXT_PUBLIC_POS_URL || 'https://pos.restaurant.dago-it.com'
+const POS_URL = process.env.NEXT_PUBLIC_POS_URL || 'https://pos.sakafio.mg'
 
 interface SidebarProps {
   mobileOpen: boolean
@@ -115,7 +115,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         </button>
       </div>
 
-      {/* Bouton POS — ouvre pos.restaurant.dago-it.com avec auth auto */}
+      {/* Bouton POS — ouvre pos.sakafio.mg avec auth auto */}
       <div className="px-2 py-2 border-b border-brand-border">
         <a
           href={POS_URL}

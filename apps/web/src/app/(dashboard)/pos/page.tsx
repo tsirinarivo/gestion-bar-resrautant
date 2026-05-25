@@ -516,7 +516,7 @@ export default function POSPage() {
               </div>
               <div className="p-5 font-mono text-sm">
                 <div className="text-center mb-4">
-                  <p className="text-lg font-bold">🍽️ RestaurantOS</p>
+                  <p className="text-lg font-bold">🍽️ Sakafio</p>
                   <p className="text-xs text-gray-500">{activeTable ? `Table ${activeTable.number}` : 'Emporté'}</p>
                 </div>
                 <div className="border-t border-dashed border-gray-400 my-3" />

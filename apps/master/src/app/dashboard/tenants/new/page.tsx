@@ -85,8 +85,8 @@ export default function NewTenantPage() {
 
           <div className="grid gap-3 rounded-lg bg-slate-50 p-4 text-sm">
             <Row label="Slug" value={created.slug} mono />
-            <Row label="Sous-domaine" value={`${created.subdomain}.restaurant.dago-it.com`} mono />
-            <Row label="URL admin" value={`https://admin-${created.subdomain}.restaurant.dago-it.com`} mono />
+            <Row label="Sous-domaine" value={`${created.subdomain}.sakafio.mg`} mono />
+            <Row label="URL admin" value={`https://admin-${created.subdomain}.sakafio.mg`} mono />
             <Row label="Port API alloué" value={String(created.apiPort)} mono />
             <Row label="Email admin" value={created.adminEmail} />
             <Row label="Status" value={created.status} />
@@ -162,7 +162,7 @@ export default function NewTenantPage() {
                 placeholder="pierre"
               />
               <p className="mt-1 text-xs text-slate-500">
-                {form.slug && `→ ${form.slug}.restaurant.dago-it.com`}
+                {form.slug && `→ ${form.slug}.sakafio.mg`}
               </p>
             </div>
           </div>

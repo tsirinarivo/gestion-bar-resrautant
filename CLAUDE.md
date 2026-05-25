@@ -1,4 +1,7 @@
-# RestaurantOS — Mémoire projet Claude
+# Sakafio — Mémoire projet Claude
+
+> Nom de code interne : *RestaurantOS* (utilisé dans les commits/docs historiques)
+> Marque publique : **Sakafio** — domaine principal `sakafio.mg`
 
 ## Le projet en une phrase
 
@@ -12,11 +15,11 @@ SaaS de gestion de restaurant complet (commandes, caisse, stock, fidélité, KDS
 |---|---|
 | Monorepo | Turborepo |
 | API | Express.js + Prisma ORM + PostgreSQL (port 4000) |
-| Dashboard admin | Next.js 14 App Router (port 3000) → `admin.restaurant.dago-it.com` |
-| POS | Next.js standalone (port 3001) → `pos.restaurant.dago-it.com` |
+| Dashboard admin | Next.js 14 App Router (port 3000) → `admin.sakafio.mg` |
+| POS | Next.js standalone (port 3001) → `pos.sakafio.mg` |
 | KDS | Next.js kitchen display (port 3002) |
 | Client | Next.js app client (port 3003) |
-| **Master SaaS** | **Next.js (port 3010 / 4010 prod) → `master.restaurant.dago-it.com`** |
+| **Master SaaS** | **Next.js (port 3010 / 4010 prod) → `master.sakafio.mg`** |
 | Auth | JWT (accessToken localStorage + refreshToken cookie) |
 | Temps réel | Socket.io |
 | Schéma DB tenant | `packages/database/prisma/schema.prisma` |
@@ -33,7 +36,7 @@ SaaS de gestion de restaurant complet (commandes, caisse, stock, fidélité, KDS
 - **1 Postgres partagé** + **1 DB par tenant** (`tenant_<slug>`) + 1 DB master (`master_db`)
 - **1 stack Docker isolée par tenant** : générée à la volée par `deploy/new-tenant.sh` dans `tenants/<slug>/docker-compose.yml`
 - **Allocation auto de ports** : tenant N → api=4100+N*10, web=+1, pos=+2, kds=+3, client=+4
-- **URLs par tenant** : `<slug>.restaurant.dago-it.com` (client public), `admin-<slug>...`, `pos-<slug>...`, `kds-<slug>...`, `api-<slug>...`
+- **URLs par tenant** : `<slug>.sakafio.mg` (client public), `admin-<slug>...`, `pos-<slug>...`, `kds-<slug>...`, `api-<slug>...`
 - **Création tenant** : UI Master → POST `/api/tenants` → exécute `deploy/new-tenant.sh` via `child_process`
 - **Init master** : `bash deploy/master-init.sh` (création DB master + premier OWNER)
 

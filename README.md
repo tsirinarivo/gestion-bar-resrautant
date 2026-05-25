@@ -1,4 +1,6 @@
-# RestaurantOS — Logiciel de gestion bar & restaurant
+# Sakafio — Logiciel de gestion bar & restaurant
+
+> Nom de code interne : *RestaurantOS*
 
 Système de gestion complet pour bar et restaurant, conçu pour Madagascar.
 Interface en français, prix en Ariary (Ar), données de démonstration réalistes.
@@ -185,9 +187,9 @@ cd /opt/restaurant && ./deploy/update.sh
 
 | Service | URL |
 |---|---|
-| Interface admin | https://admin.restaurant.dago-it.com |
-| Caisse (redirect) | https://pos.restaurant.dago-it.com |
-| Cuisine (redirect) | https://kds.restaurant.dago-it.com |
+| Interface admin | https://admin.sakafio.mg |
+| Caisse (redirect) | https://pos.sakafio.mg |
+| Cuisine (redirect) | https://kds.sakafio.mg |
 
 ---
 
@@ -250,8 +252,8 @@ Paiement enregistré --> Table libérée
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/restaurant
 JWT_SECRET=votre_secret_jwt
-API_URL=https://admin.restaurant.dago-it.com/api
-NEXT_PUBLIC_API_URL=https://admin.restaurant.dago-it.com/api
+API_URL=https://admin.sakafio.mg/api
+NEXT_PUBLIC_API_URL=https://admin.sakafio.mg/api
 REDIS_URL=redis://:password@localhost:6379
 ```
 

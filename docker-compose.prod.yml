@@ -5,11 +5,11 @@
 # Pattern VPS : chaque service expose sur 127.0.0.1 uniquement.
 # Nginx système + Certbot gèrent le SSL et le reverse proxy.
 #
-#   restaurant.dago-it.com        → 127.0.0.1:4005  (client)
-#   admin.restaurant.dago-it.com  → 127.0.0.1:4002  (web)
-#   pos.restaurant.dago-it.com    → 127.0.0.1:4003  (pos)
-#   kds.restaurant.dago-it.com    → 127.0.0.1:4004  (kds)
-#   api.restaurant.dago-it.com    → 127.0.0.1:4001  (api)
+#   sakafio.mg        → 127.0.0.1:4005  (client)
+#   admin.sakafio.mg  → 127.0.0.1:4002  (web)
+#   pos.sakafio.mg    → 127.0.0.1:4003  (pos)
+#   kds.sakafio.mg    → 127.0.0.1:4004  (kds)
+#   api.sakafio.mg    → 127.0.0.1:4001  (api)
 # ═══════════════════════════════════════════════════════════════════════════
 
 services:

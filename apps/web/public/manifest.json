@@ -1,6 +1,6 @@
 {
-  "name": "RestaurantOS — Gestion",
-  "short_name": "RestaurantOS",
+  "name": "Sakafio — Gestion",
+  "short_name": "Sakafio",
   "description": "Tableau de bord de gestion du restaurant",
   "start_url": "/dashboard",
   "display": "standalone",

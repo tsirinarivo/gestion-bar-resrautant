@@ -85,7 +85,7 @@ header "Master initialisée"
 
 cat <<EOF
 
-Connexion : https://master.restaurant.dago-it.com (à configurer dans Nginx)
+Connexion : https://master.sakafio.mg (à configurer dans Nginx)
 Email     : $EMAIL
 Password  : (celui que tu viens de saisir)
 

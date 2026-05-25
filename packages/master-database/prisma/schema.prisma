@@ -28,7 +28,7 @@ model Tenant {
   clientPort Int    @unique
 
   // Domaines
-  subdomain   String  @unique // "pierre" → pierre.restaurant.dago-it.com
+  subdomain   String  @unique // "pierre" → pierre.sakafio.mg
   customDomain String? @unique // sprint 3+
 
   // Sécurité

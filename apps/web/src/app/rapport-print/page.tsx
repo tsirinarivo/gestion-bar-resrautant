@@ -377,7 +377,7 @@ function PrintContent() {
         {/* Pied de page */}
         <div className="footer">
           <div>
-            <strong>RestaurantOS</strong> — Rapport généré automatiquement
+            <strong>Sakafio</strong> — Rapport généré automatiquement
           </div>
           <div style={{ textAlign: 'right' }}>
             {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}

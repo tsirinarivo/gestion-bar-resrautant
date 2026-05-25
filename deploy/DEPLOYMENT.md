@@ -1,4 +1,4 @@
-# Guide de Déploiement VPS — RestaurantOS
+# Guide de Déploiement VPS — Sakafio
 
 ## Architecture réelle du VPS
 
@@ -60,27 +60,60 @@ POSTGRES_PASSWORD=UnMotDePasseTrèsFort123!
 REDIS_PASSWORD=AutreMotDePasse456!
 JWT_SECRET=$(openssl rand -base64 64)
 JWT_REFRESH_SECRET=$(openssl rand -base64 64)
-NEXT_PUBLIC_API_URL=https://api.restaurant.dago-it.com
-NEXT_PUBLIC_SOCKET_URL=https://api.restaurant.dago-it.com
-ALLOWED_ORIGINS=https://restaurant.dago-it.com,https://admin.restaurant.dago-it.com,https://pos.restaurant.dago-it.com,https://kds.restaurant.dago-it.com
+NEXT_PUBLIC_API_URL=https://api.sakafio.mg
+NEXT_PUBLIC_SOCKET_URL=https://api.sakafio.mg
+ALLOWED_ORIGINS=https://sakafio.mg,https://admin.sakafio.mg,https://pos.sakafio.mg,https://kds.sakafio.mg
 CERTBOT_EMAIL=votre@email.com
 ```
 
 > Générez les secrets : `openssl rand -base64 64`
 
-### Étape 3 — DNS (AVANT de lancer le script)
+### Étape 3 — DNS chez nic.mg (AVANT de lancer le script)
 
-Dans votre gestionnaire DNS :
+Le domaine `sakafio.mg` se gère via **[nic.mg](https://www.nic.mg)** (registrar officiel `.mg`).
+Allez dans **Mes domaines → sakafio.mg → Gestion DNS** et créez :
+
+**Sous-domaines principaux (vitrine + apps internes)** — pointent vers l'IP du VPS :
 
 | Type | Nom | Valeur | TTL |
 |------|-----|--------|-----|
-| A | `restaurant.dago-it.com` | `158.220.82.114` | 300 |
-| A | `admin.restaurant.dago-it.com` | `158.220.82.114` | 300 |
-| A | `pos.restaurant.dago-it.com` | `158.220.82.114` | 300 |
-| A | `kds.restaurant.dago-it.com` | `158.220.82.114` | 300 |
-| A | `api.restaurant.dago-it.com` | `158.220.82.114` | 300 |
+| A | `@` (root sakafio.mg) | `158.220.82.114` | 300 |
+| A | `admin` | `158.220.82.114` | 300 |
+| A | `pos` | `158.220.82.114` | 300 |
+| A | `kds` | `158.220.82.114` | 300 |
+| A | `api` | `158.220.82.114` | 300 |
+| A | `master` | `158.220.82.114` | 300 |
+| CNAME | `www` | `sakafio.mg` | 300 |
 
-Vérifiez la propagation : `dig +short restaurant.dago-it.com`
+**Wildcards pour les sous-domaines de tenants** (1 enregistrement = N tenants) :
+
+| Type | Nom | Valeur | TTL |
+|------|-----|--------|-----|
+| A | `*` (catch-all `<slug>.sakafio.mg`) | `158.220.82.114` | 300 |
+| A | `*.admin` ❌ *(non supporté par nic.mg en 2026)* | — | — |
+
+> ⚠️ **nic.mg ne gère qu'un seul niveau de wildcard.** Pour les apps tenants
+> (`admin-<slug>`, `pos-<slug>`, etc.), vous avez 2 options :
+>
+> **Option A — Wildcard simple `*.sakafio.mg`** : route toutes les sous-formes
+> (`<slug>.sakafio.mg`, `admin-<slug>.sakafio.mg`, `pos-<slug>.sakafio.mg`, etc.)
+> vers la même IP. Nginx fait ensuite le routage par `server_name` regex.
+> ✅ **Recommandé** — un seul enregistrement DNS suffit.
+>
+> **Option B — A explicite par tenant** : à chaque création de tenant, ajouter
+> manuellement `admin-<slug>`, `pos-<slug>`, `kds-<slug>`, `api-<slug>` chez nic.mg.
+> ❌ Non scalable au-delà de quelques tenants.
+
+Vérifiez la propagation (peut prendre 1-24h sur `.mg`) :
+```bash
+dig +short sakafio.mg
+dig +short admin.sakafio.mg
+dig +short master.sakafio.mg
+dig +short demo.sakafio.mg              # test wildcard
+dig +short admin-demo.sakafio.mg        # test wildcard
+```
+
+**Email pro `@sakafio.mg`** (optionnel, peut attendre) — voir section MX plus bas.
 
 ### Étape 4 — Lancer l'installation
 
@@ -143,10 +176,10 @@ journalctl -u nginx --tail 20   # voir les erreurs
 
 ```bash
 # Vérifier que le DNS pointe bien vers ce serveur
-dig +short api.restaurant.dago-it.com
+dig +short api.sakafio.mg
 
 # Tester manuellement
-certbot certonly --nginx -d api.restaurant.dago-it.com --email vous@email.com --agree-tos
+certbot certonly --nginx -d api.sakafio.mg --email vous@email.com --agree-tos
 ```
 
 ### API ne démarre pas
@@ -172,7 +205,7 @@ docker compose -f docker-compose.prod.yml build --no-cache
 
 ```bash
 ls /etc/nginx/sites-enabled/
-cat /etc/nginx/sites-enabled/api.restaurant.dago-it.com
+cat /etc/nginx/sites-enabled/api.sakafio.mg
 ```
 
 ---

@@ -17,7 +17,7 @@ const playfair = Playfair_Display({
 })
 
 export const metadata: Metadata = {
-  title: 'RestaurantOS — Gestion Restaurant',
+  title: 'Sakafio — Gestion Restaurant',
   description: 'Système de gestion complet pour restaurants et fast-foods',
   manifest: '/manifest.json',
   themeColor: '#FF4D00',
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'RestaurantOS',
+    title: 'Sakafio',
   },
 }
 

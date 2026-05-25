@@ -102,7 +102,7 @@
 - [x] Script `deploy/master-init.sh` — initialise DB master + crée premier OWNER
 - [x] Templates `deploy/templates/` : docker-compose + nginx + .env tenant
 - [x] Dockerfile master (image `restaurant_master:latest`) + service dans `docker-compose.prod.yml`
-- [x] Nginx config `master.restaurant.dago-it.com`
+- [x] Nginx config `master.sakafio.mg`
 - [x] Architecture : 1 Postgres partagé / 1 DB par tenant / 1 stack Docker isolée par tenant
 - [x] Allocation auto de ports (4100 + idx*10) et de DB Redis numérique
 
