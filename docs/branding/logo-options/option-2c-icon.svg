@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg2c" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="100%" stop-color="#FDE68A"/>
+    </linearGradient>
+    <linearGradient id="bowl2c" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="45%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#9A3412"/>
+    </linearGradient>
+    <linearGradient id="rim2c" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="100%" stop-color="#FB923C"/>
+    </linearGradient>
+    <linearGradient id="cocktail2c" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D"/>
+      <stop offset="50%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="olive2c" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#84CC16"/>
+      <stop offset="100%" stop-color="#4D7C0F"/>
+    </linearGradient>
+    <radialGradient id="glow2c" cx="50%" cy="55%" r="55%">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Fond crème -->
+  <rect width="256" height="256" rx="56" fill="url(#bg2c)"/>
+
+  <!-- Halo lumineux -->
+  <circle cx="128" cy="145" r="105" fill="url(#glow2c)"/>
+
+  <!-- ============ VAPEUR (cuisine) — au-dessus du bowl ============ -->
+  <path d="M 58 60 Q 64 48 58 36 Q 52 24 58 12"
+        fill="none" stroke="#EA580C" stroke-width="4.5" stroke-linecap="round" opacity="0.4"/>
+  <path d="M 82 55 Q 88 42 82 28 Q 76 16 82 4"
+        fill="none" stroke="#EA580C" stroke-width="4.5" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- ============ BULLES (bar) — au-dessus du verre ============ -->
+  <circle cx="168" cy="40" r="4" fill="#06B6D4" opacity="0.5"/>
+  <circle cx="186" cy="32" r="3" fill="#06B6D4" opacity="0.6"/>
+  <circle cx="200" cy="44" r="2.5" fill="#06B6D4" opacity="0.55"/>
+  <circle cx="178" cy="55" r="2" fill="#06B6D4" opacity="0.7"/>
+
+  <!-- ============ VERRE À COCKTAIL (Martini glass) — DROITE ============ -->
+  <g>
+    <!-- Triangle du verre (outline) -->
+    <path d="M 138 70 L 218 70 L 178 138 Z"
+          fill="white" fill-opacity="0.35"
+          stroke="#475569" stroke-width="3"
+          stroke-linejoin="round"/>
+
+    <!-- Liquide doré dans le verre -->
+    <path d="M 144 76 L 212 76 L 178 134 Z"
+          fill="url(#cocktail2c)"/>
+
+    <!-- Surface du liquide (ondulation) -->
+    <path d="M 144 76 Q 152 72 161 76 Q 170 80 178 76 Q 187 72 196 76 Q 205 80 212 76 L 212 80 L 144 80 Z"
+          fill="#FCD34D" opacity="0.9"/>
+    <ellipse cx="178" cy="76" rx="34" ry="3" fill="#FBBF24"/>
+
+    <!-- Reflet brillant sur le bord du verre -->
+    <line x1="143" y1="74" x2="172" y2="130"
+          stroke="white" stroke-width="2.5" opacity="0.6" stroke-linecap="round"/>
+
+    <!-- Pied du verre (tige) -->
+    <rect x="176" y="138" width="4" height="62" fill="#475569"/>
+    <rect x="177" y="139" width="1.5" height="58" fill="white" opacity="0.5"/>
+
+    <!-- Base du pied -->
+    <ellipse cx="178" cy="204" rx="22" ry="4.5" fill="#334155"/>
+    <ellipse cx="178" cy="202" rx="22" ry="4" fill="#64748B"/>
+    <ellipse cx="172" cy="201" rx="6" ry="1.5" fill="white" opacity="0.6"/>
+
+    <!-- Pic en bois pour olive -->
+    <line x1="178" y1="48" x2="178" y2="90"
+          stroke="#92400E" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- OLIVE verte sur pic -->
+    <ellipse cx="178" cy="58" rx="10" ry="12" fill="url(#olive2c)"/>
+    <ellipse cx="174" cy="54" rx="3" ry="4" fill="#A3E635" opacity="0.7"/>
+    <ellipse cx="178" cy="58" rx="2.5" ry="4" fill="#DC2626"/>
+  </g>
+
+  <!-- ============ BOL (cuisine) — GAUCHE ============ -->
+  <g>
+    <!-- Ombre du bowl -->
+    <ellipse cx="80" cy="140" rx="58" ry="8" fill="#7C2D12" opacity="0.35"/>
+
+    <!-- Corps du bowl -->
+    <path d="M 22 140 A 58 58 0 0 0 138 140 Z" fill="url(#bowl2c)"/>
+
+    <!-- Rebord -->
+    <ellipse cx="80" cy="140" rx="58" ry="9" fill="url(#rim2c)"/>
+    <ellipse cx="80" cy="137" rx="53" ry="6.5" fill="#7C2D12" opacity="0.7"/>
+
+    <!-- Reflet sur le rebord -->
+    <ellipse cx="56" cy="136" rx="18" ry="2.5" fill="white" opacity="0.65"/>
+
+    <!-- Base du bowl -->
+    <ellipse cx="80" cy="200" rx="38" ry="5" fill="#7C2D12" opacity="0.45"/>
+  </g>
+
+  <!-- ============ Petite déco au sol (zeste de citron qui lie les 2) ============ -->
+  <g transform="translate(128, 224)">
+    <ellipse cx="0" cy="0" rx="10" ry="2.5" fill="#FBBF24" opacity="0.85"/>
+    <ellipse cx="0" cy="-0.5" rx="9" ry="1.5" fill="#FCD34D"/>
+  </g>
+</svg>

@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 200" width="720" height="200">
+  <defs>
+    <linearGradient id="bg2ch" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="100%" stop-color="#FDE68A"/>
+    </linearGradient>
+    <linearGradient id="bowl2ch" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="45%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#9A3412"/>
+    </linearGradient>
+    <linearGradient id="rim2ch" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="100%" stop-color="#FB923C"/>
+    </linearGradient>
+    <linearGradient id="cocktail2ch" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D"/>
+      <stop offset="50%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="olive2ch" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#84CC16"/>
+      <stop offset="100%" stop-color="#4D7C0F"/>
+    </linearGradient>
+    <linearGradient id="text2ch" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#9A3412"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icône à gauche -->
+  <g transform="translate(20, 20)">
+    <rect width="160" height="160" rx="36" fill="url(#bg2ch)"/>
+
+    <!-- Vapeur -->
+    <path d="M 36 38 Q 40 30 36 22" fill="none" stroke="#EA580C" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+    <path d="M 50 33 Q 54 24 50 16" fill="none" stroke="#EA580C" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+
+    <!-- Bulles -->
+    <circle cx="106" cy="24" r="2.5" fill="#06B6D4" opacity="0.55"/>
+    <circle cx="118" cy="20" r="2" fill="#06B6D4" opacity="0.65"/>
+    <circle cx="125" cy="28" r="1.6" fill="#06B6D4" opacity="0.6"/>
+
+    <!-- Verre cocktail -->
+    <g>
+      <path d="M 87 44 L 137 44 L 112 86 Z" fill="white" fill-opacity="0.35" stroke="#475569" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M 91 48 L 133 48 L 112 84 Z" fill="url(#cocktail2ch)"/>
+      <ellipse cx="112" cy="48" rx="21" ry="2" fill="#FBBF24"/>
+      <line x1="90" y1="47" x2="108" y2="82" stroke="white" stroke-width="1.5" opacity="0.6" stroke-linecap="round"/>
+      <!-- Tige -->
+      <rect x="110.5" y="86" width="3" height="38" fill="#475569"/>
+      <ellipse cx="112" cy="128" rx="14" ry="3" fill="#334155"/>
+      <ellipse cx="112" cy="127" rx="14" ry="2.5" fill="#64748B"/>
+      <!-- Pic + Olive -->
+      <line x1="112" y1="30" x2="112" y2="56" stroke="#92400E" stroke-width="1.5" stroke-linecap="round"/>
+      <ellipse cx="112" cy="36" rx="6.5" ry="7.5" fill="url(#olive2ch)"/>
+      <ellipse cx="110" cy="34" rx="1.8" ry="2.5" fill="#A3E635" opacity="0.7"/>
+      <ellipse cx="112" cy="36" rx="1.6" ry="2.5" fill="#DC2626"/>
+    </g>
+
+    <!-- Bowl -->
+    <g>
+      <ellipse cx="50" cy="88" rx="36" ry="5" fill="#7C2D12" opacity="0.35"/>
+      <path d="M 14 88 A 36 36 0 0 0 86 88 Z" fill="url(#bowl2ch)"/>
+      <ellipse cx="50" cy="88" rx="36" ry="6" fill="url(#rim2ch)"/>
+      <ellipse cx="50" cy="86" rx="33" ry="4" fill="#7C2D12" opacity="0.7"/>
+      <ellipse cx="35" cy="85" rx="11" ry="1.6" fill="white" opacity="0.65"/>
+      <ellipse cx="50" cy="124" rx="23" ry="3" fill="#7C2D12" opacity="0.45"/>
+    </g>
+  </g>
+
+  <!-- Texte "Sakafio" + tagline -->
+  <g transform="translate(210, 0)">
+    <text x="0" y="115"
+          font-family="-apple-system, 'Segoe UI', Roboto, sans-serif"
+          font-size="96"
+          font-weight="800"
+          fill="url(#text2ch)"
+          letter-spacing="-3">Sakafio</text>
+    <text x="6" y="152"
+          font-family="-apple-system, 'Segoe UI', Roboto, sans-serif"
+          font-size="17"
+          font-weight="600"
+          fill="#9A3412"
+          letter-spacing="7">RESTAURANT &amp; BAR</text>
+    <!-- Petit verre martini déco séparateur -->
+    <g transform="translate(338, 140)">
+      <path d="M -5 0 L 5 0 L 0 8 Z" fill="#F59E0B"/>
+      <rect x="-0.7" y="8" width="1.4" height="7" fill="#475569"/>
+      <ellipse cx="0" cy="15" rx="3.5" ry="1" fill="#475569"/>
+    </g>
+  </g>
+</svg>
