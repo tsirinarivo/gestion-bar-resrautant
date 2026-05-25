@@ -36,9 +36,17 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
 
   if (err instanceof Error) {
     const statusCode = (err as any).statusCode || 500
+    // Les AppError (statusCode < 500) contiennent un message safe destiné au
+    // client — toujours le renvoyer. Seules les vraies erreurs 5xx sont masquées
+    // en prod (peuvent contenir des détails internes).
+    const isClientError = statusCode >= 400 && statusCode < 500
+    const safeMessage = isClientError || process.env.NODE_ENV !== 'production'
+      ? err.message
+      : 'Erreur interne du serveur'
     return res.status(statusCode).json({
       success: false,
-      error: process.env.NODE_ENV === 'production' ? 'Erreur interne du serveur' : err.message,
+      error: safeMessage,
+      ...((err as any).code ? { code: (err as any).code } : {}),
     })
   }
 
