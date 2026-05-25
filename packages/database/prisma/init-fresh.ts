@@ -37,8 +37,10 @@ async function main() {
   }
   console.log('✅ Rôles système créés')
 
-  const restaurant = await prisma.restaurant.create({
-    data: {
+  const restaurant = await prisma.restaurant.upsert({
+    where: { slug: RESTO_SLUG },
+    update: { name: RESTO_NAME, email: ADMIN_EMAIL },
+    create: {
       name: RESTO_NAME,
       slug: RESTO_SLUG,
       address: 'À configurer',
@@ -58,8 +60,18 @@ async function main() {
   console.log(`✅ Restaurant : ${restaurant.name}`)
 
   const hash = await bcrypt.hash(ADMIN_PASSWORD, 12)
-  const admin = await prisma.user.create({
-    data: {
+  const admin = await prisma.user.upsert({
+    where: { email: ADMIN_EMAIL },
+    update: {
+      passwordHash: hash,
+      firstName: ADMIN_FIRST_NAME,
+      lastName: ADMIN_LAST_NAME,
+      isActive: true,
+      isVerified: true,
+      restaurantId: restaurant.id,
+      roleId: roles['superadmin']!.id,
+    },
+    create: {
       email: ADMIN_EMAIL,
       passwordHash: hash,
       firstName: ADMIN_FIRST_NAME,
