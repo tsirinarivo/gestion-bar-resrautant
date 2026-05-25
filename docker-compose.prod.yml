@@ -28,6 +28,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - restaurant_internal
+      - restaurant_shared
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-restaurant_user} -d ${POSTGRES_DB:-restaurant_db}"]
       interval: 10s
@@ -83,6 +84,7 @@ services:
       - redis_data:/data
     networks:
       - restaurant_internal
+      - restaurant_shared
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -274,3 +276,8 @@ networks:
   restaurant_internal:
     driver: bridge
     name: restaurant_internal
+  # Network partagé avec les stacks tenants (créé par deploy/new-tenant.sh).
+  # Permet aux containers tenants de joindre postgres + redis du master.
+  restaurant_shared:
+    external: true
+    name: restaurant_shared
