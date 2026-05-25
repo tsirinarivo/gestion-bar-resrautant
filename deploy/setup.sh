@@ -74,7 +74,7 @@ $DC up -d api
 info "Attente API (20s)..."
 sleep 20
 
-$DC up -d web pos kds client
+$DC up -d web pos kds client master
 log "Tous les services démarrés"
 
 # ── 5. Migrations ────────────────────────────────────────────────────────────

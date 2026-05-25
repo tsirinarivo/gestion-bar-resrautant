@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/master-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("MASTER_DATABASE_URL")
+}
+
+// ─── TENANTS (clients du SaaS) ─────────────────────────────────────────────
+
+model Tenant {
+  id           String       @id @default(cuid())
+  slug         String       @unique
+  name         String
+  contactName  String?
+  contactEmail String
+  contactPhone String?
+  status       TenantStatus @default(PROVISIONING)
+
+  // Infra (auto-allouée)
+  dbName     String @unique
+  apiPort    Int    @unique
+  webPort    Int    @unique
+  posPort    Int    @unique
+  kdsPort    Int    @unique
+  clientPort Int    @unique
+
+  // Domaines
+  subdomain   String  @unique // "pierre" → pierre.restaurant.dago-it.com
+  customDomain String? @unique // sprint 3+
+
+  // Sécurité
+  dbPassword       String // password Postgres dédié au tenant (random)
+  jwtSecret        String // JWT secret dédié (rotation possible)
+  jwtRefreshSecret String
+  apiCrossSecret   String // partagé avec la master pour "login as"
+
+  // Provisioning timeline
+  provisionedAt  DateTime?
+  lastDeployedAt DateTime?
+  suspendedAt    DateTime?
+  suspendReason  String?
+
+  // Notes admin
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscription Subscription?
+  invoices     Invoice[]
+  events       TenantEvent[]
+}
+
+enum TenantStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+  ERROR
+}
+
+// ─── UTILISATEURS DE LA MASTER (toi + support) ─────────────────────────────
+
+model MasterUser {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  name      String
+  role      MasterRole @default(SUPPORT)
+  active    Boolean    @default(true)
+  lastLogin DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  events TenantEvent[]
+}
+
+enum MasterRole {
+  OWNER
+  SUPPORT
+}
+
+// ─── ABONNEMENTS (sprint 2) ────────────────────────────────────────────────
+
+model Subscription {
+  id          String             @id @default(cuid())
+  tenantId    String             @unique
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan        String             @default("basic")
+  amountMga   Int                @default(0)
+  status      SubscriptionStatus @default(ACTIVE)
+  startedAt   DateTime           @default(now())
+  nextDueDate DateTime
+  canceledAt  DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  tenantId   String
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  number     String        @unique
+  amountMga  Int
+  status     InvoiceStatus @default(PENDING)
+  periodFrom DateTime
+  periodTo   DateTime
+  dueDate    DateTime
+  paidAt     DateTime?
+  paidMethod String?
+  notes      String?
+  createdAt  DateTime      @default(now())
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELED
+}
+
+// ─── AUDIT TRAIL (qui a fait quoi sur un tenant) ───────────────────────────
+
+model TenantEvent {
+  id       String   @id @default(cuid())
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String?
+  user     MasterUser? @relation(fields: [userId], references: [id])
+  type     String      // PROVISIONED, SUSPENDED, REACTIVATED, LOGIN_AS, INVOICE_PAID, etc.
+  details  String?
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+}

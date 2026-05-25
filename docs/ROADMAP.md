@@ -91,11 +91,59 @@
 - [x] Page `/superadmin` — vue multi-restaurant avec KPIs jour
 - [x] Bottom bar mobile + manifest PWA pour le dashboard
 
+### Multi-tenant SaaS (sprint MT-1)
+- [x] App `apps/master` (Next.js, port 3010 / 4010 prod)
+- [x] DB master séparée (`packages/master-database`) — Tenant, MasterUser, Subscription, Invoice, TenantEvent
+- [x] Login master + cookie HttpOnly JWT
+- [x] Dashboard master : KPIs (total/actifs/suspendus/erreur) + liste 5 derniers clients
+- [x] Page liste des clients + détail (URLs, ports, contact, historique d'événements)
+- [x] UI de création de client (formulaire complet : identité, contact, admin initial, notes)
+- [x] Script `deploy/new-tenant.sh` — provisionne stack Docker isolée + DB tenant + nginx config
+- [x] Script `deploy/master-init.sh` — initialise DB master + crée premier OWNER
+- [x] Templates `deploy/templates/` : docker-compose + nginx + .env tenant
+- [x] Dockerfile master (image `restaurant_master:latest`) + service dans `docker-compose.prod.yml`
+- [x] Nginx config `master.restaurant.dago-it.com`
+- [x] Architecture : 1 Postgres partagé / 1 DB par tenant / 1 stack Docker isolée par tenant
+- [x] Allocation auto de ports (4100 + idx*10) et de DB Redis numérique
+
 ---
 
 ## 🗂️ File d'attente
 
 > Sprints regroupés par thème, dans l'ordre de priorité recommandé.
+
+### 🔴 Priorité haute — Multi-tenant SaaS
+
+#### Sprint MT-2 — Abonnements + suspension auto
+- CRUD plans (basic / pro / enterprise) avec prix MGA mensuel
+- Génération mensuelle automatique des factures (cron node-cron ou via Redis)
+- Page facturation dans la master (liste + filtre + marquer payée)
+- Suspension automatique d'un tenant si facture impayée depuis X jours (config)
+- Quand suspendu : stack Docker stoppée + Nginx renvoie page "Abonnement échu, contactez votre admin"
+- Bouton "Réactiver" dans la console master
+
+#### Sprint MT-3 — Login as client + audit
+- Endpoint master : `POST /api/tenants/:id/impersonate` génère un JWT cross-instance signé avec `apiCrossSecret`
+- Middleware côté API tenant : valide les JWT cross signés par la master + crée session SUPER_ADMIN
+- Rôle `SUPER_ADMIN` dans le schema tenant (au-dessus de ADMIN, immuable)
+- Bouton "Se connecter en tant que" dans la page détail tenant
+- Audit obligatoire : event `LOGIN_AS` dans TenantEvent + AuditLog tenant
+
+#### Sprint MT-4 — Updates centralisées + monitoring
+- Script `deploy/update-all-tenants.sh` — pull + build images + restart stacks tenants
+- Page "Santé des instances" dans la master : healthcheck de chaque tenant (curl /api/health par tenant)
+- Bouton "Mettre à jour ce tenant" + log de déploiement
+- Possibilité de figer un tenant sur une version (variable CLIENT_VERSION)
+
+#### Sprint MT-5 — Branding + feature flags par tenant
+- Table `TenantConfig` dans le schema tenant (logo, couleur primaire, modules activés)
+- UI dans master pour modifier branding + activer/désactiver modules par client
+- Theme dynamique côté admin/POS/client en lisant TenantConfig
+
+#### Sprint MT-6 — Custom domains
+- Support d'un domaine custom par tenant (ex: `restaurant-de-pierre.com`)
+- Génération nginx config supplémentaire + instructions DNS pour le client
+- Renouvellement certbot automatique
 
 ### 🟡 Priorité basse — Améliorations UX
 
@@ -163,3 +211,4 @@
 |------|--------|-----------------|
 | 2026-05 | Batches 1-5 | 22 features implémentées en mode autonome sur la branche claude/restaurant-management-app-cFnVm |
 | 2026-05 | Resume #1 | Sprints A4, A5, B4, B6, B7, C3, C8 + fix latent `/stock/expiring` (déclaré après `/:id`). Skip C1 car `tables/page.tsx` non touchable. |
+| 2026-05 | Sprint MT-1 | Architecture multi-tenant SaaS : app `apps/master` + DB master séparée + provisioning auto via UI. Stack Docker isolée par client, Postgres partagé. Allocation ports auto à partir de 4100. |

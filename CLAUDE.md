@@ -16,15 +16,26 @@ SaaS de gestion de restaurant complet (commandes, caisse, stock, fidélité, KDS
 | POS | Next.js standalone (port 3001) → `pos.restaurant.dago-it.com` |
 | KDS | Next.js kitchen display (port 3002) |
 | Client | Next.js app client (port 3003) |
+| **Master SaaS** | **Next.js (port 3010 / 4010 prod) → `master.restaurant.dago-it.com`** |
 | Auth | JWT (accessToken localStorage + refreshToken cookie) |
 | Temps réel | Socket.io |
-| Schéma DB | `packages/database/prisma/schema.prisma` |
+| Schéma DB tenant | `packages/database/prisma/schema.prisma` |
+| Schéma DB master | `packages/master-database/prisma/schema.prisma` |
 | Styles | Tailwind CSS |
 | Data fetching | TanStack Query (`useQuery` / `useMutation`) |
 | Notifications | Sonner toasts |
 | Animations | Framer Motion (`AnimatePresence` + `motion.div`) |
 | Icons | lucide-react |
 | Upload fichiers | multer (installé dans apps/api) |
+
+## Architecture multi-tenant (SaaS)
+
+- **1 Postgres partagé** + **1 DB par tenant** (`tenant_<slug>`) + 1 DB master (`master_db`)
+- **1 stack Docker isolée par tenant** : générée à la volée par `deploy/new-tenant.sh` dans `tenants/<slug>/docker-compose.yml`
+- **Allocation auto de ports** : tenant N → api=4100+N*10, web=+1, pos=+2, kds=+3, client=+4
+- **URLs par tenant** : `<slug>.restaurant.dago-it.com` (client public), `admin-<slug>...`, `pos-<slug>...`, `kds-<slug>...`, `api-<slug>...`
+- **Création tenant** : UI Master → POST `/api/tenants` → exécute `deploy/new-tenant.sh` via `child_process`
+- **Init master** : `bash deploy/master-init.sh` (création DB master + premier OWNER)
 
 ---
 

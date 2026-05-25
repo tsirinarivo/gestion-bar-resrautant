@@ -59,8 +59,8 @@ $DC up -d --no-deps api
 sleep 15
 log "API redémarrée"
 
-$DC up -d --no-deps web pos kds client
-log "Frontends redémarrés"
+$DC up -d --no-deps web pos kds client master
+log "Frontends + master redémarrés"
 
 header "6. Migrations"
 $DC run --rm migrate sh -c "npx prisma db push --accept-data-loss" || true

@@ -1,0 +1,111 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Stack docker-compose pour le tenant ${TENANT_SLUG}
+# Généré automatiquement par deploy/new-tenant.sh — ne pas éditer à la main
+# ═══════════════════════════════════════════════════════════════════════════
+
+name: tenant_${TENANT_SLUG}
+
+services:
+  api:
+    image: restaurant_api:latest
+    container_name: tenant_${TENANT_SLUG}_api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://restaurant_user:$${MASTER_POSTGRES_PASSWORD}@postgres:5432/${TENANT_DB_NAME}
+      REDIS_URL: redis://:$${MASTER_REDIS_PASSWORD}@redis:6379/${TENANT_REDIS_DB}
+      JWT_SECRET: ${TENANT_JWT_SECRET}
+      JWT_REFRESH_SECRET: ${TENANT_JWT_REFRESH_SECRET}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      MASTER_CROSS_SECRET: ${TENANT_CROSS_SECRET}
+      ALLOWED_ORIGINS: https://${TENANT_SUBDOMAIN}.restaurant.dago-it.com,https://admin-${TENANT_SUBDOMAIN}.restaurant.dago-it.com,https://pos-${TENANT_SUBDOMAIN}.restaurant.dago-it.com,https://kds-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+    ports:
+      - "127.0.0.1:${TENANT_API_PORT}:4000"
+    volumes:
+      - ./uploads:/app/public/uploads
+    networks:
+      - restaurant_shared
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  web:
+    image: restaurant_web:latest
+    container_name: tenant_${TENANT_SLUG}_web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+    ports:
+      - "127.0.0.1:${TENANT_WEB_PORT}:3000"
+    depends_on:
+      - api
+    networks:
+      - restaurant_shared
+
+  pos:
+    image: restaurant_pos:latest
+    container_name: tenant_${TENANT_SLUG}_pos
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+    ports:
+      - "127.0.0.1:${TENANT_POS_PORT}:3001"
+    depends_on:
+      - api
+    networks:
+      - restaurant_shared
+
+  kds:
+    image: restaurant_kds:latest
+    container_name: tenant_${TENANT_SLUG}_kds
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+    ports:
+      - "127.0.0.1:${TENANT_KDS_PORT}:3002"
+    depends_on:
+      - api
+    networks:
+      - restaurant_shared
+
+  client:
+    image: restaurant_client:latest
+    container_name: tenant_${TENANT_SLUG}_client
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+      NEXT_PUBLIC_SOCKET_URL: https://api-${TENANT_SUBDOMAIN}.restaurant.dago-it.com
+    ports:
+      - "127.0.0.1:${TENANT_CLIENT_PORT}:3003"
+    depends_on:
+      - api
+    networks:
+      - restaurant_shared
+
+networks:
+  restaurant_shared:
+    external: true
+    name: restaurant_shared

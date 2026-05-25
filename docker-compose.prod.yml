@@ -233,6 +233,37 @@ services:
     profiles:
       - migrate
 
+  # ── Master Console (gestion des tenants SaaS) ──────────────────────────────
+  master:
+    build:
+      context: .
+      dockerfile: apps/master/Dockerfile
+    image: restaurant_master:latest
+    container_name: restaurant_master
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3010
+      HOSTNAME: "0.0.0.0"
+      MASTER_DATABASE_URL: postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${MASTER_DB_NAME:-master_db}
+      MASTER_JWT_SECRET: ${MASTER_JWT_SECRET}
+      RESTAURANT_ROOT: /opt/restaurant
+    ports:
+      - "127.0.0.1:4010:3010"
+    volumes:
+      # Accès Docker socket pour lancer/stopper les stacks tenants
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Accès au répertoire du projet pour exécuter les scripts de provisioning
+      - /opt/restaurant:/opt/restaurant
+      # Écriture des configs Nginx tenant (reload manuel après création)
+      - /etc/nginx/sites-available:/etc/nginx/sites-available
+      - /etc/nginx/sites-enabled:/etc/nginx/sites-enabled
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - restaurant_internal
+
 volumes:
   postgres_data:
     driver: local
@@ -242,3 +273,4 @@ volumes:
 networks:
   restaurant_internal:
     driver: bridge
+    name: restaurant_internal
