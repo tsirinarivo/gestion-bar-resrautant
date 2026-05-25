@@ -17,17 +17,27 @@ const playfair = Playfair_Display({
 })
 
 export const metadata: Metadata = {
-  title: 'Sakafio — Gestion Restaurant',
-  description: 'Système de gestion complet pour restaurants et fast-foods',
+  title: 'Sakafio — Logiciel pour votre restaurant et bar',
+  description: 'Logiciel de gestion complet pour restaurants et bars : commandes, caisse, stock, fidélité, KDS, réservations.',
   manifest: '/manifest.json',
-  themeColor: '#FF4D00',
+  themeColor: '#EA580C',
   icons: {
-    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50" y="70" font-size="80" text-anchor="middle">🍽️</text></svg>',
+    icon: '/favicon.svg',
+    apple: '/logo.svg',
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Sakafio',
+  },
+  openGraph: {
+    title: 'Sakafio — Logiciel pour votre restaurant et bar',
+    description: 'Gestion complète restaurant & bar : POS, KDS, stock, fidélité, réservations. Fait à Madagascar.',
+    url: 'https://sakafio.mg',
+    siteName: 'Sakafio',
+    images: ['/logo-horizontal.svg'],
+    locale: 'fr_FR',
+    type: 'website',
   },
 }
 

@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, ChefHat, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
@@ -79,15 +79,14 @@ export default function LoginPage() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
-              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
-              style={{ background: 'linear-gradient(135deg, #FF4D00 0%, #FF6B00 100%)' }}
+              className="inline-block mb-4"
             >
-              <ChefHat className="w-8 h-8 text-white" />
+              <img src="/logo.svg" alt="Sakafio" className="w-24 h-24 drop-shadow-2xl" />
             </motion.div>
-            <h1 className="text-2xl font-bold font-display mb-1">
-              Restaurant<span className="gradient-text">OS</span>
+            <h1 className="text-3xl font-bold font-display mb-1">
+              <span className="gradient-text">Sakafio</span>
             </h1>
-            <p className="text-brand-muted text-sm">Connectez-vous à votre espace de gestion</p>
+            <p className="text-brand-muted text-sm">Logiciel pour votre restaurant et bar</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">

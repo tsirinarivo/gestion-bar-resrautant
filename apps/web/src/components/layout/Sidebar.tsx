@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, UtensilsCrossed, ShoppingCart, Table2,
-  Package, Users, Calendar, BarChart3, Settings, ChefHat,
+  Package, Users, Calendar, BarChart3, Settings,
   Monitor, LogOut, ChevronLeft, ChevronRight,
   CreditCard, Tag, UserCog, X, Truck, TrendingUp, Printer,
   Warehouse, Landmark, Building2, FileText, AlertCircle, Clock, Shield, CalendarDays, Star, Megaphone, Layers, Receipt,
@@ -96,18 +96,16 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     <>
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-brand-border">
-        <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #FF4D00 0%, #FF6B00 100%)' }}>
-          <ChefHat className="w-4 h-4 text-white" />
-        </div>
+        <img src="/logo.svg" alt="Sakafio" className="w-10 h-10 flex-shrink-0 rounded-lg" />
         <AnimatePresence>
           {!collapsed && (
-            <motion.span
+            <motion.div
               initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
-              className="font-bold text-sm"
+              className="flex flex-col leading-tight"
             >
-              Restaurant<span className="text-brand-orange">OS</span>
-            </motion.span>
+              <span className="font-bold text-sm text-brand-orange">Sakafio</span>
+              <span className="text-[10px] text-brand-muted">Restaurant &amp; Bar</span>
+            </motion.div>
           )}
         </AnimatePresence>
         <button onClick={onClose} className="md:hidden ml-auto text-brand-muted hover:text-white p-1">

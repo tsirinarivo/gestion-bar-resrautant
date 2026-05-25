@@ -6,11 +6,9 @@ import { Providers } from './providers';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Caisse POS',
-  description: 'Interface caissier - Point de Vente',
-  icons: {
-    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50" y="70" font-size="80" text-anchor="middle">💳</text></svg>',
-  },
+  title: 'Sakafio POS — Caisse',
+  description: 'Interface caissier — Logiciel pour votre restaurant et bar',
+  icons: { icon: '/favicon.svg' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

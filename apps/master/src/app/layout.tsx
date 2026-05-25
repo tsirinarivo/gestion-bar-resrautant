@@ -4,7 +4,8 @@ import { Providers } from './providers'
 
 export const metadata = {
   title: 'Sakafio — Master',
-  description: 'Gestion centralisée des clients Sakafio',
+  description: 'Logiciel pour votre restaurant et bar — Console SaaS',
+  icons: { icon: '/favicon.svg' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

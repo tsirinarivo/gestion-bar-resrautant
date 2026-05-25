@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bgF" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="100%" stop-color="#FCD34D" stop-opacity="0.55"/>
+    </linearGradient>
+    <linearGradient id="bowlF" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="50%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#7C2D12"/>
+    </linearGradient>
+    <linearGradient id="rimF" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+    <linearGradient id="cocktailF" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A"/>
+      <stop offset="40%" stop-color="#FCD34D"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <linearGradient id="oliveF" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#A3E635"/>
+      <stop offset="100%" stop-color="#4D7C0F"/>
+    </linearGradient>
+    <linearGradient id="herbF" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#86EFAC"/>
+      <stop offset="100%" stop-color="#16A34A"/>
+    </linearGradient>
+    <linearGradient id="orangeSliceF" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+    <radialGradient id="glowF" cx="50%" cy="55%" r="55%">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Fond avec dégradé crème → ambre -->
+  <rect width="256" height="256" rx="56" fill="url(#bgF)"/>
+
+  <!-- Halo lumineux -->
+  <circle cx="128" cy="150" r="110" fill="url(#glowF)"/>
+
+  <!-- ============ VAPEUR (cuisine) ============ -->
+  <path d="M 52 62 Q 58 50 52 38 Q 46 26 52 14"
+        fill="none" stroke="#EA580C" stroke-width="4.5" stroke-linecap="round" opacity="0.4"/>
+  <path d="M 76 58 Q 82 44 76 30 Q 70 18 76 6"
+        fill="none" stroke="#EA580C" stroke-width="4.5" stroke-linecap="round" opacity="0.55"/>
+  <path d="M 98 62 Q 104 50 98 38 Q 92 26 98 14"
+        fill="none" stroke="#EA580C" stroke-width="4.5" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- ============ BULLES PÉTILLANTES (bar) ============ -->
+  <circle cx="160" cy="48" r="3.5" fill="#06B6D4" opacity="0.55"/>
+  <circle cx="178" cy="36" r="2.8" fill="#06B6D4" opacity="0.65"/>
+  <circle cx="196" cy="44" r="3.2" fill="#06B6D4" opacity="0.5"/>
+  <circle cx="212" cy="32" r="2.2" fill="#06B6D4" opacity="0.6"/>
+  <circle cx="170" cy="62" r="2" fill="#06B6D4" opacity="0.75"/>
+  <circle cx="204" cy="58" r="2.4" fill="#06B6D4" opacity="0.7"/>
+
+  <!-- ============ VERRE À COCKTAIL (Martini) — DROITE ============ -->
+  <g>
+    <!-- Triangle outline -->
+    <path d="M 136 76 L 220 76 L 178 144 Z"
+          fill="white" fill-opacity="0.3"
+          stroke="#475569" stroke-width="3"
+          stroke-linejoin="round"/>
+
+    <!-- Liquide doré -->
+    <path d="M 142 82 L 214 82 L 178 140 Z" fill="url(#cocktailF)"/>
+
+    <!-- Surface du liquide -->
+    <ellipse cx="178" cy="82" rx="36" ry="3.5" fill="#FBBF24"/>
+    <ellipse cx="178" cy="81" rx="34" ry="2" fill="#FCD34D" opacity="0.85"/>
+
+    <!-- GLAÇONS flottants dans le cocktail -->
+    <g>
+      <rect x="160" y="86" width="14" height="14" rx="2" fill="white" fill-opacity="0.7" stroke="white" stroke-width="0.5"/>
+      <rect x="161" y="87" width="6" height="6" rx="1" fill="white" fill-opacity="0.5"/>
+      <rect x="178" y="92" width="13" height="13" rx="2" fill="white" fill-opacity="0.6" stroke="white" stroke-width="0.5" transform="rotate(15 184 98)"/>
+      <rect x="179" y="93" width="5" height="5" rx="1" fill="white" fill-opacity="0.5" transform="rotate(15 184 98)"/>
+    </g>
+
+    <!-- Reflet brillant sur le bord gauche du verre -->
+    <line x1="141" y1="80" x2="172" y2="135"
+          stroke="white" stroke-width="2.5" opacity="0.7" stroke-linecap="round"/>
+
+    <!-- TRANCHE D'ORANGE sur le bord du verre -->
+    <g transform="translate(214, 76)">
+      <path d="M 0 0 A 14 14 0 0 1 0 28 Z" fill="url(#orangeSliceF)" stroke="#9A3412" stroke-width="1.2"/>
+      <path d="M 0 4 A 10 10 0 0 1 0 24 Z" fill="#FED7AA" opacity="0.6"/>
+      <path d="M 2 8 L 10 14 M 2 14 L 10 14 M 2 20 L 10 14" stroke="#9A3412" stroke-width="0.6" opacity="0.5"/>
+      <ellipse cx="-1" cy="14" rx="2" ry="6" fill="#FFFBEB"/>
+    </g>
+
+    <!-- Pied / tige -->
+    <rect x="176" y="144" width="4" height="60" fill="#475569"/>
+    <rect x="177" y="145" width="1.5" height="56" fill="white" opacity="0.55"/>
+
+    <!-- Base du pied -->
+    <ellipse cx="178" cy="208" rx="24" ry="5" fill="#334155"/>
+    <ellipse cx="178" cy="206" rx="24" ry="4.5" fill="#64748B"/>
+    <ellipse cx="170" cy="205" rx="7" ry="1.6" fill="white" opacity="0.6"/>
+
+    <!-- Pic en bois -->
+    <line x1="178" y1="48" x2="178" y2="92"
+          stroke="#92400E" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- OLIVE sur pic -->
+    <ellipse cx="178" cy="58" rx="10" ry="12" fill="url(#oliveF)"/>
+    <ellipse cx="174" cy="54" rx="3" ry="4" fill="#BEF264" opacity="0.7"/>
+    <ellipse cx="178" cy="58" rx="2.5" ry="4" fill="#DC2626"/>
+  </g>
+
+  <!-- ============ BOL (cuisine) — GAUCHE ============ -->
+  <g>
+    <!-- Ombre -->
+    <ellipse cx="78" cy="142" rx="60" ry="9" fill="#7C2D12" opacity="0.4"/>
+
+    <!-- Corps -->
+    <path d="M 18 142 A 60 60 0 0 0 138 142 Z" fill="url(#bowlF)"/>
+
+    <!-- Rebord -->
+    <ellipse cx="78" cy="142" rx="60" ry="10" fill="url(#rimF)"/>
+    <ellipse cx="78" cy="138" rx="54" ry="6.5" fill="#5C1D08" opacity="0.75"/>
+
+    <!-- Reflet sur le rebord -->
+    <ellipse cx="50" cy="137" rx="20" ry="3" fill="white" opacity="0.65"/>
+
+    <!-- GARNITURE qui dépasse (herbes / coriandre) -->
+    <g>
+      <path d="M 60 134 Q 56 122 62 112 Q 64 118 62 132 Z" fill="url(#herbF)"/>
+      <path d="M 60 134 Q 56 122 62 112" stroke="#15803D" stroke-width="0.8" fill="none"/>
+      <path d="M 72 132 Q 70 118 78 110 Q 78 120 76 132 Z" fill="url(#herbF)"/>
+      <path d="M 72 132 Q 70 118 78 110" stroke="#15803D" stroke-width="0.8" fill="none"/>
+      <path d="M 88 134 Q 90 122 96 116 Q 94 124 92 134 Z" fill="url(#herbF)"/>
+    </g>
+
+    <!-- Petite tranche de tomate cherry (rouge) qui dépasse aussi -->
+    <circle cx="100" cy="134" r="5" fill="#DC2626"/>
+    <circle cx="98" cy="132" r="1.6" fill="#FCA5A5" opacity="0.8"/>
+
+    <!-- Base -->
+    <ellipse cx="78" cy="204" rx="40" ry="5.5" fill="#7C2D12" opacity="0.5"/>
+  </g>
+
+  <!-- ============ Zeste de citron au sol (lien des 2 univers) ============ -->
+  <g transform="translate(128, 226)">
+    <ellipse cx="0" cy="0" rx="11" ry="2.8" fill="#FBBF24" opacity="0.85"/>
+    <ellipse cx="0" cy="-0.5" rx="10" ry="1.7" fill="#FDE68A"/>
+    <ellipse cx="-3" cy="-1" rx="3" ry="0.8" fill="white" opacity="0.7"/>
+  </g>
+</svg>

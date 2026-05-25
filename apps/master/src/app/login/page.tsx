@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, ShieldCheck } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -38,12 +38,12 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg">
-            <ShieldCheck className="h-7 w-7" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Sakafio Master</h1>
+          <img src="/logo.svg" alt="Sakafio" className="mx-auto mb-4 h-24 w-24 drop-shadow-md" />
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+            Sakafio <span className="font-medium text-slate-400">Master</span>
+          </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Console de gestion des clients
+            Logiciel pour votre restaurant et bar — Console SaaS
           </p>
         </div>
 
