@@ -225,7 +225,9 @@ services:
     restart: "no"
     env_file: .env.prod
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-restaurant_db}
+      # Permet d'override via shell (export DATABASE_URL=... && docker compose run migrate)
+      # nécessaire pour push schema sur DBs tenants depuis new-tenant.sh
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-restaurant_db}}
     command: ["sh", "-c", "npx prisma db push && node dist/seed.js || true"]
     depends_on:
       postgres:

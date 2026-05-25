@@ -111,11 +111,12 @@ log "DB $TENANT_DB_NAME prête"
 # ── 5. Push schema Prisma sur la DB tenant ─────────────────────────────────
 header "Push schema Prisma"
 
-DATABASE_URL="postgresql://$PG_USER:$MASTER_POSTGRES_PASSWORD@postgres:5432/$TENANT_DB_NAME"
+# IMPORTANT : export, sinon le service `migrate` du compose utilise son
+# default (restaurant_db) au lieu de la DB tenant. Le `-e` du `docker compose
+# run` ne suffit pas car l'`environment:` du compose le ré-écrase.
+export DATABASE_URL="postgresql://$PG_USER:$MASTER_POSTGRES_PASSWORD@postgres:5432/$TENANT_DB_NAME"
 
-if ! $DC_MASTER run --rm \
-  -e DATABASE_URL="$DATABASE_URL" \
-  migrate sh -c "npx prisma db push --accept-data-loss"; then
+if ! $DC_MASTER run --rm migrate sh -c "npx prisma db push --accept-data-loss"; then
   error "❌ prisma db push a échoué sur $TENANT_DB_NAME — provisioning interrompu"
 fi
 
@@ -130,8 +131,8 @@ log "Schéma poussé sur $TENANT_DB_NAME"
 # ── 6. Seed admin du tenant ────────────────────────────────────────────────
 header "Création de l'admin initial du tenant"
 
+# DATABASE_URL toujours exporté depuis l'étape 5 → utilisé par le service migrate.
 if ! $DC_MASTER run --rm \
-  -e DATABASE_URL="$DATABASE_URL" \
   -e RESTO_NAME="$TENANT_NAME" \
   -e RESTO_SLUG="$TENANT_SLUG" \
   -e ADMIN_EMAIL="$ADMIN_EMAIL" \
