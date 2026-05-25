@@ -46,8 +46,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder /app/apps/client/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/client/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/client/.next/static ./.next/static
+COPY --chown=nextjs:nodejs deploy/runtime-env-rewrite.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 USER nextjs
 
-ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "server.js"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["dumb-init", "--", "node", "server.js"]

@@ -129,8 +129,11 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
+        # Placeholders fixes injectés au build. Remplacés au démarrage du
+        # container par deploy/runtime-env-rewrite.sh avec les vraies URLs
+        # (différentes par tenant → image unique réutilisable).
+        NEXT_PUBLIC_API_URL: __SAKAFIO_API_URL__
+        NEXT_PUBLIC_SOCKET_URL: __SAKAFIO_SOCKET_URL__
     image: restaurant_web:latest
     container_name: restaurant_web
     restart: unless-stopped
@@ -138,6 +141,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
     ports:
       - "127.0.0.1:4002:3000"
     depends_on:
@@ -152,8 +157,11 @@ services:
       context: .
       dockerfile: apps/pos/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
+        # Placeholders fixes injectés au build. Remplacés au démarrage du
+        # container par deploy/runtime-env-rewrite.sh avec les vraies URLs
+        # (différentes par tenant → image unique réutilisable).
+        NEXT_PUBLIC_API_URL: __SAKAFIO_API_URL__
+        NEXT_PUBLIC_SOCKET_URL: __SAKAFIO_SOCKET_URL__
     image: restaurant_pos:latest
     container_name: restaurant_pos
     restart: unless-stopped
@@ -161,6 +169,8 @@ services:
       NODE_ENV: production
       PORT: 3001
       HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
     ports:
       - "127.0.0.1:4003:3001"
     depends_on:
@@ -175,8 +185,11 @@ services:
       context: .
       dockerfile: apps/kds/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
+        # Placeholders fixes injectés au build. Remplacés au démarrage du
+        # container par deploy/runtime-env-rewrite.sh avec les vraies URLs
+        # (différentes par tenant → image unique réutilisable).
+        NEXT_PUBLIC_API_URL: __SAKAFIO_API_URL__
+        NEXT_PUBLIC_SOCKET_URL: __SAKAFIO_SOCKET_URL__
     image: restaurant_kds:latest
     container_name: restaurant_kds
     restart: unless-stopped
@@ -184,6 +197,8 @@ services:
       NODE_ENV: production
       PORT: 3002
       HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
     ports:
       - "127.0.0.1:4004:3002"
     depends_on:
@@ -198,8 +213,11 @@ services:
       context: .
       dockerfile: apps/client/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
+        # Placeholders fixes injectés au build. Remplacés au démarrage du
+        # container par deploy/runtime-env-rewrite.sh avec les vraies URLs
+        # (différentes par tenant → image unique réutilisable).
+        NEXT_PUBLIC_API_URL: __SAKAFIO_API_URL__
+        NEXT_PUBLIC_SOCKET_URL: __SAKAFIO_SOCKET_URL__
     image: restaurant_client:latest
     container_name: restaurant_client
     restart: unless-stopped
@@ -207,6 +225,8 @@ services:
       NODE_ENV: production
       PORT: 3003
       HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL}
     ports:
       - "127.0.0.1:4005:3003"
     depends_on:
