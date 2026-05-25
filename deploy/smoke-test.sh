@@ -63,7 +63,7 @@ check_json() {
   fi
 }
 
-echo -e "${BOLD}Smoke tests RestaurantOS${RESET}\n"
+echo -e "${BOLD}Smoke tests Sakafio${RESET}\n"
 
 echo -e "${BOLD}API${RESET}"
 check_json "API health"                              "http://127.0.0.1:4001/api/health" '"status":"ok"'

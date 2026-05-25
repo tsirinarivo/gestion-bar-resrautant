@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" width="640" height="200">
+  <defs>
+    <linearGradient id="bg3h" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+    <pattern id="zafipatternH" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 10 0 L 20 10 L 10 20 L 0 10 Z" fill="none" stroke="#FFFFFF" stroke-width="0.6" opacity="0.08"/>
+    </pattern>
+  </defs>
+
+  <!-- Icône à gauche -->
+  <g transform="translate(20, 20)">
+    <rect width="160" height="160" rx="36" fill="url(#bg3h)"/>
+    <rect width="160" height="160" rx="36" fill="url(#zafipatternH)"/>
+    <rect x="22" y="30" width="20" height="100" rx="4" fill="#FC3D32"/>
+    <rect x="22" y="30" width="116" height="20" rx="4" fill="#00843D"/>
+    <rect x="52" y="60" width="70" height="70" rx="5" fill="#FAFAFA"/>
+    <g transform="translate(87, 95)" stroke="#0F172A" stroke-width="1.8" fill="none">
+      <path d="M 0 -22 L 18 0 L 0 22 L -18 0 Z"/>
+      <path d="M 0 -13 L 11 0 L 0 13 L -11 0 Z"/>
+      <path d="M 0 -6 L 5 0 L 0 6 L -5 0 Z" fill="#FC3D32" stroke="#FC3D32"/>
+    </g>
+  </g>
+
+  <!-- Texte "Sakafio" -->
+  <g transform="translate(210, 0)">
+    <text x="0" y="115"
+          font-family="Georgia, 'Times New Roman', serif"
+          font-size="88"
+          font-weight="700"
+          fill="#0F172A"
+          letter-spacing="-2">Sakafio</text>
+    <!-- Accent rouge sous le i du milieu -->
+    <circle cx="230" cy="78" r="6" fill="#FC3D32"/>
+    <text x="6" y="155"
+          font-family="-apple-system, 'Segoe UI', Roboto, sans-serif"
+          font-size="16"
+          font-weight="600"
+          fill="#00843D"
+          letter-spacing="4">FAITS À MADAGASCAR · DEPUIS 2026</text>
+  </g>
+</svg>

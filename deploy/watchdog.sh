@@ -23,7 +23,7 @@ log() {
 notify() {
   msg="$1"
   if [ -n "$DISCORD_WEBHOOK_URL" ]; then
-    payload="{\"content\":\"🚨 RestaurantOS — $msg\"}"
+    payload="{\"content\":\"🚨 Sakafio — $msg\"}"
     wget -q -O /dev/null \
       --header="Content-Type: application/json" \
       --post-data="$payload" \

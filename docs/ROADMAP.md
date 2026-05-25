@@ -1,4 +1,4 @@
-# RestaurantOS — Roadmap
+# Sakafio — Roadmap
 
 > **Usage** : À chaque nouvelle session Claude, lire ce fichier pour savoir où on en est.
 > Déplacer les sprints de "File d'attente" vers "Livrés" après chaque implémentation.

@@ -32,7 +32,7 @@ warn()   { echo -e "${YELLOW}⚠️  $1${RESET}"; }
 error()  { echo -e "${RED}❌ $1${RESET}"; }
 header() { echo -e "\n${BOLD}${CYAN}═══ $1 ═══${RESET}\n"; }
 
-header "RestaurantOS — Passage en production réelle"
+header "Sakafio — Passage en production réelle"
 
 if [ ! -f .env.prod ]; then
   error "Fichier .env.prod introuvable — exécuter depuis /opt/restaurant"

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF3C7"/>
+      <stop offset="100%" stop-color="#FDE68A"/>
+    </linearGradient>
+    <linearGradient id="bowl2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F97316"/>
+      <stop offset="50%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#C2410C"/>
+    </linearGradient>
+    <linearGradient id="leaf2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#84CC16"/>
+      <stop offset="100%" stop-color="#65A30D"/>
+    </linearGradient>
+    <radialGradient id="glow2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Fond crème -->
+  <rect width="256" height="256" rx="56" fill="url(#bg2)"/>
+
+  <!-- Halo lumineux derrière -->
+  <circle cx="128" cy="150" r="90" fill="url(#glow2)"/>
+
+  <!-- Vapeur stylisée au-dessus -->
+  <path d="M 100 60 Q 108 45 100 30 Q 92 18 100 8"
+        fill="none" stroke="#EA580C" stroke-width="6" stroke-linecap="round" opacity="0.4"/>
+  <path d="M 128 55 Q 136 40 128 25 Q 120 12 128 2"
+        fill="none" stroke="#EA580C" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+  <path d="M 156 60 Q 164 45 156 30 Q 148 18 156 8"
+        fill="none" stroke="#EA580C" stroke-width="6" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- Bol principal (forme demi-cercle avec rebord) -->
+  <ellipse cx="128" cy="125" rx="78" ry="14" fill="#C2410C" opacity="0.4"/>
+  <path d="M 50 125 A 78 78 0 0 0 206 125 Z" fill="url(#bowl2)"/>
+  <ellipse cx="128" cy="125" rx="78" ry="12" fill="#FB923C"/>
+  <ellipse cx="128" cy="122" rx="72" ry="9" fill="#7C2D12" opacity="0.6"/>
+
+  <!-- Petite feuille verte (basilic / coriandre) qui dépasse -->
+  <path d="M 130 118 Q 138 95 152 90 Q 145 105 142 118 Z" fill="url(#leaf2)"/>
+  <path d="M 145 105 L 142 117" stroke="#365314" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Reflet sur le rebord -->
+  <ellipse cx="100" cy="120" rx="22" ry="3" fill="white" opacity="0.6"/>
+
+  <!-- Base du bol stylisée -->
+  <ellipse cx="128" cy="208" rx="50" ry="6" fill="#C2410C" opacity="0.5"/>
+</svg>

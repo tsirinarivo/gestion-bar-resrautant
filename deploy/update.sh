@@ -17,7 +17,7 @@ log()    { echo -e "${GREEN}✅ $1${RESET}"; }
 warn()   { echo -e "${YELLOW}⚠️  $1${RESET}"; }
 header() { echo -e "\n${BOLD}${CYAN}═══ $1 ═══${RESET}\n"; }
 
-header "RestaurantOS — Mise à jour"
+header "Sakafio — Mise à jour"
 
 header "1. Récupération du code"
 git fetch origin claude/restaurant-management-app-cFnVm

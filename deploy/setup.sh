@@ -19,7 +19,7 @@ info()   { echo -e "${CYAN}ℹ️  $1${RESET}"; }
 error()  { echo -e "${RED}❌ $1${RESET}"; exit 1; }
 header() { echo -e "\n${BOLD}${CYAN}═══ $1 ═══${RESET}\n"; }
 
-header "RestaurantOS — Déploiement automatique"
+header "Sakafio — Déploiement automatique"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"

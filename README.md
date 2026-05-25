@@ -1,6 +1,6 @@
 # Sakafio — Logiciel de gestion bar & restaurant
 
-> Nom de code interne : *RestaurantOS*
+> Nom de code interne : *Sakafio*
 
 Système de gestion complet pour bar et restaurant, conçu pour Madagascar.
 Interface en français, prix en Ariary (Ar), données de démonstration réalistes.

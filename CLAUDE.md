@@ -1,6 +1,6 @@
 # Sakafio — Mémoire projet Claude
 
-> Nom de code interne : *RestaurantOS* (utilisé dans les commits/docs historiques)
+> Nom de code interne : *Sakafio* (utilisé dans les commits/docs historiques)
 > Marque publique : **Sakafio** — domaine principal `sakafio.mg`
 
 ## Le projet en une phrase

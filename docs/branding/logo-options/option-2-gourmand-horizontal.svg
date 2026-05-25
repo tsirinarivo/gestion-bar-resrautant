@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" width="640" height="200">
+  <defs>
+    <linearGradient id="bg2h" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF3C7"/>
+      <stop offset="100%" stop-color="#FDE68A"/>
+    </linearGradient>
+    <linearGradient id="bowl2h" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F97316"/>
+      <stop offset="50%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#C2410C"/>
+    </linearGradient>
+    <linearGradient id="leaf2h" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#84CC16"/>
+      <stop offset="100%" stop-color="#65A30D"/>
+    </linearGradient>
+    <linearGradient id="textGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#C2410C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icône à gauche -->
+  <g transform="translate(20, 20)">
+    <rect width="160" height="160" rx="36" fill="url(#bg2h)"/>
+    <path d="M 60 38 Q 65 28 60 18" fill="none" stroke="#EA580C" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+    <path d="M 80 35 Q 85 25 80 15" fill="none" stroke="#EA580C" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+    <path d="M 100 38 Q 105 28 100 18" fill="none" stroke="#EA580C" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+    <ellipse cx="80" cy="78" rx="48" ry="9" fill="#C2410C" opacity="0.4"/>
+    <path d="M 32 78 A 48 48 0 0 0 128 78 Z" fill="url(#bowl2h)"/>
+    <ellipse cx="80" cy="78" rx="48" ry="7" fill="#FB923C"/>
+    <ellipse cx="80" cy="76" rx="44" ry="5" fill="#7C2D12" opacity="0.6"/>
+    <path d="M 82 72 Q 90 56 100 53 Q 96 64 94 72 Z" fill="url(#leaf2h)"/>
+    <ellipse cx="63" cy="74" rx="14" ry="2" fill="white" opacity="0.6"/>
+    <ellipse cx="80" cy="130" rx="32" ry="4" fill="#C2410C" opacity="0.5"/>
+  </g>
+
+  <!-- Texte "Sakafio" -->
+  <g transform="translate(210, 0)">
+    <text x="0" y="120"
+          font-family="-apple-system, 'Segoe UI', Roboto, sans-serif"
+          font-size="92"
+          font-weight="800"
+          fill="url(#textGrad2)"
+          letter-spacing="-3">Sakafio</text>
+    <text x="6" y="155"
+          font-family="-apple-system, 'Segoe UI', Roboto, sans-serif"
+          font-size="18"
+          font-weight="500"
+          fill="#9A3412"
+          letter-spacing="6">SAVEURS &amp; GESTION</text>
+  </g>
+</svg>

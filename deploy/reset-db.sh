@@ -25,7 +25,7 @@ warn()   { echo -e "${YELLOW}⚠️  $1${RESET}"; }
 error()  { echo -e "${RED}❌ $1${RESET}"; }
 header() { echo -e "\n${BOLD}${CYAN}═══ $1 ═══${RESET}\n"; }
 
-header "RestaurantOS — Reset base + re-seed démo"
+header "Sakafio — Reset base + re-seed démo"
 
 if [ ! -f .env.prod ]; then
   error "Fichier .env.prod introuvable — exécuter depuis /opt/restaurant"
