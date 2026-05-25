@@ -20,6 +20,9 @@ build
 # Docs
 *.md
 deploy/
+# Exception : entrypoint script nécessaire dans les images frontend Next.js
+# (substitue les NEXT_PUBLIC_* placeholders au démarrage du container)
+!deploy/runtime-env-rewrite.sh
 
 # OS
 .DS_Store
