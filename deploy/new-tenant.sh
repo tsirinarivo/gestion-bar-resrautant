@@ -113,16 +113,24 @@ header "Push schema Prisma"
 
 DATABASE_URL="postgresql://$PG_USER:$MASTER_POSTGRES_PASSWORD@postgres:5432/$TENANT_DB_NAME"
 
-$DC_MASTER run --rm \
+if ! $DC_MASTER run --rm \
   -e DATABASE_URL="$DATABASE_URL" \
-  migrate sh -c "npx prisma db push --accept-data-loss"
+  migrate sh -c "npx prisma db push --accept-data-loss"; then
+  error "❌ prisma db push a échoué sur $TENANT_DB_NAME — provisioning interrompu"
+fi
+
+# Sanity check : la table User doit exister après le push
+if ! $DC_MASTER exec -T postgres psql -U "$PG_USER" -d "$TENANT_DB_NAME" -tAc \
+     "SELECT to_regclass('\"User\"')" | grep -q "User"; then
+  error "❌ La table \"User\" n'existe pas dans $TENANT_DB_NAME malgré le push — état incohérent"
+fi
 
 log "Schéma poussé sur $TENANT_DB_NAME"
 
 # ── 6. Seed admin du tenant ────────────────────────────────────────────────
 header "Création de l'admin initial du tenant"
 
-$DC_MASTER run --rm \
+if ! $DC_MASTER run --rm \
   -e DATABASE_URL="$DATABASE_URL" \
   -e RESTO_NAME="$TENANT_NAME" \
   -e RESTO_SLUG="$TENANT_SLUG" \
@@ -130,7 +138,16 @@ $DC_MASTER run --rm \
   -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
   -e ADMIN_FIRST_NAME="$ADMIN_FIRST_NAME" \
   -e ADMIN_LAST_NAME="$ADMIN_LAST_NAME" \
-  migrate sh -c "node dist/init-fresh.js"
+  migrate sh -c "node dist/init-fresh.js"; then
+  error "❌ Le seed de l'admin a échoué sur $TENANT_DB_NAME — provisioning interrompu"
+fi
+
+# Sanity check : au moins un User OWNER doit exister
+USER_COUNT=$($DC_MASTER exec -T postgres psql -U "$PG_USER" -d "$TENANT_DB_NAME" -tAc \
+  "SELECT COUNT(*) FROM \"User\" WHERE role='OWNER'" || echo 0)
+if [ "$USER_COUNT" -lt 1 ]; then
+  error "❌ Aucun OWNER créé dans $TENANT_DB_NAME — état incohérent"
+fi
 
 log "Admin $ADMIN_EMAIL créé"
 
