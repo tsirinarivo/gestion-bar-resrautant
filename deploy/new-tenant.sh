@@ -120,10 +120,11 @@ if ! $DC_MASTER run --rm migrate sh -c "npx prisma db push --accept-data-loss"; 
   error "❌ prisma db push a échoué sur $TENANT_DB_NAME — provisioning interrompu"
 fi
 
-# Sanity check : la table User doit exister après le push
+# Sanity check : la table users doit exister après le push
+# (Prisma map User → users via @@map, donc on cherche en snake_case)
 if ! $DC_MASTER exec -T postgres psql -U "$PG_USER" -d "$TENANT_DB_NAME" -tAc \
-     "SELECT to_regclass('\"User\"')" | grep -q "User"; then
-  error "❌ La table \"User\" n'existe pas dans $TENANT_DB_NAME malgré le push — état incohérent"
+     "SELECT to_regclass('public.users')" | grep -q "users"; then
+  error "❌ La table 'users' n'existe pas dans $TENANT_DB_NAME malgré le push — état incohérent"
 fi
 
 log "Schéma poussé sur $TENANT_DB_NAME"
@@ -143,11 +144,12 @@ if ! $DC_MASTER run --rm \
   error "❌ Le seed de l'admin a échoué sur $TENANT_DB_NAME — provisioning interrompu"
 fi
 
-# Sanity check : au moins un User OWNER doit exister
+# Sanity check : au moins un User superadmin doit exister
+# (Prisma map User→users, Role→roles. Le seed crée un user lié au role superadmin.)
 USER_COUNT=$($DC_MASTER exec -T postgres psql -U "$PG_USER" -d "$TENANT_DB_NAME" -tAc \
-  "SELECT COUNT(*) FROM \"User\" WHERE role='OWNER'" || echo 0)
+  "SELECT COUNT(*) FROM users u JOIN roles r ON u.\"roleId\" = r.id WHERE r.name = 'superadmin'" || echo 0)
 if [ "$USER_COUNT" -lt 1 ]; then
-  error "❌ Aucun OWNER créé dans $TENANT_DB_NAME — état incohérent"
+  error "❌ Aucun admin superadmin créé dans $TENANT_DB_NAME — état incohérent"
 fi
 
 log "Admin $ADMIN_EMAIL créé"
