@@ -84,8 +84,13 @@ export TENANT_SLUG TENANT_NAME TENANT_DB_NAME TENANT_API_PORT TENANT_WEB_PORT \
        TENANT_JWT_SECRET TENANT_JWT_REFRESH_SECRET TENANT_CROSS_SECRET \
        TENANT_REDIS_DB MASTER_POSTGRES_PASSWORD MASTER_REDIS_PASSWORD
 
-envsubst < "$TEMPLATES_DIR/docker-compose.tenant.yml.tmpl" > "$TENANT_DIR/docker-compose.yml"
-envsubst < "$TEMPLATES_DIR/tenant.env.tmpl" > "$TENANT_DIR/.env"
+# Liste explicite des vars : sinon envsubst écrase aussi des vars du compose
+# (ex: ${MASTER_POSTGRES_PASSWORD} sera lu par docker-compose depuis .env du tenant).
+TENANT_VARS='${TENANT_SLUG} ${TENANT_NAME} ${TENANT_DB_NAME} ${TENANT_REDIS_DB} ${TENANT_API_PORT} ${TENANT_WEB_PORT} ${TENANT_POS_PORT} ${TENANT_KDS_PORT} ${TENANT_CLIENT_PORT} ${TENANT_SUBDOMAIN} ${TENANT_JWT_SECRET} ${TENANT_JWT_REFRESH_SECRET} ${TENANT_CROSS_SECRET}'
+ENV_VARS="$TENANT_VARS"' ${MASTER_POSTGRES_PASSWORD} ${MASTER_REDIS_PASSWORD}'
+
+envsubst "$TENANT_VARS" < "$TEMPLATES_DIR/docker-compose.tenant.yml.tmpl" > "$TENANT_DIR/docker-compose.yml"
+envsubst "$ENV_VARS" < "$TEMPLATES_DIR/tenant.env.tmpl" > "$TENANT_DIR/.env"
 chmod 600 "$TENANT_DIR/.env"
 log "Compose + .env générés"
 

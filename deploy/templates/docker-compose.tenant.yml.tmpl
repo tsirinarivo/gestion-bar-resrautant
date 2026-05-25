@@ -14,8 +14,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://restaurant_user:$${MASTER_POSTGRES_PASSWORD}@postgres:5432/${TENANT_DB_NAME}
-      REDIS_URL: redis://:$${MASTER_REDIS_PASSWORD}@redis:6379/${TENANT_REDIS_DB}
+      DATABASE_URL: postgresql://restaurant_user:${MASTER_POSTGRES_PASSWORD}@postgres:5432/${TENANT_DB_NAME}
+      REDIS_URL: redis://:${MASTER_REDIS_PASSWORD}@redis:6379/${TENANT_REDIS_DB}
       JWT_SECRET: ${TENANT_JWT_SECRET}
       JWT_REFRESH_SECRET: ${TENANT_JWT_REFRESH_SECRET}
       JWT_EXPIRES_IN: 15m
