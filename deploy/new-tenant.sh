@@ -145,7 +145,10 @@ NGINX_AVAILABLE="/etc/nginx/sites-available/tenant-${TENANT_SLUG}.conf"
 NGINX_ENABLED="/etc/nginx/sites-enabled/tenant-${TENANT_SLUG}.conf"
 
 if [ -d /etc/nginx/sites-available ] && [ -w /etc/nginx/sites-available ]; then
-  envsubst < "$TEMPLATES_DIR/nginx-tenant.conf.tmpl" > "$NGINX_AVAILABLE"
+  # Liste explicite des vars : sinon envsubst écrase $http_upgrade, $host, $scheme
+  # (variables nginx) en les remplaçant par du vide → "proxy_set_header" invalide.
+  NGINX_VARS='${TENANT_SUBDOMAIN} ${TENANT_CLIENT_PORT} ${TENANT_WEB_PORT} ${TENANT_POS_PORT} ${TENANT_KDS_PORT} ${TENANT_API_PORT}'
+  envsubst "$NGINX_VARS" < "$TEMPLATES_DIR/nginx-tenant.conf.tmpl" > "$NGINX_AVAILABLE"
   ln -sf "$NGINX_AVAILABLE" "$NGINX_ENABLED"
   log "Config Nginx écrite : $NGINX_AVAILABLE"
   if command -v nginx >/dev/null 2>&1 && nginx -t 2>/dev/null; then
