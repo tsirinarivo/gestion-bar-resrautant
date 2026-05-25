@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg2b" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="100%" stop-color="#FDE68A"/>
+    </linearGradient>
+    <linearGradient id="bowl2b" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="45%" stop-color="#EA580C"/>
+      <stop offset="100%" stop-color="#9A3412"/>
+    </linearGradient>
+    <linearGradient id="bowlRim2b" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FED7AA"/>
+      <stop offset="100%" stop-color="#FB923C"/>
+    </linearGradient>
+    <linearGradient id="straw2b" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#06B6D4"/>
+      <stop offset="100%" stop-color="#0E7490"/>
+    </linearGradient>
+    <linearGradient id="olive2b" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#84CC16"/>
+      <stop offset="100%" stop-color="#4D7C0F"/>
+    </linearGradient>
+    <radialGradient id="glow2b" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FBBF24" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#FBBF24" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow2b" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+
+  <!-- Fond crème -->
+  <rect width="256" height="256" rx="56" fill="url(#bg2b)"/>
+
+  <!-- Halo lumineux derrière -->
+  <circle cx="128" cy="155" r="100" fill="url(#glow2b)"/>
+
+  <!-- Vapeur stylisée (côté cuisine) -->
+  <path d="M 88 55 Q 95 42 88 28 Q 82 16 88 4"
+        fill="none" stroke="#EA580C" stroke-width="5" stroke-linecap="round" opacity="0.35"/>
+  <path d="M 112 50 Q 118 36 112 22 Q 106 9 112 -3"
+        fill="none" stroke="#EA580C" stroke-width="5" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- Bulles de cocktail qui montent (côté bar) -->
+  <circle cx="174" cy="45" r="5" fill="#06B6D4" opacity="0.4"/>
+  <circle cx="186" cy="62" r="3.5" fill="#06B6D4" opacity="0.55"/>
+  <circle cx="166" cy="68" r="2.5" fill="#06B6D4" opacity="0.5"/>
+  <circle cx="178" cy="82" r="2" fill="#06B6D4" opacity="0.6"/>
+
+  <!-- Paille de cocktail (diagonale, sort du bowl) -->
+  <g transform="rotate(-22 168 90)">
+    <!-- Ombre paille -->
+    <rect x="165" y="38" width="9" height="105" rx="3" fill="#164E63" opacity="0.18" filter="url(#shadow2b)"/>
+    <!-- Corps paille -->
+    <rect x="165" y="38" width="9" height="105" rx="3" fill="url(#straw2b)"/>
+    <!-- Reflet brillant -->
+    <rect x="167" y="42" width="2.5" height="95" rx="1.2" fill="white" opacity="0.55"/>
+    <!-- Rayures décoratives -->
+    <rect x="165" y="56" width="9" height="3" fill="#0E7490" opacity="0.7"/>
+    <rect x="165" y="78" width="9" height="3" fill="#0E7490" opacity="0.7"/>
+    <rect x="165" y="100" width="9" height="3" fill="#0E7490" opacity="0.7"/>
+    <rect x="165" y="122" width="9" height="3" fill="#0E7490" opacity="0.7"/>
+  </g>
+
+  <!-- Olive verte au bout de la paille -->
+  <g transform="translate(189, 50)">
+    <ellipse cx="0" cy="0" rx="11" ry="13" fill="url(#olive2b)" transform="rotate(-22)"/>
+    <ellipse cx="-3" cy="-4" rx="3" ry="4" fill="#A3E635" opacity="0.7" transform="rotate(-22)"/>
+    <!-- Pimento rouge au centre -->
+    <ellipse cx="0" cy="0" rx="3" ry="5" fill="#DC2626" transform="rotate(-22)"/>
+  </g>
+
+  <!-- Bol principal — ombre sous le bowl -->
+  <ellipse cx="128" cy="138" rx="82" ry="11" fill="#7C2D12" opacity="0.35"/>
+
+  <!-- Bol — corps -->
+  <path d="M 46 138 A 82 82 0 0 0 210 138 Z" fill="url(#bowl2b)"/>
+
+  <!-- Bol — rebord -->
+  <ellipse cx="128" cy="138" rx="82" ry="13" fill="url(#bowlRim2b)"/>
+  <ellipse cx="128" cy="135" rx="76" ry="10" fill="#7C2D12" opacity="0.7"/>
+
+  <!-- Reflet sur le rebord -->
+  <ellipse cx="95" cy="133" rx="26" ry="3.5" fill="white" opacity="0.65"/>
+
+  <!-- Petite cuillère qui dépasse du bowl (côté gauche) -->
+  <g transform="rotate(18 90 130)">
+    <rect x="68" y="98" width="4.5" height="44" rx="2" fill="#D4D4D8"/>
+    <rect x="69" y="99" width="2" height="40" fill="white" opacity="0.55"/>
+    <ellipse cx="70.5" cy="96" rx="9" ry="11" fill="#D4D4D8"/>
+    <ellipse cx="70.5" cy="94" rx="6" ry="7.5" fill="#A1A1AA"/>
+    <ellipse cx="68" cy="92" rx="3" ry="2.5" fill="white" opacity="0.7"/>
+  </g>
+
+  <!-- Base du bowl -->
+  <ellipse cx="128" cy="218" rx="58" ry="6" fill="#7C2D12" opacity="0.45"/>
+</svg>
