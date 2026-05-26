@@ -3,6 +3,17 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { formatCurrency } from '@restaurant/utils';
+import {
+  API_URL,
+  apiFetch,
+  apiPost,
+  apiPatch,
+  authFetch,
+  login,
+  setAccessToken,
+  getAccessToken,
+  subscribeToken,
+} from '@/lib/auth-fetch';
 
 interface Category  { id: string; name: string; icon?: string }
 interface Product   { id: string; name: string; price: number; categoryId: string; image?: string | null; stockAvailable?: number | null; barcode?: string | null; sku?: string | null }
@@ -14,12 +25,6 @@ interface Order     { id: string; orderNumber: string; status: string; totalAmou
 interface CustomerLite { id: string; firstName: string; lastName: string; phone?: string; loyaltyAccount?: { points: number; tier: string } }
 
 const POINTS_RATE = 10 // 1 point = 10 Ar
-
-const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
-
-function authHeaders(token: string) {
-  return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-}
 
 const TABLE_COLOR: Record<string, string> = {
   AVAILABLE: 'border-emerald-500 bg-emerald-500/10 text-emerald-300',
@@ -54,44 +59,8 @@ const POS_PAYMENT_METHODS = [
 ]
 
 // ─── API helpers ───────────────────────────────────────────────────────────────
-
-async function apiFetch<T>(token: string, path: string): Promise<T> {
-  const res = await fetch(`${API_URL}/api${path}`, { headers: authHeaders(token) });
-  if (res.status === 401) throw Object.assign(new Error('Session expirée, reconnectez-vous'), { status: 401 });
-  const data = await res.json() as { success: boolean; data: T; error?: string };
-  if (!data.success) throw new Error(data.error ?? 'Erreur API');
-  return data.data;
-}
-
-async function apiPost<T>(token: string, path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_URL}/api${path}`, {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify(body),
-  });
-  const data = await res.json() as { success: boolean; data: T; error?: string };
-  if (!data.success) throw new Error(data.error ?? 'Erreur API');
-  return data.data;
-}
-
-async function apiPatch(token: string, path: string, body: unknown): Promise<void> {
-  await fetch(`${API_URL}/api${path}`, {
-    method: 'PATCH',
-    headers: authHeaders(token),
-    body: JSON.stringify(body),
-  });
-}
-
-async function login(email: string, password: string): Promise<string> {
-  const res = await fetch(`${API_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  const data = await res.json() as { success: boolean; data?: { accessToken: string }; error?: string };
-  if (!data.success) throw new Error(data.error ?? 'Identifiants incorrects');
-  return data.data!.accessToken;
-}
+// apiFetch / apiPost / apiPatch / login importés depuis @/lib/auth-fetch
+// (avec refresh automatique sur 401 via le cookie refreshToken)
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 
@@ -168,9 +137,8 @@ function ReceiptModal({
   async function printOnCloud() {
     setCloudStatus('sending');
     try {
-      const res = await fetch(`${API_URL}/api/printer/receipt`, {
+      const res = await authFetch('/api/printer/receipt', {
         method: 'POST',
-        headers: authHeaders(token),
         body: JSON.stringify({
           tableNumber:  activeTable?.number,
           tableLabel,
@@ -277,9 +245,7 @@ function RefundModal({ token, onClose }: { token: string; onClose: () => void })
     if (!query.trim()) return
     setSearching(true); setError(''); setFound(null)
     try {
-      const res = await fetch(`${API_URL}/api/orders?orderNumber=${encodeURIComponent(query.trim())}&status=COMPLETED&limit=5`, {
-        headers: authHeaders(token),
-      })
+      const res = await authFetch(`/api/orders?orderNumber=${encodeURIComponent(query.trim())}&status=COMPLETED&limit=5`)
       const data = await res.json() as { success: boolean; data: any[] }
       if (!data.success || !data.data.length) { setError('Aucune commande complétée trouvée'); return }
       setFound(data.data[0])
@@ -293,9 +259,8 @@ function RefundModal({ token, onClose }: { token: string; onClose: () => void })
     if (!amount || amount <= 0) return
     setRefundState(s => ({ ...s, [paymentId]: { ...s[paymentId]!, busy: true } }))
     try {
-      const res = await fetch(`${API_URL}/api/payments/${paymentId}/refund`, {
+      const res = await authFetch(`/api/payments/${paymentId}/refund`, {
         method: 'POST',
-        headers: authHeaders(token),
         body: JSON.stringify({ amount, reason: 'Retour POS' }),
       })
       const data = await res.json() as { success: boolean; error?: string }
@@ -397,9 +362,8 @@ function OpenCaisseModal({ token, onOpened, onLogout }: { token: string; onOpene
     if (Number.isNaN(amount) || amount < 0) { setError('Fond de caisse invalide'); return }
     setBusy(true); setError('')
     try {
-      const res = await fetch(`${API_URL}/api/caisse/open`, {
+      const res = await authFetch('/api/caisse/open', {
         method: 'POST',
-        headers: authHeaders(token),
         body: JSON.stringify({ openingFloat: amount, notes: notes || undefined }),
       })
       const data = await res.json() as { success: boolean; error?: string }
@@ -1073,6 +1037,19 @@ export default function POSPage() {
   const [terminal,         setTerminal]        = useState<any>(null);
   const [terminalsList,    setTerminalsList]   = useState<any[] | null>(null);  // null=loading, []=no terminals
 
+  // Synchronise le state local avec le token du module (refresh auto le met à jour)
+  useEffect(() => {
+    return subscribeToken((newToken) => {
+      if (newToken) {
+        localStorage.setItem('pos_token', newToken);
+        setToken(newToken);
+      } else {
+        localStorage.removeItem('pos_token');
+        setToken(null);
+      }
+    });
+  }, []);
+
   // SSO depuis admin : token URL → localStorage, terminal URL → localStorage
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1081,6 +1058,7 @@ export default function POSPage() {
     if (params.get('reset') === '1') {
       localStorage.removeItem('pos_token');
       localStorage.removeItem('pos_terminal_id');
+      setAccessToken(null);
       window.history.replaceState({}, '', window.location.pathname);
       window.location.reload();
       return;
@@ -1091,11 +1069,10 @@ export default function POSPage() {
 
     if (urlToken) {
       window.history.replaceState({}, '', window.location.pathname);
-      localStorage.setItem('pos_token', urlToken);
-      setToken(urlToken);
+      setAccessToken(urlToken); // déclenche aussi setToken via subscribeToken
     } else {
       const saved = localStorage.getItem('pos_token');
-      if (saved) setToken(saved);
+      if (saved) setAccessToken(saved);
     }
 
     if (urlTerminal) {
@@ -1113,9 +1090,7 @@ export default function POSPage() {
   // terminalsList in deps so "Réessayer" (setTerminalsList(null)) re-triggers this.
   useEffect(() => {
     if (!token || terminalId || terminalsList !== null) return;
-    fetch(`${API_URL}/api/pos-terminals`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    authFetch('/api/pos-terminals')
       .then(r => r.json())
       .then((d: any) => {
         const active = (d.data ?? []).filter((t: any) => t.status === 'ACTIVE');
@@ -1136,9 +1111,7 @@ export default function POSPage() {
   // Fetch terminal details when terminalId known
   useEffect(() => {
     if (!token || !terminalId || terminal) return;
-    fetch(`${API_URL}/api/pos-terminals/${terminalId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    authFetch(`/api/pos-terminals/${terminalId}`)
       .then(r => r.json())
       .then((d: any) => {
         if (d.success) {
@@ -1359,7 +1332,7 @@ export default function POSPage() {
     if (!apiError) return;
     if ((apiError as any).status === 401) {
       localStorage.removeItem('pos_token');
-      setToken(null);
+      setAccessToken(null);
     } else {
       setToast({ msg: `Erreur chargement: ${apiError.message}`, ok: false });
       setTimeout(() => setToast(null), 6000);
@@ -1388,7 +1361,7 @@ export default function POSPage() {
     </div>
   );
 
-  if (!token) return <LoginScreen onLogin={(t) => { localStorage.setItem('pos_token', t); setToken(t); setTerminal(null); setTerminalsList(null); }} />;
+  if (!token) return <LoginScreen onLogin={(t) => { localStorage.setItem('pos_token', t); setAccessToken(t); setTerminal(null); setTerminalsList(null); }} />;
 
   // En attente de la liste des terminaux
   if (!terminalId && terminalsList === null) {
@@ -1398,7 +1371,7 @@ export default function POSPage() {
           <div className="w-4 h-4 border-2 border-gray-600 border-t-orange-500 rounded-full animate-spin" />
           Chargement des terminaux...
         </div>
-        <button onClick={() => { localStorage.removeItem('pos_token'); setToken(null); }} className="text-xs text-gray-700 hover:text-gray-500">Déconnexion</button>
+        <button onClick={() => { localStorage.removeItem('pos_token'); setAccessToken(null); }} className="text-xs text-gray-700 hover:text-gray-500">Déconnexion</button>
       </div>
     );
   }
@@ -1411,7 +1384,7 @@ export default function POSPage() {
           <div className="w-4 h-4 border-2 border-gray-600 border-t-orange-500 rounded-full animate-spin" />
           Connexion au terminal...
         </div>
-        <button onClick={() => { localStorage.removeItem('pos_token'); localStorage.removeItem('pos_terminal_id'); setToken(null); setTerminalId(null); }} className="text-xs text-gray-700 hover:text-gray-500">Réinitialiser</button>
+        <button onClick={() => { localStorage.removeItem('pos_token'); localStorage.removeItem('pos_terminal_id'); setAccessToken(null); setTerminalId(null); }} className="text-xs text-gray-700 hover:text-gray-500">Réinitialiser</button>
       </div>
     );
   }
@@ -1441,7 +1414,7 @@ export default function POSPage() {
           Réessayer
         </button>
         <button
-          onClick={() => { localStorage.removeItem('pos_token'); setToken(null); }}
+          onClick={() => { localStorage.removeItem('pos_token'); setAccessToken(null); }}
           className="mt-2 text-xs text-gray-600 hover:text-gray-400"
         >
           Déconnexion
@@ -1491,7 +1464,7 @@ export default function POSPage() {
           onLogout={() => {
             localStorage.removeItem('pos_token')
             localStorage.removeItem('pos_terminal_id')
-            setToken(null); setTerminalId(null); setTerminal(null)
+            setAccessToken(null); setTerminalId(null); setTerminal(null)
           }}
         />
       )}
@@ -1572,7 +1545,7 @@ export default function POSPage() {
               Changer terminal
             </button>
           )}
-          <button onClick={() => { localStorage.removeItem('pos_token'); localStorage.removeItem('pos_terminal_id'); setToken(null); setTerminalId(null); setTerminal(null); }} className="text-xs text-gray-500 hover:text-gray-300">Déconnexion</button>
+          <button onClick={() => { localStorage.removeItem('pos_token'); localStorage.removeItem('pos_terminal_id'); setAccessToken(null); setTerminalId(null); setTerminal(null); }} className="text-xs text-gray-500 hover:text-gray-300">Déconnexion</button>
         </div>
       </div>
 
