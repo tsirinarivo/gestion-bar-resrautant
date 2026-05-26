@@ -4,14 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { formatCurrency } from '@restaurant/utils';
 import {
-  API_URL,
   apiFetch,
   apiPost,
   apiPatch,
   authFetch,
   login,
   setAccessToken,
-  getAccessToken,
   subscribeToken,
 } from '@/lib/auth-fetch';
 
@@ -1037,16 +1035,14 @@ export default function POSPage() {
   const [terminal,         setTerminal]        = useState<any>(null);
   const [terminalsList,    setTerminalsList]   = useState<any[] | null>(null);  // null=loading, []=no terminals
 
-  // Synchronise le state local avec le token du module (refresh auto le met à jour)
+  // Synchronise le state local avec le token du module (pour les refresh auto)
+  // Le callback ne triggere setToken QUE si la valeur change (évite la boucle
+  // quand le composant lui-même push un token vers le module).
   useEffect(() => {
     return subscribeToken((newToken) => {
-      if (newToken) {
-        localStorage.setItem('pos_token', newToken);
-        setToken(newToken);
-      } else {
-        localStorage.removeItem('pos_token');
-        setToken(null);
-      }
+      setToken(prev => prev === newToken ? prev : newToken);
+      if (newToken) localStorage.setItem('pos_token', newToken);
+      else localStorage.removeItem('pos_token');
     });
   }, []);
 
@@ -1069,10 +1065,15 @@ export default function POSPage() {
 
     if (urlToken) {
       window.history.replaceState({}, '', window.location.pathname);
-      setAccessToken(urlToken); // déclenche aussi setToken via subscribeToken
+      localStorage.setItem('pos_token', urlToken);
+      setToken(urlToken);          // state local immédiat (SSO doit marcher au 1er render)
+      setAccessToken(urlToken);    // + module pour les refresh ultérieurs
     } else {
       const saved = localStorage.getItem('pos_token');
-      if (saved) setAccessToken(saved);
+      if (saved) {
+        setToken(saved);
+        setAccessToken(saved);
+      }
     }
 
     if (urlTerminal) {
