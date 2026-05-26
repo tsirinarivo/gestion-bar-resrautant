@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
@@ -24,12 +24,16 @@ export default function LoginPage() {
   const router = useRouter()
   const { setUser } = useAuthStore()
 
-  const rememberedEmail = typeof window !== 'undefined' ? localStorage.getItem('remembered-email') ?? '' : ''
-
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: rememberedEmail },
+    defaultValues: { email: '' },
   })
+
+  // Charge l'email mémorisé après mount (évite hydration mismatch SSR/client)
+  useEffect(() => {
+    const saved = localStorage.getItem('remembered-email')
+    if (saved) setValue('email', saved)
+  }, [setValue])
 
   async function onSubmit(data: LoginForm) {
     try {

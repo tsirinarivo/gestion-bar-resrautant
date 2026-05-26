@@ -888,16 +888,20 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
-  const [statusFilter, setStatusFilter] = useState<string>(() =>
-    typeof window === 'undefined' ? '' : (localStorage.getItem('orders-filter-status') ?? '')
-  )
-  const [dateFilter, setDateFilter] = useState<string>(() =>
-    typeof window === 'undefined' ? '' : (localStorage.getItem('orders-filter-date') ?? '')
-  )
+  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [dateFilter, setDateFilter] = useState<string>('')
   const [customerFilter, setCustomerFilter] = useState<string>('')
+  const [filtersHydrated, setFiltersHydrated] = useState(false)
 
-  useEffect(() => { if (typeof window !== 'undefined') localStorage.setItem('orders-filter-status', statusFilter) }, [statusFilter])
-  useEffect(() => { if (typeof window !== 'undefined') localStorage.setItem('orders-filter-date', dateFilter) }, [dateFilter])
+  // Charge les filtres après mount pour éviter le hydration mismatch SSR/client
+  useEffect(() => {
+    setStatusFilter(localStorage.getItem('orders-filter-status') ?? '')
+    setDateFilter(localStorage.getItem('orders-filter-date') ?? '')
+    setFiltersHydrated(true)
+  }, [])
+
+  useEffect(() => { if (filtersHydrated) localStorage.setItem('orders-filter-status', statusFilter) }, [statusFilter, filtersHydrated])
+  useEffect(() => { if (filtersHydrated) localStorage.setItem('orders-filter-date', dateFilter) }, [dateFilter, filtersHydrated])
   const [showNew, setShowNew] = useState(false)
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null)
   const [sourceFilter, setSourceFilter] = useState<string>('')

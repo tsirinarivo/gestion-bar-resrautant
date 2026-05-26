@@ -252,9 +252,15 @@ function RefundModal({ token, onClose }: { token: string; onClose: () => void })
   }
 
   async function doRefund(paymentId: string) {
+    const payment = (foundOrder?.payments ?? []).find((p: any) => p.id === paymentId)
+    if (!payment) return
     const st = refundState[paymentId]
     const amount = parseFloat(st?.amount ?? '0')
     if (!amount || amount <= 0) return
+    if (amount > payment.amount) {
+      setError(`Montant max ${payment.amount} MGA pour ce paiement`)
+      return
+    }
     setRefundState(s => ({ ...s, [paymentId]: { ...s[paymentId]!, busy: true } }))
     try {
       const res = await authFetch(`/api/payments/${paymentId}/refund`, {
