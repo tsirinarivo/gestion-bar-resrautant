@@ -163,10 +163,12 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
         },
       })
       // BUG 2.1 — déduction stock manquante sur paiement POS
-      await deductStockForOrder(order.id, order.orderNumber, req.user!.id).catch(() => {})
+      await deductStockForOrder(order.id, order.orderNumber, req.user!.id)
+        .catch(err => console.error(`[payment ${payment.id}] Stock deduction failed for order ${order.orderNumber}:`, err))
 
       // Loyalty: customer earns 1 point per 100 MGA spent (excluding WALLET redemption)
-      await earnLoyaltyPoints(order.id, order.orderNumber).catch(() => {})
+      await earnLoyaltyPoints(order.id, order.orderNumber)
+        .catch(err => console.error(`[payment ${payment.id}] Loyalty earning failed for order ${order.orderNumber}:`, err))
 
       // Libérer la table si plus aucune commande active dessus
       if (order.tableId) {

@@ -717,8 +717,10 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
 
     // ── Déduction automatique du stock quand commande COMPLETED ──────────
     if (status === 'COMPLETED') {
-      await deductStockForOrder(order.id, updatedOrder.orderNumber, req.user!.id).catch(() => {})
-      await earnLoyaltyPoints(order.id, updatedOrder.orderNumber).catch(() => {})
+      await deductStockForOrder(order.id, updatedOrder.orderNumber, req.user!.id)
+        .catch(err => console.error(`[order ${updatedOrder.orderNumber}] Stock deduction failed:`, err))
+      await earnLoyaltyPoints(order.id, updatedOrder.orderNumber)
+        .catch(err => console.error(`[order ${updatedOrder.orderNumber}] Loyalty earning failed:`, err))
     }
 
     // ── Impression automatique ticket (uniquement au paiement) ──────────────

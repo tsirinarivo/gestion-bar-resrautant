@@ -176,7 +176,8 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     })
 
     if (couponId) {
-      prisma.coupon.update({ where: { id: couponId }, data: { usageCount: { increment: 1 } } }).catch(() => {})
+      await prisma.coupon.update({ where: { id: couponId }, data: { usageCount: { increment: 1 } } })
+        .catch(err => console.error(`[public-order ${order.orderNumber}] Coupon usage increment failed for ${couponId}:`, err))
     }
 
     // Notify dashboard + KDS of the new order
