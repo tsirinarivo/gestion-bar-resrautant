@@ -38,6 +38,35 @@ header "Sakafio — Synchronisation Nginx"
 CHANGED_DOMAINS=()
 TIMESTAMP=$(date +%s)
 
+# ─── Nettoyage des doublons : domain.conf coexistant avec domain ──────────
+# Convention Debian/Ubuntu : pas d'extension dans sites-{available,enabled}.
+# Si un fichier "domain.conf" existe en plus du fichier "domain", nginx les
+# charge tous les deux → conflits (server_name dupliqué, configs contradictoires).
+header "Nettoyage des doublons .conf"
+DUPLICATES_REMOVED=0
+for conf in "$NGINX_DIR"/*.conf; do
+  [ -f "$conf" ] || continue
+  domain=$(basename "$conf" .conf)
+
+  if [ -f "/etc/nginx/sites-available/${domain}.conf" ]; then
+    warn "Doublon détecté : ${domain}.conf coexiste avec ${domain}"
+    # Backup avant suppression
+    cp "/etc/nginx/sites-available/${domain}.conf" \
+       "/etc/nginx/sites-available/${domain}.conf.bak.${TIMESTAMP}" 2>/dev/null || true
+    rm -f "/etc/nginx/sites-enabled/${domain}.conf"
+    rm -f "/etc/nginx/sites-available/${domain}.conf"
+    log "Supprimé : ${domain}.conf (backup en ${domain}.conf.bak.${TIMESTAMP})"
+    DUPLICATES_REMOVED=$((DUPLICATES_REMOVED+1))
+    # On force le re-sync + reinstall SSL pour ce domaine
+    CHANGED_DOMAINS+=("$domain")
+  fi
+done
+
+[ "$DUPLICATES_REMOVED" -gt 0 ] && log "${DUPLICATES_REMOVED} doublon(s) nettoyé(s)"
+
+# ─── Sync des configs du repo ─────────────────────────────────────────────
+header "Sync des configs depuis le repo"
+
 for conf in "$NGINX_DIR"/*.conf; do
   [ -f "$conf" ] || continue
   domain=$(basename "$conf" .conf)
@@ -48,7 +77,10 @@ for conf in "$NGINX_DIR"/*.conf; do
     [ -f "$target" ] && cp "$target" "${target}.bak.${TIMESTAMP}"
     cp "$conf" "$target"
     ln -sf "$target" "/etc/nginx/sites-enabled/${domain}"
-    CHANGED_DOMAINS+=("$domain")
+    # Évite les doublons dans le tableau
+    if [[ ! " ${CHANGED_DOMAINS[*]} " =~ " ${domain} " ]]; then
+      CHANGED_DOMAINS+=("$domain")
+    fi
     log "Mis à jour : ${domain}"
   fi
 done
