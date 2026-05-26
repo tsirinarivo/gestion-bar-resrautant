@@ -50,7 +50,17 @@ const navItems = [
   { href: '/superadmin', label: 'Vue Superadmin',    icon: Building2,        roles: ['superadmin'] },
 ]
 
-const POS_URL = process.env.NEXT_PUBLIC_POS_URL || 'https://pos.sakafio.mg'
+const POS_URL_FALLBACK = process.env.NEXT_PUBLIC_POS_URL || 'https://pos.sakafio.mg'
+
+// Calcule l'URL du POS depuis le hostname courant (multi-tenant safe).
+// admin.sakafio.mg -> pos.sakafio.mg
+// admin-bistrot.sakafio.mg -> pos-bistrot.sakafio.mg
+function computePosUrl(): string {
+  if (typeof window === 'undefined') return POS_URL_FALLBACK
+  const host = window.location.hostname
+  if (!host.startsWith('admin')) return POS_URL_FALLBACK
+  return `${window.location.protocol}//${host.replace(/^admin/, 'pos')}`
+}
 
 interface SidebarProps {
   mobileOpen: boolean
@@ -80,6 +90,9 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     !item.roles || item.roles.includes(userRole)
   )
 
+  const [posUrl, setPosUrl] = useState<string>(POS_URL_FALLBACK)
+  useEffect(() => { setPosUrl(computePosUrl()) }, [])
+
   // Lire token + terminal au clic pour éviter les problèmes d'hydration Zustand
   function handlePosClick(e: React.MouseEvent<HTMLAnchorElement>) {
     const token = localStorage.getItem('accessToken')
@@ -87,7 +100,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     if (token) {
       const params = new URLSearchParams({ token })
       if (terminalId) params.set('terminal', terminalId)
-      e.currentTarget.href = `${POS_URL}/?${params.toString()}`
+      e.currentTarget.href = `${posUrl}/?${params.toString()}`
     }
     onClose()
   }
@@ -116,7 +129,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
       {/* Bouton POS — ouvre pos.sakafio.mg avec auth auto */}
       <div className="px-2 py-2 border-b border-brand-border">
         <a
-          href={POS_URL}
+          href={posUrl}
           target="_blank"
           rel="noopener noreferrer"
           onClick={handlePosClick}

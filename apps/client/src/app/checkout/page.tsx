@@ -299,7 +299,7 @@ export default function CheckoutPage() {
           <div className="border-t border-gray-100 mt-3 pt-3">
             <p className="text-sm font-medium text-gray-700 mb-2">Pourboire (optionnel)</p>
             <div className="flex gap-2 flex-wrap">
-              {[0, Math.round(subtotal * 0.05 / 100) * 100, Math.round(subtotal * 0.1 / 100) * 100, Math.round(subtotal * 0.15 / 100) * 100].map((amt, i) => (
+              {[0, Math.round(subtotal * 0.05), Math.round(subtotal * 0.10), Math.round(subtotal * 0.15)].map((amt, i) => (
                 <button key={amt}
                   type="button"
                   onClick={() => setTip(amt)}

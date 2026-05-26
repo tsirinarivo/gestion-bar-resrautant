@@ -221,13 +221,14 @@ export default function NewTenantPage() {
             <div>
               <label className="label">Mot de passe initial *</label>
               <input
-                type="text"
+                type="password"
                 className="input font-mono"
                 value={form.adminPassword}
                 onChange={(e) => update('adminPassword', e.target.value)}
                 required
                 minLength={8}
                 placeholder="Au moins 8 caractères"
+                autoComplete="new-password"
               />
             </div>
             <div>

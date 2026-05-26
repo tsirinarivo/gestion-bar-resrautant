@@ -7,8 +7,6 @@ import { formatDistance } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { io } from 'socket.io-client';
 
-const queryClient = new QueryClient();
-
 interface OrderItem {
   id: string;
   status: string;
@@ -390,6 +388,7 @@ function KDSPageInner() {
 }
 
 export default function KDSPage() {
+  const [queryClient] = useState(() => new QueryClient());
   return (
     <QueryClientProvider client={queryClient}>
       <KDSPageInner />

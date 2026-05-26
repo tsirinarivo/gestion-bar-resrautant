@@ -1208,7 +1208,7 @@ export default function POSPage() {
     queryFn: () => apiFetch<Product[]>(token!,
       `/products?isAvailable=true&limit=200${selectedCategory ? `&categoryId=${selectedCategory}` : ''}&warehouseId=${terminal!.warehouseId}`),
     enabled: !!token && terminalReady && !!terminal?.warehouseId,
-    staleTime: 0,
+    staleTime: 30_000,
   });
 
   const { data: openOrders = [], refetch: refetchOrders } = useQuery<Order[]>({

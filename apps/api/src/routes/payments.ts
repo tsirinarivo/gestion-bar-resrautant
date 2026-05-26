@@ -97,40 +97,44 @@ paymentRouter.post('/', async (req: AuthRequest, res, next) => {
       throw new AppError(`Sur-paiement refusé : reste dû ${order.totalAmount - alreadyPaid} MGA`, 400)
     }
 
-    // WALLET: deduct loyalty points from customer (1 point = 10 MGA)
-    if (data.method === 'WALLET') {
-      const orderWithCustomer = await prisma.order.findUnique({
-        where: { id: data.orderId },
-        include: { customer: { include: { loyaltyAccount: true } } },
-      })
-      const loyaltyAccount = orderWithCustomer?.customer?.loyaltyAccount
-      if (!loyaltyAccount) throw new AppError('Aucun compte fidélité associé à cette commande', 400)
-      const pointsToDeduct = Math.round(data.amount / 10)
-      // Atomic conditional decrement — row-level lock prevents race conditions
-      const updated = await prisma.loyaltyAccount.updateMany({
-        where: { id: loyaltyAccount.id, points: { gte: pointsToDeduct } },
-        data: { points: { decrement: pointsToDeduct }, totalSpent: { increment: pointsToDeduct } },
-      })
-      if (updated.count === 0) {
-        throw new AppError(`Solde de points insuffisant`, 400)
+    // Atomicité : déduction des points fidélité + création du paiement dans
+    // la même transaction Prisma. Si payment.create échoue, les points
+    // sont remboursés automatiquement par le rollback.
+    const payment = await prisma.$transaction(async (tx) => {
+      if (data.method === 'WALLET') {
+        const orderWithCustomer = await tx.order.findUnique({
+          where: { id: data.orderId },
+          include: { customer: { include: { loyaltyAccount: true } } },
+        })
+        const loyaltyAccount = orderWithCustomer?.customer?.loyaltyAccount
+        if (!loyaltyAccount) throw new AppError('Aucun compte fidélité associé à cette commande', 400)
+        const pointsToDeduct = Math.round(data.amount / 10)
+        // Atomic conditional decrement — row-level lock prevents race conditions
+        const updated = await tx.loyaltyAccount.updateMany({
+          where: { id: loyaltyAccount.id, points: { gte: pointsToDeduct } },
+          data: { points: { decrement: pointsToDeduct }, totalSpent: { increment: pointsToDeduct } },
+        })
+        if (updated.count === 0) {
+          throw new AppError(`Solde de points insuffisant`, 400)
+        }
+        const freshAccount = await tx.loyaltyAccount.findUnique({
+          where: { id: loyaltyAccount.id },
+          select: { points: true },
+        })
+        await tx.loyaltyTransaction.create({
+          data: {
+            type: 'SPEND',
+            points: -pointsToDeduct,
+            balance: freshAccount!.points,
+            description: `Paiement commande ${order.orderNumber}`,
+            accountId: loyaltyAccount.id,
+          },
+        })
       }
-      const freshAccount = await prisma.loyaltyAccount.findUnique({
-        where: { id: loyaltyAccount.id },
-        select: { points: true },
-      })
-      await prisma.loyaltyTransaction.create({
-        data: {
-          type: 'SPEND',
-          points: -pointsToDeduct,
-          balance: freshAccount!.points,
-          description: `Paiement commande ${order.orderNumber}`,
-          accountId: loyaltyAccount.id,
-        },
-      })
-    }
 
-    const payment = await prisma.payment.create({
-      data: { ...data, currency: 'MGA', status: 'COMPLETED' },
+      return tx.payment.create({
+        data: { ...data, currency: 'MGA', status: 'COMPLETED' },
+      })
     })
 
     const totalPaid = await prisma.payment.aggregate({
