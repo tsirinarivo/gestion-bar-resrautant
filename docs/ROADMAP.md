@@ -130,6 +130,14 @@
 - [x] Tous les fetch directs et useQuery du POS passent par `authFetch` ou `apiFetch` qui font le refresh transparent
 - [x] Résultat : le POS reste connecté 7 jours (durée du refresh token) avec rotation de l'access token toutes les 15 min
 
+### Sprint Race Conditions API (mai 2026) — Audit round 4 (suite)
+5 HIGH race conditions corrigées (analogues au Sprint API-1) :
+- [x] **bank.ts** : `autoPostPaymentToBank` + adjust manuel utilisent `balance: { increment/decrement }` atomique avec relecture dans la transaction pour `balanceAfter` exact (plus de solde corrompu sur 2 paiements simultanés).
+- [x] **customers.ts loyalty/adjust** : `updateMany` conditionnel sur `points: { gte: -points }` pour les déductions (double-spend), `increment` pour les ajouts, tier recalculé depuis valeurs fresh.
+- [x] **debts.ts pay** : `updateMany` conditionnel sur `paidAmount === debt.paidAmount` (optimistic locking). Si paiement concurrent → 409 + retry attendu.
+- [x] **warehouses.ts transfers/:id/complete** : claim atomique du transfert via `updateMany({ status: in [PENDING, IN_TRANSIT] })` au début de la transaction → impossible de compléter 2 fois.
+- [x] **orders.ts items READY → order READY** : `updateMany({ status: 'PREPARING' })` au lieu de read-then-update → pas de double-transition ni double-statusHistory.
+
 ### Sprint Sécurité (mai 2026) — Audit round 4
 8 critiques fix sur 9 :
 - [x] **Public order accepte unitPrice client** (`public.ts:78-186`) : suppression de `unitPrice` du body Zod, prix rechargés depuis la DB (`product.findMany` avec filtre `isActive isAvailable`). Si produit indisponible → 400.

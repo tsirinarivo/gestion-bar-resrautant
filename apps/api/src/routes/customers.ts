@@ -207,35 +207,52 @@ customerRouter.post('/:id/loyalty/adjust', authorize('manager', 'superadmin'), a
     if (!customer.loyaltyAccount) throw new AppError('Compte fidélité introuvable', 404)
 
     const account = customer.loyaltyAccount
-    const newBalance = account.points + points
-    if (newBalance < 0) throw new AppError('Solde de points insuffisant', 400)
 
-    // Recalculate tier based on totalEarned
-    const totalEarned = points > 0 ? account.totalEarned + points : account.totalEarned
-    let tier = 'BRONZE'
-    if (totalEarned >= 10000) tier = 'PLATINUM'
-    else if (totalEarned >= 5000) tier = 'GOLD'
-    else if (totalEarned >= 1000) tier = 'SILVER'
+    // Atomique : si on retire des points, updateMany conditionnel rejette le
+    // double-spend. Si on en ajoute, increment direct. Tier recalculé depuis
+    // les valeurs post-update (relues dans la transaction).
+    const updatedAccount = await prisma.$transaction(async (tx) => {
+      if (points < 0) {
+        const r = await tx.loyaltyAccount.updateMany({
+          where: { id: account.id, points: { gte: -points } },
+          data: { points: { increment: points } },
+        })
+        if (r.count === 0) throw new AppError('Solde de points insuffisant', 400)
+      } else {
+        await tx.loyaltyAccount.update({
+          where: { id: account.id },
+          data: {
+            points: { increment: points },
+            totalEarned: { increment: points },
+          },
+        })
+      }
 
-    const [updatedAccount] = await prisma.$transaction([
-      prisma.loyaltyAccount.update({
+      const fresh = await tx.loyaltyAccount.findUniqueOrThrow({
+        where: { id: account.id },
+        select: { points: true, totalEarned: true },
+      })
+      let tier = 'BRONZE'
+      if (fresh.totalEarned >= 10000) tier = 'PLATINUM'
+      else if (fresh.totalEarned >= 5000) tier = 'GOLD'
+      else if (fresh.totalEarned >= 1000) tier = 'SILVER'
+
+      return tx.loyaltyAccount.update({
         where: { id: account.id },
         data: {
-          points: newBalance,
-          totalEarned,
           tier,
           transactions: {
             create: {
               type: 'ADJUSTMENT',
               points,
-              balance: newBalance,
+              balance: fresh.points,
               description: reason,
             },
           },
         },
         include: { transactions: { orderBy: { createdAt: 'desc' }, take: 20 } },
-      }),
-    ])
+      })
+    })
 
     res.json({ success: true, data: updatedAccount })
   } catch (error) {

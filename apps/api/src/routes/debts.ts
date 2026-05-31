@@ -131,14 +131,28 @@ debtRouter.post('/:id/pay', authorize('manager', 'superadmin', 'caissier'), asyn
         throw new AppError(`Montant trop élevé — reste dû : ${Math.round(remaining)} MGA`, 400)
       }
 
-      const newPaid = debt.paidAmount + amount
-      const newStatus = newPaid >= debt.amount - 1 ? 'PAID' : 'PARTIAL'
+      // Atomique : updateMany conditionnel — ne paie que si paidAmount n'a pas
+      // bougé entre le findFirst et l'update (2 paiements concurrents auraient
+      // count=0 sur le 2e et on lève une erreur).
+      const r = await tx.customerDebt.updateMany({
+        where: { id: debt.id, paidAmount: debt.paidAmount },
+        data: { paidAmount: { increment: amount } },
+      })
+      if (r.count === 0) {
+        throw new AppError('Paiement concurrent détecté — réessayez', 409)
+      }
+
+      const fresh = await tx.customerDebt.findUniqueOrThrow({
+        where: { id: debt.id },
+        select: { paidAmount: true, amount: true },
+      })
+      const newStatus = fresh.paidAmount >= fresh.amount - 1 ? 'PAID' : 'PARTIAL'
 
       await tx.debtPayment.create({ data: { debtId: debt.id, amount, method, notes } })
 
       return tx.customerDebt.update({
         where: { id: debt.id },
-        data: { paidAmount: newPaid, status: newStatus },
+        data: { status: newStatus },
         include: {
           customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
           payments: { orderBy: { createdAt: 'desc' } },

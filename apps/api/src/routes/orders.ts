@@ -871,20 +871,27 @@ orderRouter.patch('/:id/items/:itemId/status', async (req: AuthRequest, res, nex
       data: { status, preparedAt: status === 'READY' ? new Date() : item.preparedAt },
     })
 
-    // If all items READY → mark order READY (when order was PREPARING)
+    // If all items READY → mark order READY (when order was PREPARING).
+    // Atomique : updateMany conditionnel (status='PREPARING'), évite la double
+    // transition + double statusHistory si 2 items passent READY simultanément.
     if (status === 'READY') {
       const order = await prisma.order.findUnique({
         where: { id: req.params.id },
         include: { items: { select: { status: true } } },
       })
       if (order && order.status === 'PREPARING' && order.items.every(i => i.status === 'READY' || i.status === 'CANCELLED')) {
-        await prisma.order.update({
-          where: { id: order.id },
-          data: { status: 'READY', readyAt: new Date(), statusHistory: { create: { status: 'READY', changedBy: req.user!.id } } },
+        const claim = await prisma.order.updateMany({
+          where: { id: order.id, status: 'PREPARING' },
+          data: { status: 'READY', readyAt: new Date() },
         })
-        const io = req.app.get('io')
-        const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } })
-        io?.to(req.user!.restaurantId).emit('order:status_changed', { orderId: order.id, status: 'READY', order: updatedOrder })
+        if (claim.count === 1) {
+          await prisma.orderStatusHistory.create({
+            data: { orderId: order.id, status: 'READY', changedBy: req.user!.id },
+          }).catch(err => console.error(`[order ${order.id}] statusHistory create failed:`, err))
+          const io = req.app.get('io')
+          const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } })
+          io?.to(req.user!.restaurantId).emit('order:status_changed', { orderId: order.id, status: 'READY', order: updatedOrder })
+        }
       }
     }
 

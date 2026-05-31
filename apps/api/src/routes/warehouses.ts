@@ -219,6 +219,15 @@ warehouseRouter.post('/transfers/:id/complete', async (req: AuthRequest, res, ne
     }
     // Execute stock movements in a transaction
     await prisma.$transaction(async (tx) => {
+      // Verrou logique : claim atomique du transfert en COMPLETED. Si un autre
+      // appel concurrent l'a déjà passé en COMPLETED, count===0 → on rejette.
+      const claim = await tx.stockTransfer.updateMany({
+        where: { id: req.params.id, status: { in: ['PENDING', 'IN_TRANSIT'] } },
+        data: { status: 'COMPLETED', completedAt: new Date() },
+      })
+      if (claim.count === 0) {
+        throw new AppError('Ce transfert a déjà été complété', 409)
+      }
       for (const item of transfer.items) {
         const src = item.stockItem
         // Deduct from source
@@ -274,10 +283,6 @@ warehouseRouter.post('/transfers/:id/complete', async (req: AuthRequest, res, ne
           },
         })
       }
-      await tx.stockTransfer.update({
-        where: { id: req.params.id },
-        data: { status: 'COMPLETED', completedAt: new Date() },
-      })
     })
     res.json({ success: true, data: { status: 'COMPLETED' } })
   } catch (error) { next(error) }

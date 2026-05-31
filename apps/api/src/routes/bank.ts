@@ -40,13 +40,19 @@ export async function autoPostPaymentToBank(
     where: { restaurantId, paymentMethod, isActive: true },
   })
   if (!account) return // no linked account — silently skip
-  const newBalance = type === 'CREDIT' ? account.balance + amount : account.balance - amount
-  await prisma.$transaction([
-    prisma.bankAccount.update({ where: { id: account.id }, data: { balance: newBalance } }),
-    prisma.bankTransaction.create({
-      data: { accountId: account.id, restaurantId, type, amount, balanceAfter: newBalance, description, reference },
-    }),
-  ])
+  // Atomique : increment/decrement par Postgres puis relecture de balance dans
+  // la même transaction pour balanceAfter exact (sinon 2 paiements simultanés
+  // calculent newBalance depuis la même valeur → solde corrompu).
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.bankAccount.update({
+      where: { id: account.id },
+      data: type === 'CREDIT' ? { balance: { increment: amount } } : { balance: { decrement: amount } },
+      select: { balance: true },
+    })
+    await tx.bankTransaction.create({
+      data: { accountId: account.id, restaurantId, type, amount, balanceAfter: updated.balance, description, reference },
+    })
+  })
 }
 
 // GET /api/bank/accounts
@@ -152,26 +158,27 @@ bankRouter.post('/accounts/:id/transactions', async (req: AuthRequest, res, next
       where: { id: req.params.id, restaurantId },
     })
     if (!account) throw new AppError('Compte introuvable', 404)
-    const newBalance =
-      data.type === 'CREDIT' ? account.balance + data.amount : account.balance - data.amount
-    const [, transaction] = await prisma.$transaction([
-      prisma.bankAccount.update({
+    const transaction = await prisma.$transaction(async (tx) => {
+      const updated = await tx.bankAccount.update({
         where: { id: req.params.id },
-        data: { balance: newBalance },
-      }),
-      prisma.bankTransaction.create({
+        data: data.type === 'CREDIT'
+          ? { balance: { increment: data.amount } }
+          : { balance: { decrement: data.amount } },
+        select: { balance: true },
+      })
+      return tx.bankTransaction.create({
         data: {
           accountId: req.params.id,
           restaurantId,
           type: data.type,
           amount: data.amount,
-          balanceAfter: newBalance,
+          balanceAfter: updated.balance,
           description: data.description,
           reference: data.reference,
           date: data.date ? new Date(data.date) : new Date(),
         },
-      }),
-    ])
+      })
+    })
     res.status(201).json({ success: true, data: transaction })
   } catch (error) { next(error) }
 })
