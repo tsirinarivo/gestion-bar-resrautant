@@ -50,7 +50,19 @@ else
 fi
 
 header "4. Build des images"
-$DC build --no-cache \
+# ssh-agent pour le build api (imprimantcloud est un repo privé, clone via ssh).
+# La clé SSH du host est exposée temporairement au build via BuildKit secret ssh.
+if [ -z "${SSH_AUTH_SOCK:-}" ]; then
+  eval "$(ssh-agent -s)" > /dev/null
+  SSH_KEY="${GITHUB_SSH_KEY:-$HOME/.ssh/id_rsa}"
+  if [ -f "$SSH_KEY" ]; then
+    ssh-add "$SSH_KEY" 2>/dev/null && log "Clé SSH ajoutée à l'agent ($SSH_KEY)"
+  else
+    warn "Aucune clé SSH trouvée à $SSH_KEY — le build api va échouer (imprimantcloud privé)"
+  fi
+fi
+
+DOCKER_BUILDKIT=1 $DC build --no-cache \
   --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
   --build-arg NEXT_PUBLIC_SOCKET_URL="$NEXT_PUBLIC_SOCKET_URL"
 

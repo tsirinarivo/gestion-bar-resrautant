@@ -1,16 +1,14 @@
+# syntax=docker/dockerfile:1.4
 # ── Stage 1: deps ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS deps
-# git nécessaire pour résoudre imprimantcloud (github:tsirinarivo/ImprimantCloud)
-RUN apk add --no-cache libc6-compat openssl git
+# git + openssh-client pour cloner imprimantcloud (repo privé, via ssh github)
+RUN apk add --no-cache libc6-compat openssl git openssh-client
 
-# npm/hosted-git-info construit ssh://git@github.com pour les deps git, ignorant
-# le resolved du lockfile. On force git à rewriter via insteadOf, en écrivant
-# directement le fichier (git config --system ne semble pas être lu par alpine
-# dans certains contextes). On écrit dans plusieurs locations + env vars.
-RUN printf '[url "https://github.com/"]\n\tinsteadOf = ssh://git@github.com/\n\tinsteadOf = git@github.com:\n\tinsteadOf = git+ssh://git@github.com/\n' \
-    | tee /etc/gitconfig /root/.gitconfig > /dev/null
-ENV GIT_CONFIG_GLOBAL=/root/.gitconfig
-ENV GIT_CONFIG_SYSTEM=/etc/gitconfig
+# Pré-accepter github.com dans known_hosts (sinon ssh demande confirmation
+# interactive et le clone échoue en CI)
+RUN mkdir -p /root/.ssh && \
+    ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> /root/.ssh/known_hosts && \
+    chmod 600 /root/.ssh/known_hosts
 
 WORKDIR /app
 
@@ -20,7 +18,10 @@ COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/api/package.json ./apps/api/
 
-RUN npm ci --workspace=apps/api --workspace=packages/database --workspace=packages/types --workspace=packages/utils
+# BuildKit secret SSH : la clé SSH host est montée comme socket éphémère
+# pendant cette étape uniquement (pas persistée dans l'image).
+RUN --mount=type=ssh \
+    npm ci --workspace=apps/api --workspace=packages/database --workspace=packages/types --workspace=packages/utils
 
 # ── Stage 2: build ───────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder

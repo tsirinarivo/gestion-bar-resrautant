@@ -96,6 +96,8 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      ssh:
+        - default
     image: restaurant_api:latest
     container_name: restaurant_api
     restart: unless-stopped
