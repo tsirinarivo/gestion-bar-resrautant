@@ -2,6 +2,12 @@
 FROM node:20-alpine AS deps
 # git nécessaire pour résoudre imprimantcloud (github:tsirinarivo/ImprimantCloud)
 RUN apk add --no-cache libc6-compat openssl git
+# Filet de sécurité : si une sous-dépendance utilise ssh://git@github.com/ (ou
+# git@github.com:), on rewrite vers HTTPS en config system (lu par tous les
+# sous-processus git, peu importe HOME).
+RUN git config --system url."https://github.com/".insteadOf "ssh://git@github.com/" && \
+    git config --system url."https://github.com/".insteadOf "git@github.com:" && \
+    git config --system url."https://github.com/".insteadOf "git+ssh://git@github.com/"
 WORKDIR /app
 
 COPY package.json package-lock.json turbo.json ./
