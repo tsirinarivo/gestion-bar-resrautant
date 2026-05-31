@@ -52,12 +52,20 @@ fi
 header "4. Build des images"
 # ssh-agent pour le build api (imprimantcloud est un repo privé, clone via ssh).
 # La clé SSH du host est exposée temporairement au build via BuildKit secret ssh.
-SSH_KEY="${GITHUB_SSH_KEY:-$HOME/.ssh/id_rsa}"
-if [ ! -f "$SSH_KEY" ]; then
-  echo -e "${RED}❌ Aucune clé SSH trouvée à $SSH_KEY${RESET}"
+SSH_KEY="${GITHUB_SSH_KEY:-}"
+if [ -z "$SSH_KEY" ]; then
+  for candidate in "$HOME/.ssh/id_ed25519" "$HOME/.ssh/id_ecdsa" "$HOME/.ssh/id_rsa" "$HOME/.ssh/github" "$HOME/.ssh/github_rsa"; do
+    if [ -f "$candidate" ]; then
+      SSH_KEY="$candidate"
+      break
+    fi
+  done
+fi
+if [ -z "$SSH_KEY" ] || [ ! -f "$SSH_KEY" ]; then
+  echo -e "${RED}❌ Aucune clé SSH trouvée dans $HOME/.ssh/ (testé id_ed25519, id_ecdsa, id_rsa, github, github_rsa)${RESET}"
   echo "   Le build api va échouer car imprimantcloud est un repo github privé."
   echo "   Solutions :"
-  echo "   - Génère une clé : ssh-keygen -t ed25519 -f $SSH_KEY"
+  echo "   - Génère une clé : ssh-keygen -t ed25519 -f $HOME/.ssh/id_ed25519"
   echo "   - Ajoute la clé publique à github : https://github.com/settings/keys"
   echo "   - Ou pointe vers une autre clé : export GITHUB_SSH_KEY=/chemin/vers/cle"
   exit 1
