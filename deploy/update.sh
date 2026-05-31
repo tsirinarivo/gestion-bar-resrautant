@@ -52,14 +52,28 @@ fi
 header "4. Build des images"
 # ssh-agent pour le build api (imprimantcloud est un repo privé, clone via ssh).
 # La clé SSH du host est exposée temporairement au build via BuildKit secret ssh.
-if [ -z "${SSH_AUTH_SOCK:-}" ]; then
-  eval "$(ssh-agent -s)" > /dev/null
-  SSH_KEY="${GITHUB_SSH_KEY:-$HOME/.ssh/id_rsa}"
-  if [ -f "$SSH_KEY" ]; then
-    ssh-add "$SSH_KEY" 2>/dev/null && log "Clé SSH ajoutée à l'agent ($SSH_KEY)"
-  else
-    warn "Aucune clé SSH trouvée à $SSH_KEY — le build api va échouer (imprimantcloud privé)"
-  fi
+SSH_KEY="${GITHUB_SSH_KEY:-$HOME/.ssh/id_rsa}"
+if [ ! -f "$SSH_KEY" ]; then
+  echo -e "${RED}❌ Aucune clé SSH trouvée à $SSH_KEY${RESET}"
+  echo "   Le build api va échouer car imprimantcloud est un repo github privé."
+  echo "   Solutions :"
+  echo "   - Génère une clé : ssh-keygen -t ed25519 -f $SSH_KEY"
+  echo "   - Ajoute la clé publique à github : https://github.com/settings/keys"
+  echo "   - Ou pointe vers une autre clé : export GITHUB_SSH_KEY=/chemin/vers/cle"
+  exit 1
+fi
+
+# Toujours démarrer un agent propre (un agent fantôme avec SSH_AUTH_SOCK
+# pointant vers un socket mort fait échouer docker compose)
+eval "$(ssh-agent -s)" > /dev/null
+trap 'ssh-agent -k > /dev/null 2>&1' EXIT
+export SSH_AUTH_SOCK SSH_AGENT_PID
+if ssh-add "$SSH_KEY" 2>&1 | grep -q "Identity added"; then
+  log "Clé SSH ajoutée à l'agent ($SSH_KEY)"
+else
+  echo -e "${RED}❌ Impossible d'ajouter $SSH_KEY à ssh-agent${RESET}"
+  ssh-add "$SSH_KEY"
+  exit 1
 fi
 
 DOCKER_BUILDKIT=1 $DC build --no-cache \
