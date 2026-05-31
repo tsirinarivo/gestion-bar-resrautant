@@ -10,10 +10,6 @@ COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/api/package.json ./apps/api/
 
-# Le lockfile a résolu imprimantcloud via git+ssh://git@github.com (ssh+clé requis).
-# On le réécrit en git+https:// avant npm ci — repo public, pas d'auth nécessaire.
-RUN sed -i 's|git+ssh://git@github.com/|git+https://github.com/|g' package-lock.json
-
 RUN npm ci --workspace=apps/api --workspace=packages/database --workspace=packages/types --workspace=packages/utils
 
 # ── Stage 2: build ───────────────────────────────────────────────────────────
