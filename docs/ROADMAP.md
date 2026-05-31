@@ -106,11 +106,62 @@
 - [x] Architecture : 1 Postgres partagé / 1 DB par tenant / 1 stack Docker isolée par tenant
 - [x] Allocation auto de ports (4100 + idx*10) et de DB Redis numérique
 
+### Branding Sakafio (mai 2026)
+- [x] Renommage complet "RestaurantOS" → "Sakafio" (code, scripts, README, doc, JSX)
+- [x] Création de 3 propositions de logo SVG (moderne, gourmand, Madagascar) dans `docs/branding/logo-options/`
+- [x] Logo final retenu : bowl orange chaud + verre cocktail martini + olive + glaçons + tranche d'orange (option finale)
+- [x] Intégration logo dans les 5 apps : `apps/*/public/{logo,favicon,logo-horizontal}.svg`
+- [x] Mise à jour des pages login (master + admin) avec logo + tagline "Logiciel pour votre restaurant et bar"
+- [x] Mise à jour des sidebars (master + admin) avec logo + sous-tagline "Restaurant & Bar"
+- [x] Open Graph meta tags (image + url sakafio.mg + description) pour preview WhatsApp/Facebook
+- [x] Manifest PWA : icônes pointent vers `/logo.svg`, theme color orange `#EA580C`
+- [x] README en tête : bandeau horizontal du logo
+- [x] Fix Dockerfile master : copy `public/` (sinon 404 sur favicons)
+
+### Infrastructure post-MT-1
+- [x] `deploy/nginx/pos.sakafio.mg.conf` et `kds.sakafio.mg.conf` : passage de redirections 301 vers `admin.sakafio.mg/pos` à de vrais `proxy_pass` vers les containers `restaurant_pos:3001` et `restaurant_kds:3002`
+- [x] Script `deploy/sync-nginx.sh` (sudo) : sync configs nginx du repo vers `/etc/nginx/sites-{available,enabled}/`, nettoie les doublons `domain.conf` historiques, reload nginx + certbot --reinstall pour restaurer SSL
+- [x] Sidebar admin : bouton "Ouvrir le POS" calcule l'URL dynamiquement depuis `window.location.hostname` (multi-tenant safe : admin-bistrot → pos-bistrot)
+
+### Auth POS (mai 2026)
+- [x] Module `apps/pos/src/lib/auth-fetch.ts` : token au module-level + subscribe pattern + refresh auto
+- [x] Sur 401, l'app POS tente automatiquement un `POST /api/auth/refresh` avec `credentials:'include'`
+- [x] Single-flight pour éviter les refresh concurrents (`_refreshInFlight` promise)
+- [x] Tous les fetch directs et useQuery du POS passent par `authFetch` ou `apiFetch` qui font le refresh transparent
+- [x] Résultat : le POS reste connecté 7 jours (durée du refresh token) avec rotation de l'access token toutes les 15 min
+
+### Audit + 12 bugs corrigés (mai 2026, commits 536f39c / 2f75f0d / b987174)
+- [x] CLIENT checkout : math du tip corrigée (`Math.round(s * 0.05 / 100) * 100` qui arrondissait à 100 MGA près → 5% de 200 MGA = 0)
+- [x] MASTER nouveau tenant : champ "Mot de passe initial" `type="text"` → `type="password"` (visible à l'écran)
+- [x] KDS : `new QueryClient()` au module level → déplacé dans `useState(() => new QueryClient())` (pollution cache cross-user)
+- [x] API payments WALLET : loyalty deduction + payment.create wrappés dans `prisma.$transaction` (rollback atomique si payment fail)
+- [x] Sidebar admin : POS_URL multi-tenant safe (hostname-based)
+- [x] POS : staleTime products 0 → 30s (perf re-fetch agressif)
+- [x] POS RefundModal : validation côté client `amount > payment.amount`
+- [x] Web orders page : localStorage en initializer → useEffect (hydration mismatch SSR/client)
+- [x] Web login page : pareil pour `remembered-email`
+- [x] API public.ts : `coupon.update().catch(()=>{})` fire-and-forget → await + log d'erreur
+- [x] API orders.ts : `deductStockForOrder().catch(()=>{})` silencieux → log d'erreur
+- [x] API payments.ts : pareil pour stock + loyalty après paiement
+
 ---
 
 ## 🗂️ File d'attente
 
 > Sprints regroupés par thème, dans l'ordre de priorité recommandé.
+
+### 🔴 Priorité haute — Stabilité
+
+#### Sprint API-1 — Refactor transactions critiques (race conditions documentées)
+4 bugs structurels identifiés par audit profond, non corrigés car nécessitent refactor :
+
+- **Stock race cross-order** (`orders.ts:477`) : la vérification stock est en dehors de la transaction de création de l'order. 2 commandes simultanées avec stock=5 passent toutes les deux et créent un stock négatif après les paiements. Fix : déduire le stock à la création (PENDING reserves) dans une transaction Prisma, ou utiliser un lock applicatif.
+
+- **Coupon usage atomique** (`orders.ts:506-540` + `public.ts:179`) : la vérification `usageCount < usageLimit` n'est pas atomique avec l'incrémentation. 2 utilisations simultanées peuvent dépasser la limite. Fix : `couponUsage.create` + `coupon.update increment` dans la même transaction que `order.create`.
+
+- **Table occupancy multi-update** (`orders.ts:401-428`) : le transfer table fait 3 updates non-atomiques (release old, update order, occupy new). Race window entre les 2 updates où une 3ème requête voit un état intermédiaire. Fix : wrapper dans `prisma.$transaction`.
+
+- **POS refresh single-flight race** (`apps/pos/src/lib/auth-fetch.ts:49`) : le `setTimeout(reset, 0)` dans le `finally` laisse une micro-fenêtre où 2 refresh concurrents sont possibles. Fix : utiliser un flag synchrone (reset avant le `return` du IIFE, pas dans `setTimeout`).
 
 ### 🔴 Priorité haute — Multi-tenant SaaS
 
@@ -212,3 +263,7 @@
 | 2026-05 | Batches 1-5 | 22 features implémentées en mode autonome sur la branche claude/restaurant-management-app-cFnVm |
 | 2026-05 | Resume #1 | Sprints A4, A5, B4, B6, B7, C3, C8 + fix latent `/stock/expiring` (déclaré après `/:id`). Skip C1 car `tables/page.tsx` non touchable. |
 | 2026-05 | Sprint MT-1 | Architecture multi-tenant SaaS : app `apps/master` + DB master séparée + provisioning auto via UI. Stack Docker isolée par client, Postgres partagé. Allocation ports auto à partir de 4100. |
+| 2026-05 | Branding Sakafio | Rebrand complet "RestaurantOS" → "Sakafio". 3 propositions logo SVG → option finale (bowl + cocktail martini) retenue. Intégrée dans les 5 apps (favicons, login, sidebar, OG meta). Fix Dockerfile master pour copy public/. |
+| 2026-05 | Infra fixes | Découverte que `deploy/nginx/pos.sakafio.mg.conf` et `kds.sakafio.mg.conf` faisaient des redirections 301 vers admin (héritage design unifié), remplacés par vrais proxy_pass vers containers. Nouveau script `sync-nginx.sh` qui nettoie aussi les doublons `domain.conf` vs `domain`. Décision : modèle B (apps POS/KDS séparées) plutôt que modèle unifié dans admin. |
+| 2026-05 | POS refresh auto | Refonte du flow d'auth POS pour supporter un refresh automatique via `/api/auth/refresh` + cookie. Module `auth-fetch.ts` avec subscribe pattern + single-flight. Évite la déconnexion toutes les 15 min. |
+| 2026-05 | Audit profond | 3 rounds, 12 bugs corrigés (CLIENT tip math, MASTER password type, KDS QueryClient module-level, payments WALLET transaction, hydration SSR/client, error logging silent, etc.). 4 bugs structurels documentés en Sprint API-1 pour refactor futur. |

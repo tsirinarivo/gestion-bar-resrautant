@@ -62,7 +62,14 @@ cd /opt/restaurant && bash deploy/update.sh
 
 **Règle absolue** : ne jamais demander à l'utilisateur de copier-coller une commande — toujours terminer avec le script ci-dessus directement dans le chat.
 
-Le script fait : `git pull` → `docker compose build` → `restart` → `prisma db push --accept-data-loss`
+Le script `update.sh` fait : `git pull` → `docker compose build --no-cache` → `restart` → `prisma db push --accept-data-loss`. Il pull la branche `claude/restaurant-management-app-cFnVm`.
+
+**Scripts deploy complémentaires** :
+- `deploy/sync-nginx.sh` (sudo requis) : pousse `deploy/nginx/*.conf` dans `/etc/nginx/sites-available/`, nettoie les doublons `domain.conf` vs `domain` (sans extension), reload nginx, certbot --reinstall pour restaurer SSL. À lancer seulement quand on modifie des configs nginx.
+- `deploy/new-tenant.sh` : provisionne un tenant (DB + stack Docker + nginx config + premier admin).
+- `deploy/master-init.sh` : init DB master + premier OWNER (one-shot).
+- `deploy/smoke-test.sh` : tests de santé.
+- `deploy/restore-postgres.sh` : restore depuis backup.
 
 ---
 
@@ -134,9 +141,17 @@ Dashboard KPIs, Commandes, Tables/plan de salle, Menu + Modificateurs, Stock + d
 - **Client** : menu public, panier, checkout, historique commandes, suivi commande temps réel, appel serveur QR
 
 ### Infrastructure
-- Déployé sur VPS Ubuntu avec Docker Compose + Nginx Proxy Manager
+- Déployé sur VPS Ubuntu avec Docker Compose + **nginx natif Ubuntu + Certbot** (PAS Nginx Proxy Manager)
+- Configs nginx versionnées dans `deploy/nginx/*.conf` → script `deploy/sync-nginx.sh` (sudo) pour les pousser dans `/etc/nginx/sites-available/` + reload + certbot --reinstall
 - Imprimante thermique cloud via XPyun (package `imprimantcloud`)
 - Socket.io pour temps réel (commandes, KDS, notifications)
+
+### Branding
+- Logo Sakafio en SVG : `apps/*/public/logo.svg` + `favicon.svg` + `logo-horizontal.svg`
+- Source du logo : `docs/branding/logo-options/option-final-*.svg`
+- Composition : bowl orange chaud (restaurant) + verre cocktail martini (bar) — palette ambre/orange/cyan
+- Tagline : "Logiciel pour votre restaurant et bar"
+- Le branding tenant (Le Bistrot Moderne) reste pour `apps/client` (vitrine publique du restaurant)
 
 ---
 
@@ -156,12 +171,18 @@ Dashboard KPIs, Commandes, Tables/plan de salle, Menu + Modificateurs, Stock + d
 
 ## Pièges connus
 
-- **Express route ordering** : toujours mettre `/bulk`, `/stats`, `/upload-image`, `/inventory-count`, `/reminders` AVANT `/:id` dans le même router.
+- **Express route ordering** : toujours mettre `/bulk`, `/stats`, `/upload-image`, `/inventory-count`, `/reminders` AVANT `/:id` dans le même router (uniquement si même méthode HTTP — POST `/bulk` cohabite avec PUT `/:id` sans conflit).
 - **`performedBy` n'existe pas** sur `StockMovement` — utiliser `createdBy`.
 - **`noUncheckedIndexedAccess`** : `arr[0]` peut être `undefined` même si le tableau est non-vide — toujours utiliser optional chaining ou vérification explicite.
 - **Multer déjà installé** dans `apps/api/package.json` — ne pas réinstaller.
 - **`date-fns` déjà installé** dans `apps/api` — utiliser `subDays`, `startOfDay`, `endOfDay` directement.
 - **Ne pas toucher** `tables/page.tsx` (erreur qrcode.react pré-existante).
+- **Nginx natif (pas NPM)** : les configs sont versionnées dans `deploy/nginx/`. Pour modifier une config nginx, éditer le fichier dans le repo puis lancer `sudo bash deploy/sync-nginx.sh`. Le script gère les doublons `domain.conf` vs `domain` qui peuvent apparaître à cause de setups historiques différents.
+- **Dockerfile master** doit copier `apps/master/public` vers `./apps/master/public` ET `./public` (à cause du standalone Next.js qui cherche public/ relatif au cwd).
+- **Refresh token** : table `RefreshToken` en DB. Lookup par valeur token (pas par userId). Rotation à chaque refresh (delete + create). `prisma db push --accept-data-loss` peut vider cette table → tous les users perdent leur session.
+- **Hydration mismatch SSR/client** : ne JAMAIS lire `localStorage` dans `useState(() => ...)` initializer. Utiliser `useState('') + useEffect` qui charge après mount.
+- **CORS** : `ALLOWED_ORIGINS` dans `.env.prod` doit lister TOUS les sous-domaines (admin, pos, kds, master, sakafio.mg). Sinon les apps non-listées ont leurs requêtes API bloquées silencieusement.
+- **4 bugs structurels documentés (race conditions)** non corrigés — voir Sprint API-1 dans ROADMAP : stock cross-order, coupon usage atomique, table occupancy multi-step, POS refresh single-flight (`setTimeout` au lieu de flag synchrone).
 - _(Section à compléter au fil du temps)_
 
 ---
