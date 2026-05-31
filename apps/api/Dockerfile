@@ -2,6 +2,10 @@
 FROM node:20-alpine AS deps
 # git nécessaire pour résoudre imprimantcloud (github:tsirinarivo/ImprimantCloud)
 RUN apk add --no-cache libc6-compat openssl git
+# Le lockfile résout imprimantcloud via ssh://git@github.com — sans clé SSH dans
+# l'image, on force git à utiliser HTTPS à la place (repo public).
+RUN git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" && \
+    git config --global url."https://github.com/".insteadOf "git@github.com:"
 WORKDIR /app
 
 COPY package.json package-lock.json turbo.json ./
