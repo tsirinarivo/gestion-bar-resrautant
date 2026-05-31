@@ -1,6 +1,7 @@
 # ── Stage 1: deps ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat openssl
+# git nécessaire pour résoudre imprimantcloud (github:tsirinarivo/ImprimantCloud)
+RUN apk add --no-cache libc6-compat openssl git
 WORKDIR /app
 
 COPY package.json package-lock.json turbo.json ./
