@@ -130,6 +130,22 @@
 - [x] Tous les fetch directs et useQuery du POS passent par `authFetch` ou `apiFetch` qui font le refresh transparent
 - [x] Résultat : le POS reste connecté 7 jours (durée du refresh token) avec rotation de l'access token toutes les 15 min
 
+### Sprint Sécurité (mai 2026) — Audit round 4
+8 critiques fix sur 9 :
+- [x] **Public order accepte unitPrice client** (`public.ts:78-186`) : suppression de `unitPrice` du body Zod, prix rechargés depuis la DB (`product.findMany` avec filtre `isActive isAvailable`). Si produit indisponible → 400.
+- [x] **TVA incohérente public/POS** (`public.ts:107`) : `taxAmount = 0` partout (cohérent avec orders.ts, prix produits TTC).
+- [x] **Rate-limit /api/public/*** : nouveau `publicLimiter` (50/15min/IP) sur tout le router public — protège orders, coupons, reviews du spam.
+- [x] **Reviews proof-of-order** (`public.ts:332`) : `orderNumber` obligatoire + vérif `status === 'COMPLETED'` + 1 review max par commande.
+- [x] **certbot --reinstall systématique** (`sync-nginx.sh:101`) : remplacé par check `certbot certificates | grep` pour ne renouveler que les certs manquants/expirés (évite rate-limit Let's Encrypt 5/sem).
+- [x] **update.sh ne migrait pas les tenants** : itère sur `pg_database WHERE datname LIKE 'tenant_%'` et fait `prisma db push` sur chaque DB tenant.
+- [x] **JWT `algorithms: ['HS256']` explicite** dans `auth.ts` (sign + verify refresh) + `middleware/auth.ts` (verify access).
+
+**Critiques reportées (refactor architectural)** :
+- Master container exposé à docker.sock + bind /opt + nginx RW (RCE → root host) — nécessite refonte du flow new-tenant (queue de jobs hôte au lieu de child_process depuis master)
+- Master container run en root — couplé au point précédent (docker-cli nécessite groupe docker)
+- Rôle Postgres unique partagé master+tenants — nécessite refactor du provisioning : un rôle par tenant + GRANTs
+- Rôle "superadmin" comparé par nom string — nécessite migration schema (boolean isSuperAdmin sur Role) + refactor des authorize() partout
+
 ### Sprint API-1 — Refactor transactions critiques (mai 2026)
 - [x] **Stock race cross-order** : vérif stock + create order wrappés dans `prisma.$transaction({ isolationLevel: 'Serializable' })`. Postgres rollback en cas de conflit → plus de stock négatif sur commandes simultanées. Quantités agrégées par produit (un même productId peut apparaître plusieurs fois).
 - [x] **Coupon usage atomique** : `coupon.updateMany` conditionnel (`where: usageCount < usageLimit`) à la place du `findFirst` + `update` non-atomique. Le `updateMany` retourne `count === 0` si déjà épuisé → AppError. Appliqué dans `orders.ts` ET `public.ts`. La création de `couponUsage` est maintenant dans la même transaction.

@@ -26,13 +26,13 @@ function generateTokens(userId: string, restaurantId: string, roleId: string, ro
   const accessToken = jwt.sign(
     { userId, restaurantId, roleId, roleName },
     process.env.JWT_SECRET!,
-    { expiresIn: (process.env.JWT_EXPIRES_IN || '15m') as any }
+    { expiresIn: (process.env.JWT_EXPIRES_IN || '15m') as any, algorithm: 'HS256' }
   )
 
   const refreshToken = jwt.sign(
     { userId, restaurantId, roleId, roleName },
     process.env.JWT_REFRESH_SECRET!,
-    { expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as any }
+    { expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as any, algorithm: 'HS256' }
   )
 
   return { accessToken, refreshToken }
@@ -112,7 +112,7 @@ authRouter.post('/refresh', async (req, res, next) => {
       throw new AppError('Refresh token invalide ou expiré', 401)
     }
 
-    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as any
+    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!, { algorithms: ['HS256'] }) as any
 
     const { accessToken, refreshToken: newRefreshToken } = generateTokens(
       stored.user.id,

@@ -104,9 +104,30 @@ log "API redémarrée"
 $DC up -d --no-deps web pos kds client master
 log "Frontends + master redémarrés"
 
-header "6. Migrations"
-$DC run --rm migrate sh -c "npx prisma db push --accept-data-loss" || true
-log "Migrations exécutées (snapshot dispo : $PRE_DUMP)"
+header "6. Migrations (master + tous les tenants)"
+# Migration de la DB master (schéma packages/database)
+if ! $DC run --rm migrate sh -c "npx prisma db push --accept-data-loss"; then
+  warn "Migration DB master a échoué — snapshot dispo : $PRE_DUMP"
+fi
+
+# Migration des DBs tenants : on liste toutes les DBs tenant_* et on pousse
+# le même schéma sur chacune. Sans ça, divergence schéma vs code après chaque
+# déploiement multi-tenant → crash silencieux des apps tenant.
+TENANT_DBS=$($DC exec -T postgres psql -U "${POSTGRES_USER:-restaurant_user}" -d postgres -tAc \
+  "SELECT datname FROM pg_database WHERE datname LIKE 'tenant_%'" 2>/dev/null | tr -d '\r' || true)
+if [ -n "$TENANT_DBS" ]; then
+  for tdb in $TENANT_DBS; do
+    [ -z "$tdb" ] && continue
+    TENANT_URL="postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${tdb}"
+    if $DC run --rm -e DATABASE_URL="$TENANT_URL" migrate sh -c "npx prisma db push --accept-data-loss" > /dev/null 2>&1; then
+      log "  → $tdb migré"
+    else
+      warn "  → $tdb : migration échouée (snapshot dispo : $PRE_DUMP)"
+    fi
+  done
+else
+  log "Aucune DB tenant détectée"
+fi
 
 header "7. Services d'infrastructure (backup + watchdog)"
 mkdir -p ./logs

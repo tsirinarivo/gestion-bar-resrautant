@@ -98,16 +98,29 @@ header "Reload Nginx"
 systemctl reload nginx
 log "Nginx rechargé"
 
-header "Restauration SSL (certbot --reinstall)"
-DOMAIN_ARGS=""
+header "Restauration SSL (certbot — uniquement si cert manquant/expiré)"
+# IMPORTANT : on N'utilise PAS --reinstall systématique, sinon hit du rate-limit
+# Let's Encrypt (5 duplicate certs/semaine) à chaque sync nginx. On laisse certbot
+# décider via --keep-until-expiring (no-op si le cert est valide >30j).
+DOMAINS_TO_RENEW=()
 for d in "${CHANGED_DOMAINS[@]}"; do
-  DOMAIN_ARGS="${DOMAIN_ARGS} -d ${d}"
+  if ! certbot certificates 2>/dev/null | grep -q "Domains: ${d}"; then
+    DOMAINS_TO_RENEW+=("$d")
+  fi
 done
 
-if certbot --nginx --reinstall --non-interactive --redirect ${DOMAIN_ARGS} 2>&1 | tail -8; then
-  log "SSL réinstallé pour : ${CHANGED_DOMAINS[*]}"
+if [ ${#DOMAINS_TO_RENEW[@]} -eq 0 ]; then
+  log "Tous les certs SSL déjà valides — aucun appel certbot nécessaire"
 else
-  warn "certbot --reinstall a échoué — vérifie manuellement les blocs SSL"
+  DOMAIN_ARGS=""
+  for d in "${DOMAINS_TO_RENEW[@]}"; do
+    DOMAIN_ARGS="${DOMAIN_ARGS} -d ${d}"
+  done
+  if certbot --nginx --keep-until-expiring --non-interactive --redirect --agree-tos ${DOMAIN_ARGS} 2>&1 | tail -8; then
+    log "SSL obtenu/renouvelé pour : ${DOMAINS_TO_RENEW[*]}"
+  else
+    warn "certbot a échoué — vérifie manuellement les blocs SSL"
+  fi
 fi
 
 systemctl reload nginx 2>/dev/null || true

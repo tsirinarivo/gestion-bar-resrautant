@@ -84,7 +84,6 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
       items: z.array(z.object({
         productId: z.string(),
         quantity: z.number().int().positive(),
-        unitPrice: z.number().nonnegative(),
         notes: z.string().optional(),
       })).min(1),
       type: z.enum(['DINE_IN', 'TAKEAWAY', 'DELIVERY']).default('TAKEAWAY'),
@@ -102,21 +101,32 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     }
     const { items, type, notes, customerName, customerPhone, deliveryAddress, deliveryCity, tipAmount, couponCode } = parsed.data
 
-    const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+    // Recharger les prix depuis la DB — JAMAIS faire confiance au prix envoyé par le client.
+    const productIds = [...new Set(items.map(i => i.productId))]
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, restaurantId: restaurant.id, isActive: true, isAvailable: true },
+      select: { id: true, price: true, kdsStation: true },
+    })
+    const productMap = new Map(products.map(p => [p.id, p]))
+    for (const item of items) {
+      if (!productMap.has(item.productId)) {
+        return res.status(400).json({ success: false, error: `Produit indisponible` })
+      }
+    }
+    const enrichedItems = items.map(item => ({
+      ...item,
+      unitPrice: productMap.get(item.productId)!.price,
+    }))
+
+    const subtotal = enrichedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
     const deliveryFee = type === 'DELIVERY' ? (restaurant.deliveryFee ?? 0) : 0
-    const taxRate = restaurant.defaultTaxRate ?? 20
-    const taxAmount = subtotal * (taxRate / 100)
+    // Pas de TVA — les prix produits sont TTC (cohérent avec orders.ts POS)
+    const taxAmount = 0
     const tip = Number(tipAmount) || 0
 
     const contactNote = customerName ? `Client: ${customerName}${customerPhone ? ` — ${customerPhone}` : ''}` : undefined
     const fullNotes = [contactNote, notes].filter(Boolean).join(' | ') || undefined
 
-    // Fetch products for kdsStation inheritance
-    const productIds = [...new Set((items as Array<{ productId: string }>).map(i => i.productId))]
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, kdsStation: true },
-    })
     const kdsMap = new Map(products.map(p => [p.id, p.kdsStation]))
 
     // Transaction : claim coupon atomique + create order pour éviter le dépassement
@@ -169,7 +179,7 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
           couponId,
           totalAmount,
           items: {
-            create: (items as Array<{ productId: string; quantity: number; unitPrice: number; notes?: string }>).map(item => ({
+            create: enrichedItems.map(item => ({
               productId: item.productId,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
@@ -327,15 +337,25 @@ publicRouter.post('/:slug/reviews', async (req, res, next) => {
       rating: z.number().int().min(1).max(5),
       title: z.string().max(200).optional(),
       content: z.string().max(2000).optional(),
-      orderNumber: z.string().max(64).optional(),
+      orderNumber: z.string().min(1).max(64),
     }).parse(req.body)
-    let orderId: string | undefined
-    if (orderNumber) {
-      const order = await prisma.order.findFirst({ where: { restaurantId: restaurant.id, orderNumber } })
-      orderId = order?.id
+
+    // Proof-of-order : la review doit référencer une commande COMPLETED de ce
+    // restaurant, et il ne peut y avoir qu'une review par commande.
+    const order = await prisma.order.findFirst({
+      where: { restaurantId: restaurant.id, orderNumber, status: 'COMPLETED' },
+      select: { id: true },
+    })
+    if (!order) {
+      return res.status(400).json({ success: false, error: 'Commande introuvable ou non terminée' })
     }
+    const existingReview = await prisma.review.findFirst({ where: { orderId: order.id } })
+    if (existingReview) {
+      return res.status(400).json({ success: false, error: 'Un avis a déjà été soumis pour cette commande' })
+    }
+
     const review = await prisma.review.create({
-      data: { restaurantId: restaurant.id, rating, title: title || undefined, content: content || undefined, orderId },
+      data: { restaurantId: restaurant.id, rating, title: title || undefined, content: content || undefined, orderId: order.id },
     })
 
     // Non-blocking: notify managers of new review

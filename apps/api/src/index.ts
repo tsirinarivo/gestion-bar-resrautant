@@ -106,9 +106,17 @@ const authLimiter = rateLimit({
   message: { success: false, error: 'Trop de tentatives de connexion, réessayez dans 15 minutes.' },
 })
 
+// Limiter spécifique aux endpoints publics (commande en ligne, validation coupon,
+// review) — sinon spam / brute-force coupon trivial.
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  message: { success: false, error: 'Trop de requêtes, réessayez dans 15 minutes.' },
+})
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-app.use('/api/public', publicRouter)
+app.use('/api/public', publicLimiter, publicRouter)
 app.use('/api/auth', authLimiter, authRouter)
 app.use('/api/restaurants', restaurantRouter)
 app.use('/api/categories', categoryRouter)

@@ -22,7 +22,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       return res.status(401).json({ success: false, error: 'Token manquant' })
     }
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as {
+    const payload = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as {
       userId: string
       restaurantId: string
       roleId: string
