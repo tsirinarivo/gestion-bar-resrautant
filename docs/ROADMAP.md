@@ -130,6 +130,12 @@
 - [x] Tous les fetch directs et useQuery du POS passent par `authFetch` ou `apiFetch` qui font le refresh transparent
 - [x] Résultat : le POS reste connecté 7 jours (durée du refresh token) avec rotation de l'access token toutes les 15 min
 
+### Sprint API-1 — Refactor transactions critiques (mai 2026)
+- [x] **Stock race cross-order** : vérif stock + create order wrappés dans `prisma.$transaction({ isolationLevel: 'Serializable' })`. Postgres rollback en cas de conflit → plus de stock négatif sur commandes simultanées. Quantités agrégées par produit (un même productId peut apparaître plusieurs fois).
+- [x] **Coupon usage atomique** : `coupon.updateMany` conditionnel (`where: usageCount < usageLimit`) à la place du `findFirst` + `update` non-atomique. Le `updateMany` retourne `count === 0` si déjà épuisé → AppError. Appliqué dans `orders.ts` ET `public.ts`. La création de `couponUsage` est maintenant dans la même transaction.
+- [x] **Table occupancy multi-update** : les 3 updates (release old, update order, occupy new) du transfer table wrappés dans `prisma.$transaction`.
+- [x] **POS refresh single-flight race** : suppression du `setTimeout(0)` qui laissait une micro-fenêtre. Reset synchrone via `.finally()` chained sur la promesse stockée dans `_refreshInFlight`.
+
 ### Audit + 12 bugs corrigés (mai 2026, commits 536f39c / 2f75f0d / b987174)
 - [x] CLIENT checkout : math du tip corrigée (`Math.round(s * 0.05 / 100) * 100` qui arrondissait à 100 MGA près → 5% de 200 MGA = 0)
 - [x] MASTER nouveau tenant : champ "Mot de passe initial" `type="text"` → `type="password"` (visible à l'écran)
@@ -149,19 +155,6 @@
 ## 🗂️ File d'attente
 
 > Sprints regroupés par thème, dans l'ordre de priorité recommandé.
-
-### 🔴 Priorité haute — Stabilité
-
-#### Sprint API-1 — Refactor transactions critiques (race conditions documentées)
-4 bugs structurels identifiés par audit profond, non corrigés car nécessitent refactor :
-
-- **Stock race cross-order** (`orders.ts:477`) : la vérification stock est en dehors de la transaction de création de l'order. 2 commandes simultanées avec stock=5 passent toutes les deux et créent un stock négatif après les paiements. Fix : déduire le stock à la création (PENDING reserves) dans une transaction Prisma, ou utiliser un lock applicatif.
-
-- **Coupon usage atomique** (`orders.ts:506-540` + `public.ts:179`) : la vérification `usageCount < usageLimit` n'est pas atomique avec l'incrémentation. 2 utilisations simultanées peuvent dépasser la limite. Fix : `couponUsage.create` + `coupon.update increment` dans la même transaction que `order.create`.
-
-- **Table occupancy multi-update** (`orders.ts:401-428`) : le transfer table fait 3 updates non-atomiques (release old, update order, occupy new). Race window entre les 2 updates où une 3ème requête voit un état intermédiaire. Fix : wrapper dans `prisma.$transaction`.
-
-- **POS refresh single-flight race** (`apps/pos/src/lib/auth-fetch.ts:49`) : le `setTimeout(reset, 0)` dans le `finally` laisse une micro-fenêtre où 2 refresh concurrents sont possibles. Fix : utiliser un flag synchrone (reset avant le `return` du IIFE, pas dans `setTimeout`).
 
 ### 🔴 Priorité haute — Multi-tenant SaaS
 
@@ -267,3 +260,4 @@
 | 2026-05 | Infra fixes | Découverte que `deploy/nginx/pos.sakafio.mg.conf` et `kds.sakafio.mg.conf` faisaient des redirections 301 vers admin (héritage design unifié), remplacés par vrais proxy_pass vers containers. Nouveau script `sync-nginx.sh` qui nettoie aussi les doublons `domain.conf` vs `domain`. Décision : modèle B (apps POS/KDS séparées) plutôt que modèle unifié dans admin. |
 | 2026-05 | POS refresh auto | Refonte du flow d'auth POS pour supporter un refresh automatique via `/api/auth/refresh` + cookie. Module `auth-fetch.ts` avec subscribe pattern + single-flight. Évite la déconnexion toutes les 15 min. |
 | 2026-05 | Audit profond | 3 rounds, 12 bugs corrigés (CLIENT tip math, MASTER password type, KDS QueryClient module-level, payments WALLET transaction, hydration SSR/client, error logging silent, etc.). 4 bugs structurels documentés en Sprint API-1 pour refactor futur. |
+| 2026-05 | Sprint API-1 | 4 race conditions corrigées : stock cross-order (transaction Serializable), coupon usage (updateMany conditionnel atomique dans orders.ts + public.ts), table occupancy (transaction sur transfer), POS refresh single-flight (suppression setTimeout, finally chained). |

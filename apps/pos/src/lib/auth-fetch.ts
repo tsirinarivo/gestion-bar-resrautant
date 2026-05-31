@@ -31,7 +31,7 @@ let _refreshInFlight: Promise<string | null> | null = null
 async function tryRefresh(): Promise<string | null> {
   if (_refreshInFlight) return _refreshInFlight
 
-  _refreshInFlight = (async () => {
+  const p = (async () => {
     try {
       const res = await fetch(`${API_URL}/api/auth/refresh`, {
         method: 'POST',
@@ -45,11 +45,12 @@ async function tryRefresh(): Promise<string | null> {
       return data.data.accessToken
     } catch {
       return null
-    } finally {
-      // Reset après la promesse (juste après le return)
-      setTimeout(() => { _refreshInFlight = null }, 0)
     }
   })()
+
+  // Reset synchrone au moment où la promesse résout — pas de setTimeout
+  // (sinon micro-fenêtre où 2 refresh concurrents passent).
+  _refreshInFlight = p.finally(() => { _refreshInFlight = null })
 
   return _refreshInFlight
 }

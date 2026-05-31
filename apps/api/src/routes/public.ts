@@ -108,28 +108,6 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     const taxAmount = subtotal * (taxRate / 100)
     const tip = Number(tipAmount) || 0
 
-    // Coupon validation (optional)
-    let discountAmount = 0
-    let couponId: string | undefined
-    if (couponCode) {
-      const c = await prisma.coupon.findFirst({
-        where: { code: String(couponCode).toUpperCase(), restaurantId: restaurant.id, isActive: true },
-      })
-      if (c && (!c.endDate || c.endDate >= new Date()) &&
-          (!c.startDate || c.startDate <= new Date()) &&
-          (!c.usageLimit || c.usageCount < c.usageLimit) &&
-          (!c.minOrderAmount || subtotal >= c.minOrderAmount)) {
-        if (c.type === 'PERCENTAGE') {
-          discountAmount = subtotal * (c.value / 100)
-          if (c.maxDiscount) discountAmount = Math.min(discountAmount, c.maxDiscount)
-        } else if (c.type === 'FIXED_AMOUNT') {
-          discountAmount = Math.min(c.value, subtotal)
-        }
-        couponId = c.id
-      }
-    }
-    const totalAmount = subtotal + taxAmount + deliveryFee + tip - discountAmount
-
     const contactNote = customerName ? `Client: ${customerName}${customerPhone ? ` — ${customerPhone}` : ''}` : undefined
     const fullNotes = [contactNote, notes].filter(Boolean).join(' | ') || undefined
 
@@ -141,44 +119,72 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     })
     const kdsMap = new Map(products.map(p => [p.id, p.kdsStation]))
 
-    const order = await prisma.order.create({
-      data: {
-        orderNumber: generateOrderNumber(),
-        type,
-        status: 'PENDING',
-        source: 'ONLINE',
-        restaurantId: restaurant.id,
-        notes: fullNotes,
-        deliveryAddress,
-        deliveryCity,
-        subtotal,
-        taxAmount,
-        tipAmount: tip,
-        deliveryFee,
-        discountAmount,
-        couponId,
-        totalAmount,
-        items: {
-          create: (items as Array<{ productId: string; quantity: number; unitPrice: number; notes?: string }>).map(item => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.unitPrice * item.quantity,
-            notes: item.notes,
-            kdsStation: kdsMap.get(item.productId) ?? null,
-          })),
-        },
-        statusHistory: {
-          create: { status: 'PENDING', notes: 'Commande en ligne (client)' },
-        },
-      },
-      include: { items: { include: { product: { select: { name: true } } } } },
-    })
+    // Transaction : claim coupon atomique + create order pour éviter le dépassement
+    // de usageLimit en cas de commandes simultanées.
+    const order = await prisma.$transaction(async (tx) => {
+      let discountAmount = 0
+      let couponId: string | undefined
+      if (couponCode) {
+        const c = await tx.coupon.findFirst({
+          where: { code: String(couponCode).toUpperCase(), restaurantId: restaurant.id, isActive: true },
+        })
+        if (c && (!c.endDate || c.endDate >= new Date()) &&
+            (!c.startDate || c.startDate <= new Date()) &&
+            (!c.minOrderAmount || subtotal >= c.minOrderAmount)) {
+          // Increment atomique conditionnel
+          const incrementResult = await tx.coupon.updateMany({
+            where: c.usageLimit !== null
+              ? { id: c.id, usageCount: { lt: c.usageLimit } }
+              : { id: c.id },
+            data: { usageCount: { increment: 1 } },
+          })
+          if (incrementResult.count > 0) {
+            if (c.type === 'PERCENTAGE') {
+              discountAmount = subtotal * (c.value / 100)
+              if (c.maxDiscount) discountAmount = Math.min(discountAmount, c.maxDiscount)
+            } else if (c.type === 'FIXED_AMOUNT') {
+              discountAmount = Math.min(c.value, subtotal)
+            }
+            couponId = c.id
+          }
+        }
+      }
+      const totalAmount = subtotal + taxAmount + deliveryFee + tip - discountAmount
 
-    if (couponId) {
-      await prisma.coupon.update({ where: { id: couponId }, data: { usageCount: { increment: 1 } } })
-        .catch(err => console.error(`[public-order ${order.orderNumber}] Coupon usage increment failed for ${couponId}:`, err))
-    }
+      return tx.order.create({
+        data: {
+          orderNumber: generateOrderNumber(),
+          type,
+          status: 'PENDING',
+          source: 'ONLINE',
+          restaurantId: restaurant.id,
+          notes: fullNotes,
+          deliveryAddress,
+          deliveryCity,
+          subtotal,
+          taxAmount,
+          tipAmount: tip,
+          deliveryFee,
+          discountAmount,
+          couponId,
+          totalAmount,
+          items: {
+            create: (items as Array<{ productId: string; quantity: number; unitPrice: number; notes?: string }>).map(item => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.unitPrice * item.quantity,
+              notes: item.notes,
+              kdsStation: kdsMap.get(item.productId) ?? null,
+            })),
+          },
+          statusHistory: {
+            create: { status: 'PENDING', notes: 'Commande en ligne (client)' },
+          },
+        },
+        include: { items: { include: { product: { select: { name: true } } } } },
+      })
+    })
 
     // Notify dashboard + KDS of the new order
     const io = req.app.get('io')

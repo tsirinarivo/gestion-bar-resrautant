@@ -398,33 +398,35 @@ orderRouter.patch('/:id/table', async (req: AuthRequest, res, next) => {
     })
     if (!newTable) throw new AppError('Table introuvable', 404)
 
-    // Release old table if it was occupied by this order only
-    if (order.tableId && order.tableId !== tableId) {
-      const otherActiveOnOldTable = await prisma.order.count({
-        where: {
-          tableId: order.tableId,
-          status: { in: ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'] },
-          id: { not: order.id },
-        },
-      })
-      if (otherActiveOnOldTable === 0) {
-        await prisma.diningTable.update({
-          where: { id: order.tableId },
-          data: { status: 'AVAILABLE' },
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      if (order.tableId && order.tableId !== tableId) {
+        const otherActiveOnOldTable = await tx.order.count({
+          where: {
+            tableId: order.tableId,
+            status: { in: ['PENDING', 'CONFIRMED', 'PREPARING', 'READY'] },
+            id: { not: order.id },
+          },
         })
+        if (otherActiveOnOldTable === 0) {
+          await tx.diningTable.update({
+            where: { id: order.tableId },
+            data: { status: 'AVAILABLE' },
+          })
+        }
       }
-    }
 
-    // Assign to new table and mark it occupied
-    const updatedOrder = await prisma.order.update({
-      where: { id: order.id },
-      data: { tableId },
-      include: { table: true },
-    })
+      const updated = await tx.order.update({
+        where: { id: order.id },
+        data: { tableId },
+        include: { table: true },
+      })
 
-    await prisma.diningTable.update({
-      where: { id: tableId },
-      data: { status: 'OCCUPIED' },
+      await tx.diningTable.update({
+        where: { id: tableId },
+        data: { status: 'OCCUPIED' },
+      })
+
+      return updated
     })
 
     res.json({ success: true, data: updatedOrder })
@@ -474,22 +476,6 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
       }
     }
 
-    // Vérification stock avant création : rejeter si article épuisé
-    for (const item of data.items) {
-      const product = await prisma.product.findFirst({
-        where: { id: item.productId, restaurantId },
-        select: { name: true, stockItemId: true, stockItem: { select: { currentQuantity: true, unit: true } } },
-      })
-      if (product?.stockItemId && product.stockItem) {
-        if (product.stockItem.currentQuantity < item.quantity) {
-          throw new AppError(
-            `Stock insuffisant pour "${product.name}" : ${product.stockItem.currentQuantity} ${product.stockItem.unit} disponible(s), ${item.quantity} demandé(s)`,
-            400,
-          )
-        }
-      }
-    }
-
     // Fetch products to inherit kdsStation when not set by client
     const productIds = [...new Set(data.items.map(i => i.productId))]
     const products = await prisma.product.findMany({
@@ -503,112 +489,145 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
       return sum + (item.unitPrice + modifierTotal) * item.quantity
     }, 0)
 
-    const [coupon, restaurant] = await Promise.all([
-      data.couponId
-        ? prisma.coupon.findFirst({ where: { id: data.couponId, restaurantId } })
-        : Promise.resolve(null),
-      prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { deliveryFee: true } }),
-    ])
-
-    let discountAmount = 0
-    if (data.couponId && !coupon) {
-      throw new AppError('Coupon introuvable', 404)
-    }
-    if (coupon) {
-      const now = new Date()
-      if (!coupon.isActive) throw new AppError('Coupon désactivé', 400)
-      if (coupon.startDate && coupon.startDate > now) throw new AppError('Coupon pas encore valide', 400)
-      if (coupon.endDate && coupon.endDate < now) throw new AppError('Coupon expiré', 400)
-      if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) throw new AppError('Coupon épuisé', 400)
-      if (coupon.minOrderAmount && subtotal < coupon.minOrderAmount) {
-        throw new AppError(`Montant minimum ${coupon.minOrderAmount} MGA non atteint`, 400)
-      }
-      if (data.customerId && coupon.usagePerUser > 0) {
-        const used = await prisma.couponUsage.count({
-          where: { couponId: coupon.id, customerId: data.customerId },
-        })
-        if (used >= coupon.usagePerUser) {
-          throw new AppError('Limite d\'utilisation par client atteinte pour ce coupon', 400)
-        }
-      }
-      if (coupon.type === 'PERCENTAGE') {
-        discountAmount = subtotal * (coupon.value / 100)
-        if (coupon.maxDiscount) discountAmount = Math.min(discountAmount, coupon.maxDiscount)
-      } else if (coupon.type === 'FIXED_AMOUNT') {
-        discountAmount = Math.min(coupon.value, subtotal)
-      }
-    }
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { deliveryFee: true },
+    })
     const deliveryFee = data.type === 'DELIVERY' ? (restaurant?.deliveryFee || 0) : 0
-    // Pas de TVA pour DINE_IN/TAKEAWAY — les prix affichés sont TTC
     const taxAmount = 0
-    const totalAmount = subtotal - discountAmount + deliveryFee
 
     const initialStatus = data.status ?? 'PENDING'
-    const order = await prisma.order.create({
-      data: {
-        orderNumber: generateOrderNumber(),
-        type: data.type,
-        status: initialStatus,
-        confirmedAt: initialStatus === 'CONFIRMED' ? new Date() : undefined,
-        restaurantId,
-        tableId: data.tableId,
-        customerId: data.customerId,
-        couponId: data.couponId,
-        guestCount: data.guestCount,
-        notes: data.notes,
-        deliveryAddress: data.deliveryAddress,
-        deliveryCity: data.deliveryCity,
-        deliveryPostalCode: data.deliveryPostalCode,
-        deliveryNotes: data.deliveryNotes,
-        estimatedTime: data.estimatedTime,
-        subtotal,
-        taxAmount,
-        discountAmount,
-        deliveryFee,
-        totalAmount,
-        items: {
-          create: data.items.map(item => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.unitPrice * item.quantity,
-            notes: item.notes,
-            kdsStation: item.kdsStation ?? productKdsMap.get(item.productId) ?? null,
-            modifiers: item.modifiers ? {
-              create: item.modifiers.map(m => ({
-                name: m.name,
-                price: m.price,
-                type: m.type,
-                modifierId: m.modifierId,
-                variantId: m.variantId,
-              })),
-            } : undefined,
-          })),
-        },
-        statusHistory: {
-          create: { status: initialStatus, changedBy: req.user!.id },
-        },
-      },
-      include: {
-        items: { include: { product: true, modifiers: true } },
-        table: true,
-        customer: true,
-      },
-    })
 
-    await Promise.all([
-      data.tableId
-        ? prisma.diningTable.update({ where: { id: data.tableId }, data: { status: 'OCCUPIED' } })
-        : Promise.resolve(null),
-      data.couponId
-        ? prisma.coupon.update({ where: { id: data.couponId }, data: { usageCount: { increment: 1 } } })
-        : Promise.resolve(null),
-      data.couponId && data.customerId
-        ? prisma.couponUsage.create({
-            data: { couponId: data.couponId, customerId: data.customerId, discount: discountAmount },
-          }).catch(() => {})
-        : Promise.resolve(null),
-    ])
+    // Transaction Serializable : vérif stock + claim coupon atomique + create order.
+    // Postgres détecte les conflits de lecture/écriture et rollback → pas de stock négatif
+    // ni de double-utilisation de coupon.
+    const order = await prisma.$transaction(async (tx) => {
+      // Aggréger les quantités par produit (un même produit peut apparaître plusieurs fois)
+      const qtyByProduct = new Map<string, number>()
+      for (const item of data.items) {
+        qtyByProduct.set(item.productId, (qtyByProduct.get(item.productId) ?? 0) + item.quantity)
+      }
+
+      for (const [productId, qty] of qtyByProduct) {
+        const product = await tx.product.findFirst({
+          where: { id: productId, restaurantId },
+          select: { name: true, stockItemId: true, stockItem: { select: { currentQuantity: true, unit: true } } },
+        })
+        if (product?.stockItemId && product.stockItem) {
+          if (product.stockItem.currentQuantity < qty) {
+            throw new AppError(
+              `Stock insuffisant pour "${product.name}" : ${product.stockItem.currentQuantity} ${product.stockItem.unit} disponible(s), ${qty} demandé(s)`,
+              400,
+            )
+          }
+        }
+      }
+
+      let discountAmount = 0
+      let coupon: { id: string; isActive: boolean; startDate: Date | null; endDate: Date | null; usageLimit: number | null; usageCount: number; minOrderAmount: number | null; usagePerUser: number; type: string; value: number; maxDiscount: number | null } | null = null
+      if (data.couponId) {
+        coupon = await tx.coupon.findFirst({ where: { id: data.couponId, restaurantId } })
+        if (!coupon) throw new AppError('Coupon introuvable', 404)
+        const now = new Date()
+        if (!coupon.isActive) throw new AppError('Coupon désactivé', 400)
+        if (coupon.startDate && coupon.startDate > now) throw new AppError('Coupon pas encore valide', 400)
+        if (coupon.endDate && coupon.endDate < now) throw new AppError('Coupon expiré', 400)
+        if (coupon.minOrderAmount && subtotal < coupon.minOrderAmount) {
+          throw new AppError(`Montant minimum ${coupon.minOrderAmount} MGA non atteint`, 400)
+        }
+        if (data.customerId && coupon.usagePerUser > 0) {
+          const used = await tx.couponUsage.count({
+            where: { couponId: coupon.id, customerId: data.customerId },
+          })
+          if (used >= coupon.usagePerUser) {
+            throw new AppError('Limite d\'utilisation par client atteinte pour ce coupon', 400)
+          }
+        }
+        if (coupon.type === 'PERCENTAGE') {
+          discountAmount = subtotal * (coupon.value / 100)
+          if (coupon.maxDiscount) discountAmount = Math.min(discountAmount, coupon.maxDiscount)
+        } else if (coupon.type === 'FIXED_AMOUNT') {
+          discountAmount = Math.min(coupon.value, subtotal)
+        }
+
+        // Increment atomique conditionnel : rejette si déjà épuisé.
+        const incrementResult = await tx.coupon.updateMany({
+          where: coupon.usageLimit !== null
+            ? { id: coupon.id, usageCount: { lt: coupon.usageLimit } }
+            : { id: coupon.id },
+          data: { usageCount: { increment: 1 } },
+        })
+        if (incrementResult.count === 0) {
+          throw new AppError('Coupon épuisé', 400)
+        }
+      }
+
+      const totalAmount = subtotal - discountAmount + deliveryFee
+
+      const created = await tx.order.create({
+        data: {
+          orderNumber: generateOrderNumber(),
+          type: data.type,
+          status: initialStatus,
+          confirmedAt: initialStatus === 'CONFIRMED' ? new Date() : undefined,
+          restaurantId,
+          tableId: data.tableId,
+          customerId: data.customerId,
+          couponId: data.couponId,
+          guestCount: data.guestCount,
+          notes: data.notes,
+          deliveryAddress: data.deliveryAddress,
+          deliveryCity: data.deliveryCity,
+          deliveryPostalCode: data.deliveryPostalCode,
+          deliveryNotes: data.deliveryNotes,
+          estimatedTime: data.estimatedTime,
+          subtotal,
+          taxAmount,
+          discountAmount,
+          deliveryFee,
+          totalAmount,
+          items: {
+            create: data.items.map(item => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.unitPrice * item.quantity,
+              notes: item.notes,
+              kdsStation: item.kdsStation ?? productKdsMap.get(item.productId) ?? null,
+              modifiers: item.modifiers ? {
+                create: item.modifiers.map(m => ({
+                  name: m.name,
+                  price: m.price,
+                  type: m.type,
+                  modifierId: m.modifierId,
+                  variantId: m.variantId,
+                })),
+              } : undefined,
+            })),
+          },
+          statusHistory: {
+            create: { status: initialStatus, changedBy: req.user!.id },
+          },
+        },
+        include: {
+          items: { include: { product: true, modifiers: true } },
+          table: true,
+          customer: true,
+        },
+      })
+
+      if (data.tableId) {
+        await tx.diningTable.update({ where: { id: data.tableId }, data: { status: 'OCCUPIED' } })
+      }
+
+      if (coupon && data.customerId) {
+        await tx.couponUsage.create({
+          data: { couponId: coupon.id, customerId: data.customerId, discount: discountAmount },
+        })
+      }
+
+      return created
+    }, { isolationLevel: 'Serializable' })
 
     const io = req.app.get('io')
     io?.to(restaurantId).emit('order:created', order)
