@@ -53,6 +53,16 @@ const CATEGORY_ICONS = ['🍽️', '🥩', '🍔', '🍕', '🍝', '🥗', '🍰
 
 // ─── Product Form Modal ───────────────────────────────────────────────────────
 
+function ImgWithFallback({ src, alt, className }: { src: string; alt: string; className: string }) {
+  const [err, setErr] = useState(false)
+  if (err) {
+    return (
+      <div className={`${className} bg-gray-700 flex items-center justify-center text-xl`}>❌</div>
+    )
+  }
+  return <img src={src} alt={alt} loading="lazy" className={className} onError={() => setErr(true)} />
+}
+
 function ProductModal({
   product, categories, warehouses, onClose, onSave
 }: {
@@ -235,12 +245,7 @@ function ProductModal({
             </div>
             {form.image && (
               <div className="mt-2 relative w-24 h-24 rounded-xl overflow-hidden border border-brand-border">
-                <img
-                  src={form.image}
-                  alt="Aperçu"
-                  className="w-full h-full object-cover"
-                  onError={e => { (e.currentTarget as HTMLImageElement).src = ''; (e.currentTarget.parentElement as HTMLElement).innerHTML = '<div class="w-full h-full bg-gray-700 flex items-center justify-center text-2xl">❌</div>' }}
-                />
+                <ImgWithFallback src={form.image} alt="Aperçu" className="w-full h-full object-cover" />
               </div>
             )}
           </div>
@@ -258,9 +263,7 @@ function ProductModal({
               <div className="flex gap-2 mt-2 flex-wrap">
                 {form.images.split('\n').map(u => u.trim()).filter(Boolean).map((url, i) => (
                   <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-brand-border">
-                    <img src={url} alt={`img ${i+1}`} className="w-full h-full object-cover"
-                      onError={e => { (e.currentTarget as HTMLImageElement).src = ''; (e.currentTarget.parentElement as HTMLElement).innerHTML = '<div class="w-full h-full bg-gray-700 flex items-center justify-center text-lg">❌</div>' }}
-                    />
+                    <ImgWithFallback src={url} alt={`img ${i+1}`} className="w-full h-full object-cover" />
                   </div>
                 ))}
               </div>

@@ -281,7 +281,7 @@ function CustomerPanel({ customerId, onClose }: { customerId: string; onClose: (
   const addresses = customer?.addresses ?? []
 
   const saveNotes = useMutation({
-    mutationFn: () => api.put(`/customers/${customerId}`, { ...customer, notes: notesValue.trim() || null }),
+    mutationFn: () => api.put(`/customers/${customerId}`, { notes: notesValue.trim() || null }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['customer', customerId] })
       qc.invalidateQueries({ queryKey: ['customers'] })

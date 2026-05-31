@@ -267,6 +267,7 @@ function PaymentModal({ orderId, onClose, onDone }: { orderId: string; onClose: 
 
 function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [tab, setTab] = useState<'menu' | 'cart'>('menu')
+  const qcModal = useQueryClient()
   const [orderType, setOrderType] = useState<'DINE_IN' | 'TAKEAWAY' | 'DELIVERY'>('DINE_IN')
   const [tableId, setTableId] = useState('')
   const [globalNotes, setGlobalNotes] = useState('')
@@ -302,7 +303,12 @@ function NewOrderModal({ onClose, onCreated }: { onClose: () => void; onCreated:
         notes: i.notes || undefined,
       })),
     }),
-    onSuccess: () => { toast.success('Commande envoyée en cuisine !'); onCreated(); onClose() },
+    onSuccess: () => {
+      toast.success('Commande envoyée en cuisine !')
+      qcModal.invalidateQueries({ queryKey: ['orders'] })
+      onCreated()
+      onClose()
+    },
     onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Erreur création commande'),
   })
 

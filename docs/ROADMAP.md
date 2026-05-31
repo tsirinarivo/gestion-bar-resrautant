@@ -130,6 +130,16 @@
 - [x] Tous les fetch directs et useQuery du POS passent par `authFetch` ou `apiFetch` qui font le refresh transparent
 - [x] Résultat : le POS reste connecté 7 jours (durée du refresh token) avec rotation de l'access token toutes les 15 min
 
+### Sprint UX Critiques Frontend (mai 2026) — Audit round 4 (suite)
+7 fixes UX :
+- [x] **POS double-création sous StrictMode** (`apps/pos/src/app/page.tsx:465`) : `useRef(creating)` synchrone, check-and-set avant le `await apiPost('/orders')`. Plus de 2 commandes créées en dev (et protège aussi des remount avec key changeante).
+- [x] **POS backdrop ferme pendant paiement** (`pos/page.tsx:583`) : `onClick={busy ? undefined : handleClose}` + `disabled={busy}` sur la croix. Plus de payment comptabilisé + ordre CANCELLED.
+- [x] **Layout admin frame leak** (`web/(dashboard)/layout.tsx:53`) : check synchrone `allowed && !ok` retourne un spinner au lieu des `children`. Un caissier ne voit plus `/employees` une frame avant le redirect.
+- [x] **Modal create order n'invalidait pas ['orders']** (`web/orders/page.tsx:292`) : ajout `qcModal.invalidateQueries({ queryKey: ['orders'] })` dans `onSuccess`.
+- [x] **saveNotes envoyait l'objet customer entier** (`web/customers/page.tsx:284`) : PUT envoie seulement `{ notes }`. Plus de réécriture de relations Prisma non voulues.
+- [x] **POS Ctrl+Enter race sendToKitchen** (`pos/page.tsx:1302`) : `if (sending) return` au début de la fonction (idempotent guard).
+- [x] **innerHTML dans menu (pattern dangereux)** (`web/menu/page.tsx:242,262`) : extrait `<ImgWithFallback>` avec `useState(err)`, plus de manip DOM out-of-React.
+
 ### Sprint Race Conditions API (mai 2026) — Audit round 4 (suite)
 5 HIGH race conditions corrigées (analogues au Sprint API-1) :
 - [x] **bank.ts** : `autoPostPaymentToBank` + adjust manuel utilisent `balance: { increment/decrement }` atomique avec relecture dans la transaction pour `balanceAfter` exact (plus de solde corrompu sur 2 paiements simultanés).

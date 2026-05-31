@@ -461,8 +461,13 @@ function PaymentModal({
   const totalPaid  = payments.reduce((s, p) => s + p.amount, 0);
   const remaining  = Math.max(0, grandTotalWithTip - totalPaid);
 
-  // On mount: create order from cart if needed, then build queue
+  // On mount: create order from cart if needed, then build queue.
+  // Guard `creating` synchrone : sous React StrictMode (dev) le useEffect tire
+  // 2x, créant 2 commandes. La ref check-and-set évite ça.
+  const creating = useRef(false)
   useEffect(() => {
+    if (creating.current) return;
+    creating.current = true;
     (async () => {
       setBusy(true);
       try {
@@ -575,13 +580,13 @@ function PaymentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/70" onClick={handleClose} />
+      <div className="absolute inset-0 bg-black/70" onClick={busy ? undefined : handleClose} />
       <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl z-10 max-h-[95vh] overflow-y-auto">
         <div className="p-4">
           <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-3 sm:hidden" />
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-bold">L'addition — {tableLabel}</h3>
-            <button onClick={handleClose} className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">&times;</button>
+            <button onClick={handleClose} disabled={busy} className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed">&times;</button>
           </div>
 
           {/* Totals */}
@@ -1294,6 +1299,7 @@ export default function POSPage() {
   }
 
   async function sendToKitchen() {
+    if (sending) return; // idempotent guard : protège du Ctrl+Enter répété
     if (cart.length === 0) return;
     if (orderType === 'DINE_IN' && !activeTable) { showToast('Sélectionnez une table', false); return; }
     setSending(true);

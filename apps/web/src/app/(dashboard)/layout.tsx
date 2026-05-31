@@ -52,6 +52,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!isAuthenticated) return null
 
+  // Évite que la page protégée flashe une frame avant le redirect (un caissier
+  // qui navigue vers /employees ne doit jamais voir le contenu, même brièvement)
+  const role = user?.role?.name ?? ''
+  const allowed = ROLE_ALLOWED[role]
+  if (allowed && !allowed.some(p => pathname === p || pathname.startsWith(p + '/'))) {
+    return (
+      <div className="flex h-screen bg-brand-dark items-center justify-center">
+        <div className="w-8 h-8 border-2 border-brand-orange border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen bg-brand-dark overflow-hidden">
       {/* Mobile backdrop */}
