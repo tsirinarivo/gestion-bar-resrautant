@@ -53,6 +53,14 @@ header "4. Build des images"
 # ssh-agent pour le build api (imprimantcloud est un repo privé, clone via ssh).
 # La clé SSH du host est exposée temporairement au build via BuildKit secret ssh.
 SSH_KEY="${GITHUB_SSH_KEY:-}"
+if [ -z "$SSH_KEY" ] && command -v ssh >/dev/null 2>&1; then
+  # Demander à ssh quelle IdentityFile il utiliserait pour github.com
+  CFG_KEY=$(ssh -G git@github.com 2>/dev/null | awk '/^identityfile / {print $2; exit}')
+  if [ -n "$CFG_KEY" ]; then
+    CFG_KEY="${CFG_KEY/#\~/$HOME}"
+    [ -f "$CFG_KEY" ] && SSH_KEY="$CFG_KEY"
+  fi
+fi
 if [ -z "$SSH_KEY" ]; then
   for candidate in "$HOME/.ssh/id_ed25519" "$HOME/.ssh/id_ecdsa" "$HOME/.ssh/id_rsa" "$HOME/.ssh/github" "$HOME/.ssh/github_rsa"; do
     if [ -f "$candidate" ]; then
@@ -62,7 +70,7 @@ if [ -z "$SSH_KEY" ]; then
   done
 fi
 if [ -z "$SSH_KEY" ] || [ ! -f "$SSH_KEY" ]; then
-  echo -e "${RED}❌ Aucune clé SSH trouvée dans $HOME/.ssh/ (testé id_ed25519, id_ecdsa, id_rsa, github, github_rsa)${RESET}"
+  echo -e "${RED}❌ Aucune clé SSH trouvée${RESET}"
   echo "   Le build api va échouer car imprimantcloud est un repo github privé."
   echo "   Solutions :"
   echo "   - Génère une clé : ssh-keygen -t ed25519 -f $HOME/.ssh/id_ed25519"
