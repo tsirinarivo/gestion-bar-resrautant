@@ -64,6 +64,21 @@ done
 
 [ "$DUPLICATES_REMOVED" -gt 0 ] && log "${DUPLICATES_REMOVED} doublon(s) nettoyé(s)"
 
+# ─── Sync des fichiers conf.d/ (zones rate-limit globales) ─────────────────
+if [ -d "$NGINX_DIR/conf.d" ]; then
+  header "Sync conf.d (zones globales)"
+  for conf in "$NGINX_DIR/conf.d"/*.conf; do
+    [ -f "$conf" ] || continue
+    fname=$(basename "$conf")
+    target="/etc/nginx/conf.d/${fname}"
+    if [ ! -f "$target" ] || ! diff -q "$conf" "$target" > /dev/null 2>&1; then
+      [ -f "$target" ] && cp "$target" "${target}.bak.${TIMESTAMP}"
+      cp "$conf" "$target"
+      log "Mis à jour : conf.d/${fname}"
+    fi
+  done
+fi
+
 # ─── Sync des configs du repo ─────────────────────────────────────────────
 header "Sync des configs depuis le repo"
 

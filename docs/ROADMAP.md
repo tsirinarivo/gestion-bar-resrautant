@@ -130,6 +130,16 @@
 - [x] Tous les fetch directs et useQuery du POS passent par `authFetch` ou `apiFetch` qui font le refresh transparent
 - [x] Résultat : le POS reste connecté 7 jours (durée du refresh token) avec rotation de l'access token toutes les 15 min
 
+### Sprint Robustesse Infra (mai 2026) — Audit round 4 (suite)
+6 fixes pour rendre l'infra production-grade :
+- [x] **mem_limit + mem_reservation** sur tous les services Docker (`docker-compose.prod.yml`) : postgres 1g, api 768m, web/client 512m/384m, pos 384m, kds/master 384m, redis/backup 256m, watchdog 64m. Plus de OOM du VPS entier si un container leak.
+- [x] **logging json-file + rotation** (anchor `x-logging`) : max 10Mb/fichier, 3 fichiers max par container → ~30Mb max par service. Plus de disque plein après quelques semaines.
+- [x] **healthcheck HTTP** sur web/pos/kds/client/master (anchor `x-next-healthcheck`) : node CLI test du port → 200/302. Containers down détectés par Docker pour restart auto.
+- [x] **Redis maxmemory** : 200mb + `allkeys-lru` eviction policy (au lieu d'illimité).
+- [x] **Rate-limit nginx** (`deploy/nginx/conf.d/sakafio-zones.conf` + `api.sakafio.mg.conf`) : zones `sakafio_login` (5r/m/IP burst 5 queue) sur `/api/auth/login`, `sakafio_public` (60r/m/IP burst 30 nodelay) sur `/api/public/`. Brute-force et flooding bloqués au niveau nginx avant d'atteindre Express.
+- [x] **Headers sécurité nginx** sur les 6 confs (`*.sakafio.mg.conf`) : HSTS 1 an + includeSubDomains, X-Content-Type-Options nosniff, X-Frame-Options DENY (admin/master) / SAMEORIGIN (autres), Referrer-Policy strict-origin-when-cross-origin.
+- [x] **sync-nginx.sh** copie aussi `conf.d/*.conf` vers `/etc/nginx/conf.d/`.
+
 ### Sprint UX Critiques Frontend (mai 2026) — Audit round 4 (suite)
 7 fixes UX :
 - [x] **POS double-création sous StrictMode** (`apps/pos/src/app/page.tsx:465`) : `useRef(creating)` synchrone, check-and-set avant le `await apiPost('/orders')`. Plus de 2 commandes créées en dev (et protège aussi des remount avec key changeante).
