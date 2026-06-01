@@ -654,7 +654,11 @@ financesRouter.get('/tax-report', authorize('manager', 'superadmin'), async (req
 
     for (const order of orders) {
       for (const item of order.items) {
-        const rate = item.product?.taxRate ?? 20
+        // Pas de fallback 20% : si le produit n'a pas de taxRate configuré, on
+        // considère qu'il n'y a pas de TVA (cohérent avec orders.ts qui force
+        // taxAmount=0). Pour avoir un rapport TVA correct, configurer taxRate
+        // sur chaque produit côté admin.
+        const rate = item.product?.taxRate ?? 0
         const ttc = item.unitPrice * item.quantity
         const ht = ttc / (1 + rate / 100)
         const tva = ttc - ht

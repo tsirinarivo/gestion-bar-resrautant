@@ -29,7 +29,7 @@ superadminRouter.get('/restaurants', async (_req: AuthRequest, res, next) => {
             where: {
               restaurantId: r.id,
               createdAt: { gte: todayStart, lte: todayEnd },
-              status: { notIn: ['CANCELLED'] },
+              status: { in: ['COMPLETED', 'DELIVERED'] },
             },
             _sum: { totalAmount: true },
             _count: { _all: true },

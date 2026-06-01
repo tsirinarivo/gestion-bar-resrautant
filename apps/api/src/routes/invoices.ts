@@ -105,6 +105,13 @@ invoiceRouter.post('/', authorize('manager', 'superadmin', 'caissier'), async (r
       },
     })
     if (!payment) throw new AppError('Paiement introuvable', 404)
+    // Bloque la génération de facture sur un paiement annulé/remboursé
+    if (payment.status === 'REFUNDED' || payment.status === 'FAILED') {
+      throw new AppError(`Impossible de facturer un paiement ${payment.status}`, 400)
+    }
+    if (payment.status !== 'COMPLETED') {
+      throw new AppError(`Le paiement doit être COMPLETED (statut actuel : ${payment.status})`, 400)
+    }
 
     // Check if invoice already exists for this payment
     const existing = await prisma.invoice.findFirst({ where: { paymentId } })
@@ -113,8 +120,6 @@ invoiceRouter.post('/', authorize('manager', 'superadmin', 'caissier'), async (r
     // Determine sequence number for current month
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const count = await prisma.invoice.count({ where: { issueDate: { gte: startOfMonth }, payment: { order: { restaurantId } } } })
-    const invoiceNumber = generateInvoiceNumber(count + 1)
 
     // Build invoice items from order items
     const orderItems = payment.order.items
@@ -137,19 +142,28 @@ invoiceRouter.post('/', authorize('manager', 'superadmin', 'caissier'), async (r
     const totalTTC = invoiceItems.reduce((s, i) => s + i.totalTTC, 0)
     const totalTax = totalTTC - totalHT
 
-    const invoice = await prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        totalHT,
-        totalTax,
-        totalTTC,
-        status: 'DRAFT',
-        notes: notes || null,
-        paymentId,
-        items: { create: invoiceItems },
-      },
-      include: { items: true },
-    })
+    // Transaction Serializable : le count+create doit être atomique sinon
+    // 2 POST simultanés génèrent le même invoiceNumber. Postgres rollback
+    // un des deux en cas de conflit (l'app retourne 500, le client retry).
+    const invoice = await prisma.$transaction(async (tx) => {
+      const count = await tx.invoice.count({
+        where: { issueDate: { gte: startOfMonth }, payment: { order: { restaurantId } } },
+      })
+      const invoiceNumber = generateInvoiceNumber(count + 1)
+      return tx.invoice.create({
+        data: {
+          invoiceNumber,
+          totalHT,
+          totalTax,
+          totalTTC,
+          status: 'DRAFT',
+          notes: notes || null,
+          paymentId,
+          items: { create: invoiceItems },
+        },
+        include: { items: true },
+      })
+    }, { isolationLevel: 'Serializable' })
 
     res.status(201).json({ success: true, data: invoice })
   } catch (error) { next(error) }

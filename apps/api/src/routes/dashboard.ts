@@ -28,23 +28,23 @@ dashboardRouter.get('/kpis', async (req: AuthRequest, res, next) => {
       topProducts,
     ] = await Promise.all([
       prisma.order.aggregate({
-        where: { restaurantId, createdAt: { gte: todayStart, lte: todayEnd }, status: { notIn: ['CANCELLED'] } },
+        where: { restaurantId, createdAt: { gte: todayStart, lte: todayEnd }, status: { in: ['COMPLETED', 'DELIVERED'] } },
         _sum: { totalAmount: true, guestCount: true },
         _count: true,
         _avg: { totalAmount: true },
       }),
       prisma.order.aggregate({
-        where: { restaurantId, createdAt: { gte: yesterdayStart, lte: yesterdayEnd }, status: { notIn: ['CANCELLED'] } },
+        where: { restaurantId, createdAt: { gte: yesterdayStart, lte: yesterdayEnd }, status: { in: ['COMPLETED', 'DELIVERED'] } },
         _sum: { totalAmount: true },
         _count: true,
       }),
       prisma.order.aggregate({
-        where: { restaurantId, createdAt: { gte: weekStart }, status: { notIn: ['CANCELLED'] } },
+        where: { restaurantId, createdAt: { gte: weekStart }, status: { in: ['COMPLETED', 'DELIVERED'] } },
         _sum: { totalAmount: true },
         _count: true,
       }),
       prisma.order.aggregate({
-        where: { restaurantId, createdAt: { gte: monthStart }, status: { notIn: ['CANCELLED'] } },
+        where: { restaurantId, createdAt: { gte: monthStart }, status: { in: ['COMPLETED', 'DELIVERED'] } },
         _sum: { totalAmount: true },
         _count: true,
       }),
@@ -63,7 +63,7 @@ dashboardRouter.get('/kpis', async (req: AuthRequest, res, next) => {
           order: {
             restaurantId,
             createdAt: { gte: todayStart },
-            status: { notIn: ['CANCELLED'] },
+            status: { in: ['COMPLETED', 'DELIVERED'] },
           },
         },
         _sum: { quantity: true, totalPrice: true },
@@ -147,7 +147,7 @@ dashboardRouter.get('/revenue-chart', async (req: AuthRequest, res, next) => {
       where: {
         restaurantId,
         createdAt: { gte: from, lte: to },
-        status: { notIn: ['CANCELLED'] },
+        status: { in: ['COMPLETED', 'DELIVERED'] },
       },
       select: {
         createdAt: true,
@@ -192,7 +192,7 @@ dashboardRouter.get('/hourly-stats', async (req: AuthRequest, res, next) => {
       where: {
         restaurantId,
         createdAt: { gte: startOfDay(targetDate), lte: endOfDay(targetDate) },
-        status: { notIn: ['CANCELLED'] },
+        status: { in: ['COMPLETED', 'DELIVERED'] },
       },
       select: { createdAt: true, totalAmount: true },
     })
@@ -225,7 +225,7 @@ dashboardRouter.get('/category-stats', async (req: AuthRequest, res, next) => {
         order: {
           restaurantId,
           createdAt: { gte: from },
-          status: { notIn: ['CANCELLED'] },
+          status: { in: ['COMPLETED', 'DELIVERED'] },
         },
       },
       _sum: { quantity: true, totalPrice: true },
@@ -271,7 +271,7 @@ dashboardRouter.get('/analytics', async (req: AuthRequest, res, next) => {
       where: {
         restaurantId,
         createdAt: { gte: thirtyDaysAgo, lte: endOfDay(now) },
-        status: { notIn: ['CANCELLED'] },
+        status: { in: ['COMPLETED', 'DELIVERED'] },
       },
       select: { createdAt: true, totalAmount: true },
     })
@@ -295,7 +295,7 @@ dashboardRouter.get('/analytics', async (req: AuthRequest, res, next) => {
       where: {
         restaurantId,
         createdAt: { gte: sevenDaysAgo, lte: endOfDay(now) },
-        status: { notIn: ['CANCELLED'] },
+        status: { in: ['COMPLETED', 'DELIVERED'] },
       },
       select: { createdAt: true },
     })
@@ -312,7 +312,7 @@ dashboardRouter.get('/analytics', async (req: AuthRequest, res, next) => {
       where: {
         restaurantId,
         createdAt: { gte: thirtyDaysAgo },
-        status: { notIn: ['CANCELLED'] },
+        status: { in: ['COMPLETED', 'DELIVERED'] },
       },
       _count: true,
       _sum: { totalAmount: true },
