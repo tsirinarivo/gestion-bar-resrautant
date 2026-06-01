@@ -133,20 +133,23 @@ function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
 }
 
 function KDSPageInner() {
-  const [token, setToken] = useState<string | null>(() =>
-    typeof window === 'undefined' ? null : localStorage.getItem('kds-token')
-  );
-  const [station, setStation] = useState<string>(() =>
-    typeof window === 'undefined' ? 'all' : (localStorage.getItem('kds-station') ?? 'all')
-  );
-  const [soundOn, setSoundOn] = useState<boolean>(() =>
-    typeof window === 'undefined' ? true : localStorage.getItem('kds-sound') !== 'off'
-  );
+  // Lecture localStorage AU MOUNT (useEffect) pour éviter les hydration mismatch SSR/client.
+  const [token, setToken] = useState<string | null>(null);
+  const [station, setStation] = useState<string>('all');
+  const [soundOn, setSoundOn] = useState<boolean>(true);
+  const [hydrated, setHydrated] = useState(false);
   const qc = useQueryClient();
   const [now, setNow] = useState(new Date());
 
-  useEffect(() => { if (typeof window !== 'undefined') localStorage.setItem('kds-station', station) }, [station]);
-  useEffect(() => { if (typeof window !== 'undefined') localStorage.setItem('kds-sound', soundOn ? 'on' : 'off') }, [soundOn]);
+  useEffect(() => {
+    setToken(localStorage.getItem('kds-token'));
+    setStation(localStorage.getItem('kds-station') ?? 'all');
+    setSoundOn(localStorage.getItem('kds-sound') !== 'off');
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => { if (hydrated) localStorage.setItem('kds-station', station) }, [station, hydrated]);
+  useEffect(() => { if (hydrated) localStorage.setItem('kds-sound', soundOn ? 'on' : 'off') }, [soundOn, hydrated]);
 
   const { data: orders = [], error } = useQuery({
     queryKey: ['kds-orders', token],
@@ -204,17 +207,26 @@ function KDSPageInner() {
   const preparingMutation = useMutation({
     mutationFn: (orderId: string) => updateOrderStatus(token!, orderId, 'PREPARING'),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }),
+    onError: (err: unknown) => { console.error('[KDS prep]', err); alert(`❌ Erreur préparation : ${err instanceof Error ? err.message : 'réseau'}`) },
   });
+
+  const onMutationError = (err: unknown) => {
+    const msg = err instanceof Error ? err.message : 'Erreur réseau';
+    console.error('[KDS mutation]', err);
+    alert(`❌ Action échouée : ${msg}\n\nLe statut de la commande n'a peut-être pas été enregistré. Vérifiez avant de servir.`);
+  };
 
   const readyMutation = useMutation({
     mutationFn: (orderId: string) => updateOrderStatus(token!, orderId, 'READY'),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }),
+    onError: onMutationError,
   });
 
   const itemReadyMutation = useMutation({
     mutationFn: ({ orderId, itemId }: { orderId: string; itemId: string }) =>
       updateItemStatus(token!, orderId, itemId, 'READY'),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }),
+    onError: onMutationError,
   });
 
   // Filter orders by station: show order only if it has at least one item in the selected station

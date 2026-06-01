@@ -867,7 +867,10 @@ function CartPanel({
 
       {/* Action buttons */}
       <div className="p-3 space-y-2 flex-shrink-0">
-        {cart.length > 0 && (
+        {/* En TAKEAWAY, on masque "Envoyer en cuisine" seul : forcer le passage par
+            "L'addition" qui crée l'order + encaisse en une fois (sinon, le cart serait
+            vidé après envoi cuisine et l'utilisateur ne pourrait plus encaisser). */}
+        {cart.length > 0 && orderType === 'DINE_IN' && (
           <button onClick={onSendToKitchen} disabled={sending}
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-3.5 rounded-xl font-bold transition-colors">
             {sending ? '⏳ Envoi...' : '👨‍🍳 Envoyer en cuisine'}
@@ -882,7 +885,7 @@ function CartPanel({
             {(openOrders.length > 0 || (orderType === 'TAKEAWAY' && cart.length > 0)) && (
               <button onClick={onShowPayment}
                 className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white py-3.5 rounded-xl font-bold transition-colors text-sm">
-                💳 L'addition — {formatCurrency(grandTotal)}
+                💳 {orderType === 'TAKEAWAY' ? `Encaisser + envoyer cuisine` : `L'addition`} — {formatCurrency(grandTotal)}
               </button>
             )}
           </div>

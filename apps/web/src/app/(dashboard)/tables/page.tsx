@@ -181,20 +181,6 @@ export default function TablesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <div className="flex border border-brand-border rounded-xl overflow-hidden">
-            <button
-              onClick={() => setView('grid')}
-              className={`p-2 transition-colors ${view === 'grid' ? 'bg-brand-orange text-white' : 'text-brand-muted hover:text-white'}`}
-            >
-              <Grid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setView('floor')}
-              className={`p-2 transition-colors ${view === 'floor' ? 'bg-brand-orange text-white' : 'text-brand-muted hover:text-white'}`}
-            >
-              <List className="w-4 h-4" />
-            </button>
-          </div>
           <button onClick={() => setShowAddTable(true)} className="btn-primary flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Ajouter table
@@ -281,7 +267,7 @@ export default function TablesPage() {
                 )}
 
                 {/* Status actions */}
-                <div className="mt-3 grid grid-cols-2 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="mt-3 grid grid-cols-2 gap-1">
                   {table.status !== 'AVAILABLE' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); updateStatus.mutate({ id: table.id, status: 'AVAILABLE' }) }}
