@@ -50,28 +50,38 @@ export async function createTenantRecord(input: CreateTenantInput): Promise<Tena
 
   const apiPort = await allocateNextPortBlock()
 
-  return masterPrisma.tenant.create({
-    data: {
-      slug: input.slug,
-      subdomain: input.slug,
-      name: input.name,
-      contactName: input.contactName,
-      contactEmail: input.contactEmail,
-      contactPhone: input.contactPhone,
-      notes: input.notes,
-      status: TenantStatus.PROVISIONING,
-      dbName: `tenant_${input.slug}`,
-      apiPort,
-      webPort: apiPort + 1,
-      posPort: apiPort + 2,
-      kdsPort: apiPort + 3,
-      clientPort: apiPort + 4,
-      dbPassword: randomPassword(),
-      jwtSecret: randomSecret(),
-      jwtRefreshSecret: randomSecret(),
-      apiCrossSecret: randomSecret(),
-    },
-  })
+  // try/catch sur P2002 : si 2 POST simultanés passent le findUnique ci-dessus,
+  // la contrainte @unique sur slug rejette le 2e create avec une erreur Prisma
+  // cryptique. On la translate en message utilisateur clair.
+  try {
+    return await masterPrisma.tenant.create({
+      data: {
+        slug: input.slug,
+        subdomain: input.slug,
+        name: input.name,
+        contactName: input.contactName,
+        contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone,
+        notes: input.notes,
+        status: TenantStatus.PROVISIONING,
+        dbName: `tenant_${input.slug}`,
+        apiPort,
+        webPort: apiPort + 1,
+        posPort: apiPort + 2,
+        kdsPort: apiPort + 3,
+        clientPort: apiPort + 4,
+        dbPassword: randomPassword(),
+        jwtSecret: randomSecret(),
+        jwtRefreshSecret: randomSecret(),
+        apiCrossSecret: randomSecret(),
+      },
+    })
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      throw new Error('Ce slug a été pris pendant la création — réessayez avec un autre slug')
+    }
+    throw err
+  }
 }
 
 export async function runProvisioningScript(

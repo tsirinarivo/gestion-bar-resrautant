@@ -19,7 +19,11 @@ export function DeleteTenantButton({ tenantId, tenantSlug, tenantName }: Props) 
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/tenants/${tenantId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/tenants/${tenantId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmSlug: tenantSlug }),
+      })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.error || 'Suppression échouée')
       return body

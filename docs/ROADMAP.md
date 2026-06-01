@@ -130,6 +130,37 @@
 - [x] Tous les fetch directs et useQuery du POS passent par `authFetch` ou `apiFetch` qui font le refresh transparent
 - [x] Résultat : le POS reste connecté 7 jours (durée du refresh token) avec rotation de l'access token toutes les 15 min
 
+### Sprint Audit Workflows round 5 (mai 2026)
+Audit approfondi de 4 clusters de workflows (~100 trouvailles consolidées).
+
+**Sprint A — Workflows cassés** (commit cad3821) :
+- [x] Vue floor des tables non implémentée → bouton inerte retiré
+- [x] Actions tables `opacity-0 group-hover` → enlevé (inaccessibles tactile pour serveurs)
+- [x] POS TAKEAWAY : "Envoyer cuisine" seul masqué (cart vidé empêchait d'encaisser). Bouton unique "Encaisser + envoyer cuisine" qui crée order + payment en une fois.
+- [x] KDS : useState localStorage → useEffect mount (hydration mismatch SSR/client). 3 useState convertis (token, station, soundOn).
+- [x] KDS mutations (preparing/ready/itemReady) : `onError` ajouté avec alert + console.error. Plus de silent failure.
+
+**Sprint B — Comptabilité/Reporting** (commit 04e4d12) :
+- [x] CA dashboard ≠ finances ≠ rapport → harmonisé sur `status: in ['COMPLETED', 'DELIVERED']` partout (dashboard.ts + superadmin.ts). 1 seul chiffre de CA pour la même journée.
+- [x] TVA tax-report fantôme → `product.taxRate ?? 0` (au lieu de 20). Plus de TVA fictive 16,7% calculée sur CSV/XLSX quand les produits n'ont pas de taxRate configuré.
+- [x] Facture sur paiement REFUNDED/FAILED → bloqué (400). Check status COMPLETED obligatoire.
+- [x] Numérotation facture race → `count + create` wrappés dans transaction Serializable. Postgres rollback les conflits.
+
+**Sprint C — Master SaaS** :
+- [x] PATCH `/api/tenants/:id` avec action suspend/resume + event `SUSPENDED`/`RESUMED` dans `TenantEvent` (audit).
+- [x] DELETE tenant 2FA : body requiert `confirmSlug` exact (côté API) + UI envoie le slug dans le body.
+- [x] Composant `SuspendResumeButton` ajouté dans la page détail tenant. Bouton conditionnel selon status.
+- [x] Slug race : `try/catch` sur P2002 dans `createTenantRecord` → message clair "slug pris pendant la création".
+
+**Reporté (refactor architectural)** :
+- Provisioning async (fire-and-forget + polling) : refactor lourd
+- Rollback provisioning échoué (cleanup DB + ports) : trap ERR dans new-tenant.sh
+- Impersonation / magic-link superadmin : nécessite cross-domain JWT
+- POS modificateurs/variantes/notes par item + split bill : refonte structurelle
+- Aucun Socket.io côté pages admin : 30+ pages à brancher
+- Promotions feature fantôme (jamais consommée) : ajout logique dans orders.ts + public.ts
+- Client suivi temps réel polling 30s : ajouter socket.io-client
+
 ### Sprint Robustesse Infra (mai 2026) — Audit round 4 (suite)
 6 fixes pour rendre l'infra production-grade :
 - [x] **mem_limit + mem_reservation** sur tous les services Docker (`docker-compose.prod.yml`) : postgres 1g, api 768m, web/client 512m/384m, pos 384m, kds/master 384m, redis/backup 256m, watchdog 64m. Plus de OOM du VPS entier si un container leak.

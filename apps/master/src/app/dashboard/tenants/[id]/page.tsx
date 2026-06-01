@@ -4,6 +4,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { masterPrisma } from '@restaurant/master-database'
 import { readSession } from '@/lib/auth'
 import { DeleteTenantButton } from '@/components/DeleteTenantButton'
+import { SuspendResumeButton } from '@/components/SuspendResumeButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,11 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
         </div>
         <div className="flex items-center gap-3">
           <StatusBadge status={tenant.status} />
+          <SuspendResumeButton
+            tenantId={tenant.id}
+            tenantSlug={tenant.slug}
+            status={tenant.status}
+          />
           {session?.role === 'OWNER' && (
             <DeleteTenantButton
               tenantId={tenant.id}
