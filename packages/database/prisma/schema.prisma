@@ -694,6 +694,8 @@ model Reservation {
 
   @@index([restaurantId])
   @@index([date])
+  @@index([customerId])
+  @@index([tableId, date])
   @@map("reservations")
 }
 
@@ -788,6 +790,10 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([tableId])
+  @@index([customerId])
+  // Indexes composites pour les queries hot (dashboard, KDS, finances, list)
+  @@index([restaurantId, status, createdAt])
+  @@index([restaurantId, createdAt])
   @@map("orders")
 }
 
@@ -1210,6 +1216,9 @@ model CouponUsage {
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
 
+  @@index([couponId])
+  @@index([customerId])
+  @@index([couponId, customerId])
   @@map("coupon_usages")
 }
 

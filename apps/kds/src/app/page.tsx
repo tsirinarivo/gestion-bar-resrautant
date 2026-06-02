@@ -155,7 +155,10 @@ function KDSPageInner() {
     queryKey: ['kds-orders', token],
     queryFn: () => fetchKDSOrders(token!),
     enabled: !!token,
-    refetchInterval: 10_000,
+    // Socket.io invalide la query sur kds:new_order / order:status_changed
+    // (cf useEffect plus bas). Le polling 60s est un filet de sécurité au
+    // cas où la socket se déconnecte silencieusement.
+    refetchInterval: 60_000,
   });
 
   function handleSetToken(t: string | null) {

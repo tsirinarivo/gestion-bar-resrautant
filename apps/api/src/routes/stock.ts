@@ -380,15 +380,27 @@ stockRouter.get('/movements/all', async (req: AuthRequest, res, next) => {
   }
 })
 
-// GET /api/stock/alerts — All stock alerts
+// GET /api/stock/alerts — All stock alerts (paginé pour éviter de charger
+// des milliers d'alertes ignorées sur restaurant actif → OOM Node)
 stockRouter.get('/alerts/all', async (req: AuthRequest, res, next) => {
   try {
-    const alerts = await prisma.stockAlert.findMany({
-      where: { stockItem: { restaurantId: req.user!.restaurantId }, isRead: false },
-      include: { stockItem: true },
-      orderBy: { createdAt: 'desc' },
-    })
-    res.json({ success: true, data: alerts })
+    const limit = Math.min(Number(req.query.limit) || 100, 500)
+    const page = Math.max(Number(req.query.page) || 1, 1)
+    const where = { stockItem: { restaurantId: req.user!.restaurantId }, isRead: false }
+    const [alerts, total] = await Promise.all([
+      prisma.stockAlert.findMany({
+        where,
+        select: {
+          id: true, type: true, message: true, isRead: true, createdAt: true,
+          stockItem: { select: { id: true, name: true, unit: true, currentQuantity: true, minQuantity: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.stockAlert.count({ where }),
+    ])
+    res.json({ success: true, data: alerts, pagination: { page, limit, total } })
   } catch (error) {
     next(error)
   }

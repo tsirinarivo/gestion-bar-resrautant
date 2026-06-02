@@ -131,7 +131,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-restaurant_db}
+      # connection_limit=10 : evite la saturation Postgres si beaucoup de tenants
+      # tournent (defaut Prisma = num_cpus*2+1 = 9-17 sur VPS moyen).
+      # pool_timeout=20 : 20s d'attente max avant de raise au lieu de bloquer.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-restaurant_db}?connection_limit=10&pool_timeout=20
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
     ports:
       - "127.0.0.1:4001:4000"
@@ -316,7 +319,7 @@ services:
       NODE_ENV: production
       PORT: 3010
       HOSTNAME: "0.0.0.0"
-      MASTER_DATABASE_URL: postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${MASTER_DB_NAME:-master_db}
+      MASTER_DATABASE_URL: postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${MASTER_DB_NAME:-master_db}?connection_limit=5&pool_timeout=20
       MASTER_JWT_SECRET: ${MASTER_JWT_SECRET}
       RESTAURANT_ROOT: /opt/restaurant
     ports:
