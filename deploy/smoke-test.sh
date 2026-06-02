@@ -80,6 +80,19 @@ echo -e "\n${BOLD}Endpoints publics${RESET}"
 check_json "API public info"          "http://127.0.0.1:4001/api/public/restaurant-demo/info" '"success"'
 check_json "API public menu"          "http://127.0.0.1:4001/api/public/restaurant-demo/menu" '"success"'
 
+echo -e "\n${BOLD}Domaines HTTPS (nginx + SSL)${RESET}"
+# Vérifie que chaque domaine répond. Couvre les régressions nginx (configs
+# écrasées, certs SSL pas réattachés, rate-limit trop strict, etc.).
+# - admin/master = 307 (redirect vers /login attendu)
+# - sakafio/pos/kds = 200 (page d'accueil ou login)
+# - api = 200 sur /api/health (la racine /api est 404, c'est normal)
+check "HTTPS sakafio.mg (client)"          "https://sakafio.mg/" 200
+check "HTTPS admin.sakafio.mg → redirect"  "https://admin.sakafio.mg/" 307
+check "HTTPS api.sakafio.mg/api/health"    "https://api.sakafio.mg/api/health" 200
+check "HTTPS pos.sakafio.mg"               "https://pos.sakafio.mg/" 200
+check "HTTPS kds.sakafio.mg"               "https://kds.sakafio.mg/" 200
+check "HTTPS master.sakafio.mg → redirect" "https://master.sakafio.mg/" 307
+
 echo -e "\n${BOLD}Base de données${RESET}"
 DC="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 if $DC exec -T postgres pg_isready -U restaurant_user > /dev/null 2>&1; then
