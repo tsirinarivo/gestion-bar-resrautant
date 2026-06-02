@@ -25,6 +25,99 @@ employeeRouter.get('/', authorize('manager', 'superadmin'), async (req: AuthRequ
   }
 })
 
+// ─── Routes STATIQUES (doivent être déclarées AVANT /:id sinon Express
+// les capture comme /:id avec id="active"/"hours-summary"/"schedule" → 404)
+
+// GET /api/employees/active — currently clocked-in employees
+employeeRouter.get('/active', async (req: AuthRequest, res, next) => {
+  try {
+    const entries = await prisma.timeEntry.findMany({
+      where: {
+        employee: { restaurantId: req.user!.restaurantId },
+        clockOut: null,
+      },
+      include: {
+        employee: {
+          include: { user: { select: { firstName: true, lastName: true, avatar: true, role: true } } },
+        },
+      },
+      orderBy: { clockIn: 'asc' },
+    })
+    const now = Date.now()
+    const data = entries.map(e => ({
+      employeeId: e.employee.id,
+      firstName: e.employee.user.firstName,
+      lastName: e.employee.user.lastName,
+      avatar: e.employee.user.avatar,
+      role: e.employee.user.role,
+      clockIn: e.clockIn,
+      durationMinutes: Math.floor((now - e.clockIn.getTime()) / 60000),
+    }))
+    res.json({ success: true, data })
+  } catch (error) { next(error) }
+})
+
+// GET /api/employees/hours-summary — total hours worked per employee in a period
+employeeRouter.get('/hours-summary', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { from, to } = req.query
+    const start = from ? new Date(from as string) : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d })()
+    const end = to ? new Date(to as string) : new Date()
+
+    const entries = await prisma.timeEntry.findMany({
+      where: {
+        employee: { restaurantId: req.user!.restaurantId },
+        clockIn: { gte: start, lte: end },
+        clockOut: { not: null },
+      },
+      include: {
+        employee: { include: { user: { select: { firstName: true, lastName: true } } } },
+      },
+    })
+
+    // Aggregate by employee
+    const byEmployee = new Map<string, { employeeId: string; firstName: string; lastName: string; totalHours: number; sessionCount: number }>()
+    for (const entry of entries) {
+      const key = entry.employeeId
+      if (!byEmployee.has(key)) {
+        byEmployee.set(key, {
+          employeeId: entry.employeeId,
+          firstName: entry.employee.user.firstName,
+          lastName: entry.employee.user.lastName,
+          totalHours: 0,
+          sessionCount: 0,
+        })
+      }
+      const agg = byEmployee.get(key)!
+      agg.totalHours += entry.totalHours ?? 0
+      agg.sessionCount += 1
+    }
+
+    const summary = Array.from(byEmployee.values())
+      .sort((a, b) => b.totalHours - a.totalHours)
+      .map(e => ({ ...e, totalHours: Math.round(e.totalHours * 10) / 10 }))
+
+    res.json({ success: true, data: summary, period: { from: start, to: end } })
+  } catch (error) { next(error) }
+})
+
+// GET /api/employees/schedule — all employees, date range. Alias /shifts (same impl).
+const scheduleHandler = async (req: AuthRequest, res: any, next: any) => {
+  try {
+    const { from, to } = req.query
+    const start = from ? new Date(from as string) : (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); d.setHours(0,0,0,0); return d })()
+    const end = to ? new Date(to as string) : new Date(start.getTime() + 6 * 86_400_000)
+    const shifts = await prisma.scheduleShift.findMany({
+      where: { employee: { restaurantId: req.user!.restaurantId }, date: { gte: start, lte: end } },
+      include: { employee: { include: { user: { select: { firstName: true, lastName: true } } } } },
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+    })
+    res.json({ success: true, data: shifts })
+  } catch (error) { next(error) }
+}
+employeeRouter.get('/schedule', authorize('manager', 'superadmin'), scheduleHandler)
+employeeRouter.get('/shifts', authorize('manager', 'superadmin'), scheduleHandler)
+
 employeeRouter.get('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const employee = await prisma.employee.findFirst({
@@ -241,93 +334,6 @@ employeeRouter.post('/:id/clock-out', async (req: AuthRequest, res, next) => {
 })
 
 // GET /api/employees/active — currently clocked-in employees
-employeeRouter.get('/active', async (req: AuthRequest, res, next) => {
-  try {
-    const entries = await prisma.timeEntry.findMany({
-      where: {
-        employee: { restaurantId: req.user!.restaurantId },
-        clockOut: null,
-      },
-      include: {
-        employee: {
-          include: { user: { select: { firstName: true, lastName: true, avatar: true, role: true } } },
-        },
-      },
-      orderBy: { clockIn: 'asc' },
-    })
-    const now = Date.now()
-    const data = entries.map(e => ({
-      employeeId: e.employee.id,
-      firstName: e.employee.user.firstName,
-      lastName: e.employee.user.lastName,
-      avatar: e.employee.user.avatar,
-      role: e.employee.user.role,
-      clockIn: e.clockIn,
-      durationMinutes: Math.floor((now - e.clockIn.getTime()) / 60000),
-    }))
-    res.json({ success: true, data })
-  } catch (error) { next(error) }
-})
-
-// GET /api/employees/hours-summary — total hours worked per employee in a period
-employeeRouter.get('/hours-summary', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
-  try {
-    const { from, to } = req.query
-    const start = from ? new Date(from as string) : (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d })()
-    const end = to ? new Date(to as string) : new Date()
-
-    const entries = await prisma.timeEntry.findMany({
-      where: {
-        employee: { restaurantId: req.user!.restaurantId },
-        clockIn: { gte: start, lte: end },
-        clockOut: { not: null },
-      },
-      include: {
-        employee: { include: { user: { select: { firstName: true, lastName: true } } } },
-      },
-    })
-
-    // Aggregate by employee
-    const byEmployee = new Map<string, { employeeId: string; firstName: string; lastName: string; totalHours: number; sessionCount: number }>()
-    for (const entry of entries) {
-      const key = entry.employeeId
-      if (!byEmployee.has(key)) {
-        byEmployee.set(key, {
-          employeeId: entry.employeeId,
-          firstName: entry.employee.user.firstName,
-          lastName: entry.employee.user.lastName,
-          totalHours: 0,
-          sessionCount: 0,
-        })
-      }
-      const agg = byEmployee.get(key)!
-      agg.totalHours += entry.totalHours ?? 0
-      agg.sessionCount += 1
-    }
-
-    const summary = Array.from(byEmployee.values())
-      .sort((a, b) => b.totalHours - a.totalHours)
-      .map(e => ({ ...e, totalHours: Math.round(e.totalHours * 10) / 10 }))
-
-    res.json({ success: true, data: summary, period: { from: start, to: end } })
-  } catch (error) { next(error) }
-})
-
-// GET /api/employees/schedule — all employees, date range
-employeeRouter.get('/schedule', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
-  try {
-    const { from, to } = req.query
-    const start = from ? new Date(from as string) : (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); d.setHours(0,0,0,0); return d })()
-    const end = to ? new Date(to as string) : new Date(start.getTime() + 6 * 86_400_000)
-    const shifts = await prisma.scheduleShift.findMany({
-      where: { employee: { restaurantId: req.user!.restaurantId }, date: { gte: start, lte: end } },
-      include: { employee: { include: { user: { select: { firstName: true, lastName: true } } } } },
-      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-    })
-    res.json({ success: true, data: shifts })
-  } catch (error) { next(error) }
-})
-
 // POST /api/employees/shifts — create a shift
 employeeRouter.post('/shifts', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
