@@ -88,67 +88,24 @@ function SkeletonKPI() {
 }
 
 export default function DashboardPage() {
-  const { data: kpisData, isLoading: kpisLoading } = useQuery({
-    queryKey: ['dashboard', 'kpis'],
-    queryFn: () => api.get('/dashboard/kpis').then(r => r.data.data),
+  // 1 seule requête qui agrège tout (au lieu de 9 en parallèle) — sur connexion
+  // lente Madagascar, passe le chargement de ~5-15s à ~500ms.
+  const { data: all, isLoading: kpisLoading } = useQuery({
+    queryKey: ['dashboard', 'all'],
+    queryFn: () => api.get('/dashboard/all').then(r => r.data.data),
     refetchInterval: 300_000,
     staleTime: 60_000,
   })
-
-  const { data: revenueData, isLoading: revenueLoading } = useQuery({
-    queryKey: ['dashboard', 'revenue', 'week'],
-    queryFn: () => api.get('/dashboard/revenue-chart?period=week').then(r => r.data.data),
-    refetchInterval: 300_000,
-    staleTime: 120_000,
-  })
-
-  const { data: hourlyData } = useQuery({
-    queryKey: ['dashboard', 'hourly'],
-    queryFn: () => api.get('/dashboard/hourly-stats').then(r => r.data.data),
-    refetchInterval: 300_000,
-    staleTime: 120_000,
-  })
-
-  const { data: categoryData } = useQuery({
-    queryKey: ['dashboard', 'categories'],
-    queryFn: () => api.get('/dashboard/category-stats').then(r => r.data.data),
-    staleTime: 300_000,
-  })
-
-  const { data: expiringItems } = useQuery({
-    queryKey: ['stock', 'expiring'],
-    queryFn: () => api.get('/stock/expiring?days=7').then(r => r.data.data),
-    staleTime: 300_000,
-    refetchInterval: 600_000,
-  })
-
-  const { data: birthdaysData } = useQuery({
-    queryKey: ['customers', 'birthdays'],
-    queryFn: () => api.get('/customers/birthdays?days=7').then(r => r.data.data),
-    staleTime: 3_600_000,
-  })
-  const birthdays: any[] = birthdaysData ?? []
-
-  const { data: activeEmployees } = useQuery({
-    queryKey: ['employees', 'active'],
-    queryFn: () => api.get('/employees/active').then(r => r.data.data),
-    refetchInterval: 60_000,
-  })
-  const onDuty: any[] = activeEmployees ?? []
-
-  const todayStr = new Date().toISOString().split('T')[0]
-  const { data: shiftsData } = useQuery({
-    queryKey: ['shifts-today'],
-    queryFn: () => api.get(`/employees/shifts?from=${todayStr}&to=${todayStr}`).then(r => r.data.data),
-    staleTime: 300_000,
-  })
-  const todayShifts: any[] = shiftsData ?? []
-
-  const { data: restaurant } = useQuery({
-    queryKey: ['restaurant', 'me'],
-    queryFn: () => api.get('/restaurants/me').then(r => r.data.data),
-    staleTime: 3_600_000,
-  })
+  const kpisData = all?.kpis
+  const revenueData = all?.revenue
+  const revenueLoading = kpisLoading
+  const hourlyData = all?.hourly
+  const categoryData = all?.category
+  const expiringItems = all?.expiring
+  const birthdays: any[] = all?.birthdays ?? []
+  const onDuty: any[] = all?.activeEmployees ?? []
+  const todayShifts: any[] = all?.shifts ?? []
+  const restaurant = all?.restaurant
 
   const kpis = kpisData
   const monthRevenue = kpis?.revenue?.thisMonth || 0

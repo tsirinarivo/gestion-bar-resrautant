@@ -6,6 +6,53 @@ import { startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, en
 export const dashboardRouter = Router()
 dashboardRouter.use(authenticate)
 
+// GET /api/dashboard/all — agrège en 1 round-trip ce que le dashboard charge
+// au mount. Sur connexion lente (latence Madagascar → VPS EU = ~300ms RTT),
+// passe le chargement de 9 requêtes parallèles à 1 → gain x5-10 perçu.
+dashboardRouter.get('/all', async (req: AuthRequest, res, next) => {
+  try {
+    const port = process.env.PORT || 4000
+    const baseUrl = `http://127.0.0.1:${port}/api`
+    const headers: Record<string, string> = {}
+    if (req.headers.authorization) headers.authorization = req.headers.authorization
+    if (req.headers.cookie) headers.cookie = req.headers.cookie as string
+
+    const todayStr = new Date().toISOString().split('T')[0]
+    const safeFetch = (path: string) =>
+      fetch(`${baseUrl}${path}`, { headers })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null)
+
+    const [kpis, revenue, hourly, category, expiring, birthdays, activeEmployees, shifts, restaurant] =
+      await Promise.all([
+        safeFetch('/dashboard/kpis'),
+        safeFetch('/dashboard/revenue-chart?period=week'),
+        safeFetch('/dashboard/hourly-stats'),
+        safeFetch('/dashboard/category-stats'),
+        safeFetch('/stock/expiring?days=7'),
+        safeFetch('/customers/birthdays?days=7'),
+        safeFetch('/employees/active'),
+        safeFetch(`/employees/shifts?from=${todayStr}&to=${todayStr}`),
+        safeFetch('/restaurants/me'),
+      ])
+
+    res.json({
+      success: true,
+      data: {
+        kpis: kpis?.data ?? null,
+        revenue: revenue?.data ?? null,
+        hourly: hourly?.data ?? null,
+        category: category?.data ?? null,
+        expiring: expiring?.data ?? null,
+        birthdays: birthdays?.data ?? null,
+        activeEmployees: activeEmployees?.data ?? null,
+        shifts: shifts?.data ?? null,
+        restaurant: restaurant?.data ?? null,
+      },
+    })
+  } catch (error) { next(error) }
+})
+
 // GET /api/dashboard/kpis
 dashboardRouter.get('/kpis', async (req: AuthRequest, res, next) => {
   try {
