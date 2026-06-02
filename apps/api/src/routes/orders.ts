@@ -480,9 +480,10 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
     const productIds = [...new Set(data.items.map(i => i.productId))]
     const products = await prisma.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, kdsStation: true },
+      select: { id: true, kdsStation: true, name: true },
     })
     const productKdsMap = new Map(products.map(p => [p.id, p.kdsStation]))
+    const productNameMap = new Map(products.map(p => [p.id, p.name]))
 
     const subtotal = data.items.reduce((sum, item) => {
       const modifierTotal = (item.modifiers || []).reduce((s, m) => s + m.price, 0)
@@ -589,6 +590,7 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
           items: {
             create: data.items.map(item => ({
               productId: item.productId,
+              productName: productNameMap.get(item.productId) ?? null,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               totalPrice: item.unitPrice * item.quantity,

@@ -82,7 +82,9 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
       search, page = '1', limit = '50', warehouseId,
     } = req.query
 
-    const where: any = { restaurantId: req.user!.restaurantId }
+    // Filtre deletedAt par défaut (sauf si ?includeDeleted=true) — les produits
+    // soft-deleted ne doivent jamais apparaître dans le menu/POS/dashboard.
+    const where: any = { restaurantId: req.user!.restaurantId, deletedAt: null }
     if (categoryId) where.categoryId = categoryId
     if (isActive !== undefined) where.isActive = isActive === 'true'
     if (isAvailable !== undefined) where.isAvailable = isAvailable === 'true'
@@ -271,8 +273,15 @@ productRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: Aut
     })
     if (!product) throw new AppError('Produit introuvable', 404)
 
-    await prisma.product.delete({ where: { id: product.id } })
-    res.json({ success: true, message: 'Produit supprimé' })
+    // Soft delete : FK OrderItem.productId est en Restrict (déconnexion
+    // impossible si le produit a déjà été vendu). On set deletedAt + isActive
+    // false → caché des listings (GET / filtre `deletedAt: null`) mais
+    // l'historique des commandes/factures reste consultable.
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { deletedAt: new Date(), isActive: false, isAvailable: false },
+    })
+    res.json({ success: true, message: 'Produit archivé' })
   } catch (error) {
     next(error)
   }

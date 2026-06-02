@@ -130,6 +130,43 @@
 - [x] Tous les fetch directs et useQuery du POS passent par `authFetch` ou `apiFetch` qui font le refresh transparent
 - [x] Résultat : le POS reste connecté 7 jours (durée du refresh token) avec rotation de l'access token toutes les 15 min
 
+### Sprint Audit round 6 (juin 2026)
+Audit approfondi sur 3 axes : Sécurité pentest-like + Performance DB + Data Integrity.
+36 nouveaux findings (14 CRITIQUE + 12 HIGH + 9 MEDIUM), 15 fixes livrés en 3 sprints.
+
+**Sécu (commit 7a500ee)** :
+- [x] Privilege escalation manager→superadmin (employees POST + PUT)
+- [x] CSRF SameSite 'lax'→'strict' (refreshToken + master_token)
+- [x] Middleware retire fallback cookie accessToken (Bearer header only)
+- [x] Mass assignment PUT /restaurants/me : schema strict + whitelist explicite
+- [x] JWT master algorithm 'HS256' + algorithms ['HS256']
+
+**Perf DB (commit af08eac)** :
+- [x] Order : @@index composites (restaurantId, status, createdAt) + (restaurantId, createdAt) + customerId
+- [x] Reservation : @@index customerId + (tableId, date)
+- [x] CouponUsage : @@index couponId + customerId + (couponId, customerId)
+- [x] /api/stock/alerts/all : pagination + select minimal
+- [x] KDS refetchInterval 10s→60s (Socket.io déjà actif)
+- [x] DATABASE_URL : connection_limit=10 + pool_timeout=20 (master 5/20)
+
+**Data Integrity quick wins** :
+- [x] Coupon : @@unique([restaurantId, code]) au lieu de @unique global
+- [x] OrderItem : snapshot productName nullable + peuplé au create (orders.ts + public.ts)
+- [x] Product : soft-delete via deletedAt + isActive=false (au lieu de hard-delete bloqué par FK Restrict)
+- [x] GET /products filtre deletedAt: null par défaut
+
+**Reporté (refactor lourd, dans la roadmap)** :
+- Float→Decimal sur tous les montants (Order, Payment, Refund, Invoice, BankAccount, etc.) — migration sensible
+- restaurantId dénormalisé sur Payment/Refund/Invoice/OrderItem/etc. — backfill nécessaire
+- Cascade DELETE Restaurant→Orders : passer en Restrict + soft-delete Restaurant
+- CouponUsage @@unique([couponId, customerId]) : incompatible avec usagePerUser>1, refactor en compteur
+- Soft-delete sur Category
+- TimeEntry auto-clôture cron
+- Brute-force coupon : limiter spécifique par (slug, IP)
+- PUT /auth/me change email sans currentPassword
+- Logout invalidate access tokens via tokenVersion sur User
+- Mass-find restaurantId filter manquant sur ~10 routes (audit pour lister)
+
 ### Sprint Audit Workflows round 5 (mai 2026)
 Audit approfondi de 4 clusters de workflows (~100 trouvailles consolidées).
 

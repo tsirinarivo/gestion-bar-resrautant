@@ -219,6 +219,11 @@ model Product {
   isNew           Boolean @default(false)
   sortOrder       Int     @default(0)
 
+  // Soft delete : OrderItem.productId est en Restrict (FK) donc on ne peut
+  // pas hard-supprimer un produit qui a déjà été vendu. Le DELETE API ci-
+  // dessous set deletedAt + filtre les listings (au lieu de prisma.delete()).
+  deletedAt       DateTime?
+
   // Nutritional info
   calories        Int?
   proteins        Float?
@@ -802,6 +807,10 @@ model OrderItem {
   quantity     Int
   unitPrice    Float
   totalPrice   Float
+  // Snapshot du nom du produit au moment de la commande. Évite que renommer
+  // un produit modifie l'affichage des factures historiques (= falsification).
+  // Nullable pour rétro-compatibilité ; backfill via script puis NOT NULL.
+  productName  String?
   notes        String?
   status       String @default("PENDING") // PENDING, PREPARING, READY, SERVED, CANCELLED
   kdsStation   String? // hot, cold, drinks, desserts
@@ -1179,7 +1188,7 @@ model PromotionCategory {
 
 model Coupon {
   id           String   @id @default(cuid())
-  code         String   @unique
+  code         String   // unicité composite via @@unique([restaurantId, code]) ci-dessous
   description  String?
   type         String   // PERCENTAGE, FIXED_AMOUNT, FREE_DELIVERY
   value        Float
@@ -1203,6 +1212,7 @@ model Coupon {
   updatedAt DateTime @updatedAt
 
   @@index([restaurantId])
+  @@unique([restaurantId, code])
   @@map("coupons")
 }
 

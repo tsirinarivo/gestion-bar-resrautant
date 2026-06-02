@@ -105,7 +105,7 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
     const productIds = [...new Set(items.map(i => i.productId))]
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, restaurantId: restaurant.id, isActive: true, isAvailable: true },
-      select: { id: true, price: true, kdsStation: true },
+      select: { id: true, price: true, kdsStation: true, name: true },
     })
     const productMap = new Map(products.map(p => [p.id, p]))
     for (const item of items) {
@@ -181,6 +181,7 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
           items: {
             create: enrichedItems.map(item => ({
               productId: item.productId,
+              productName: productMap.get(item.productId)?.name ?? null,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               totalPrice: item.unitPrice * item.quantity,
