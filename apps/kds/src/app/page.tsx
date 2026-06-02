@@ -80,7 +80,7 @@ async function updateOrderStatus(token: string, orderId: string, status: string)
 }
 
 function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
-  const [email, setEmail] = useState('cuisinier@demo.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);

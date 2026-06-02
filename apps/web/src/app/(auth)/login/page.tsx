@@ -162,16 +162,6 @@ export default function LoginPage() {
               )}
             </motion.button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 rounded-xl bg-brand-orange/10 border border-brand-orange/20">
-            <p className="text-xs font-medium text-brand-orange mb-2">Accès démo</p>
-            <div className="space-y-1 text-xs text-brand-muted">
-              <div>Manager: <span className="text-white">manager@demo.com / demo1234</span></div>
-              <div>Caissier: <span className="text-white">caissier@demo.com / demo1234</span></div>
-              <div>Cuisinier: <span className="text-white">cuisinier@demo.com / demo1234</span></div>
-            </div>
-          </div>
         </div>
       </motion.div>
     </div>

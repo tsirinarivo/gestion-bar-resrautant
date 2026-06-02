@@ -63,7 +63,7 @@ const POS_PAYMENT_METHODS = [
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }: { onLogin: (token: string) => void }) {
-  const [email,    setEmail]    = useState('caissier@demo.com');
+  const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
