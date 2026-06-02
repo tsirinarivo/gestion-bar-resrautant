@@ -16,7 +16,11 @@ export interface AuthRequest extends Request {
 
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies.accessToken
+    // Le token doit venir UNIQUEMENT du header Authorization (Bearer). On n'accepte
+    // pas un fallback cookie : un cookie accessToken serait sujet à CSRF (auto-
+    // envoyé par le browser sur cross-origin), contrairement au header explicite
+    // que seul l'app peut poser.
+    const token = req.headers.authorization?.replace('Bearer ', '')
 
     if (!token) {
       return res.status(401).json({ success: false, error: 'Token manquant' })

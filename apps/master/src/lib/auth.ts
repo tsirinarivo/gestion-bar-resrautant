@@ -20,13 +20,13 @@ export type SessionPayload = {
 }
 
 export function signSession(payload: SessionPayload): string {
-  return jwt.sign(payload, getSecret(), { expiresIn: TTL_SECONDS })
+  return jwt.sign(payload, getSecret(), { expiresIn: TTL_SECONDS, algorithm: 'HS256' })
 }
 
 export function setSessionCookie(token: string) {
   cookies().set(COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'strict',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: TTL_SECONDS,
@@ -41,7 +41,7 @@ export function readSession(): SessionPayload | null {
   const token = cookies().get(COOKIE_NAME)?.value
   if (!token) return null
   try {
-    return jwt.verify(token, getSecret()) as SessionPayload
+    return jwt.verify(token, getSecret(), { algorithms: ['HS256'] }) as SessionPayload
   } catch {
     return null
   }

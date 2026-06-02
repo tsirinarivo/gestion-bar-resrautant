@@ -156,6 +156,10 @@ employeeRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthReq
     const data = schema.parse(req.body)
     const restaurantId = req.user!.restaurantId
 
+    if (data.role === 'superadmin' && req.user!.roleName !== 'superadmin') {
+      throw new AppError('Seul un superadmin peut créer un autre superadmin', 403)
+    }
+
     const existing = await prisma.user.findUnique({ where: { email: data.email } })
     if (existing) throw new AppError('Un utilisateur avec cet email existe déjà', 409)
 
@@ -214,6 +218,13 @@ employeeRouter.put('/:id', authorize('manager', 'superadmin'), async (req: AuthR
 
     const data = schema.parse(req.body)
     const restaurantId = req.user!.restaurantId
+
+    // Privilege escalation guard : seul un superadmin peut assigner/promouvoir
+    // au rôle superadmin. Un manager qui PUT data.role='superadmin' sur son
+    // propre employé est rejeté.
+    if (data.role === 'superadmin' && req.user!.roleName !== 'superadmin') {
+      throw new AppError('Seul un superadmin peut assigner le rôle superadmin', 403)
+    }
 
     const employee = await prisma.employee.findFirst({
       where: { id: req.params.id, restaurantId },

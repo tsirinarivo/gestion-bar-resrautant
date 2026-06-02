@@ -21,7 +21,18 @@ restaurantRouter.get('/me', async (req: AuthRequest, res, next) => {
 
 restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
-    const data = z.object({
+    // Schéma typé strict (pas de z.any()) + objet 'data' construit avec
+    // whitelist explicite → impossible d'injecter un champ Prisma non listé
+    // ici (ex: id, status, slug, abonnement) via le body.
+    const openingHoursSchema = z.record(
+      z.string(),
+      z.object({
+        open: z.string().optional(),
+        close: z.string().optional(),
+        closed: z.boolean().optional(),
+      }).strict(),
+    )
+    const parsed = z.object({
       name: z.string().optional(),
       description: z.string().optional(),
       logo: z.string().optional(),
@@ -29,7 +40,7 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       city: z.string().optional(),
       phone: z.string().optional(),
       email: z.string().email().optional(),
-      openingHours: z.any().optional(),
+      openingHours: openingHoursSchema.optional(),
       defaultTaxRate: z.number().optional(),
       deliveryEnabled: z.boolean().optional(),
       pickupEnabled: z.boolean().optional(),
@@ -39,6 +50,16 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       estimatedPrepTime: z.number().optional(),
       monthlyRevenueTarget: z.number().nullable().optional(),
     }).parse(req.body)
+
+    const data: Record<string, unknown> = {}
+    for (const key of [
+      'name', 'description', 'logo', 'address', 'city', 'phone', 'email',
+      'openingHours', 'defaultTaxRate', 'deliveryEnabled', 'pickupEnabled',
+      'dineInEnabled', 'minOrderAmount', 'deliveryFee', 'estimatedPrepTime',
+      'monthlyRevenueTarget',
+    ] as const) {
+      if (parsed[key] !== undefined) data[key] = parsed[key]
+    }
 
     const restaurant = await prisma.restaurant.update({
       where: { id: req.user!.restaurantId },
