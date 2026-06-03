@@ -158,10 +158,40 @@ log "Admin $ADMIN_EMAIL créé"
 header "Démarrage des containers"
 
 cd "$TENANT_DIR"
-docker compose up -d
+if ! docker compose up -d 2>&1; then
+  error "docker compose up a échoué — voir les logs ci-dessus"
+fi
+
+# Attendre quelques secondes puis vérifier qu'ils tournent VRAIMENT.
+# `up -d` retourne 0 dès que la création est faite, sans attendre que
+# les containers soient sains. Un crash au boot ne serait pas detecté
+# sans cette étape (les logs precedents disaient '✅ Containers démarrés'
+# alors qu'ils crashaient juste après).
+sleep 8
+
+EXPECTED=("tenant_${TENANT_SLUG}_api" "tenant_${TENANT_SLUG}_web" "tenant_${TENANT_SLUG}_pos" "tenant_${TENANT_SLUG}_kds" "tenant_${TENANT_SLUG}_client")
+FAILED_CONTAINERS=()
+for c in "${EXPECTED[@]}"; do
+  state="$(docker inspect -f '{{.State.Status}}' "$c" 2>/dev/null || echo missing)"
+  echo "   $c : $state"
+  if [ "$state" != "running" ]; then
+    FAILED_CONTAINERS+=("$c")
+  fi
+done
+
+if [ ${#FAILED_CONTAINERS[@]} -gt 0 ]; then
+  warn "Containers en erreur : ${FAILED_CONTAINERS[*]}"
+  for c in "${FAILED_CONTAINERS[@]}"; do
+    echo "── logs $c (50 lignes) ──"
+    docker logs --tail 50 "$c" 2>&1 || true
+    echo "────"
+  done
+  error "Un ou plusieurs containers tenant n'ont pas démarré. Logs ci-dessus."
+fi
+
 cd "$ROOT_DIR"
 
-log "Containers démarrés"
+log "Containers démarrés et confirmés running ($(printf '%s,' "${EXPECTED[@]}" | sed 's/,$//'))"
 
 # ── 8. Config Nginx + reload ───────────────────────────────────────────────
 header "Configuration Nginx"
