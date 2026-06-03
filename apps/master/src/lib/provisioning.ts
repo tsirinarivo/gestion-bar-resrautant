@@ -1,4 +1,4 @@
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 import { randomBytes } from 'crypto'
 import path from 'path'
@@ -128,6 +128,133 @@ export async function runProvisioningScript(
       stderr: (e.stderr ?? '') + '\n' + e.message,
     }
   }
+}
+
+/**
+ * Provisioning en BACKGROUND (fire-and-forget). Écrit des TenantEvent au fur
+ * et à mesure pour que l'UI puisse afficher un live log. Marque le tenant
+ * ACTIVE ou ERROR à la fin. À utiliser au lieu de runProvisioningScript()
+ * quand on ne veut pas bloquer la réponse HTTP pendant 5-10 min.
+ */
+export function runProvisioningScriptAsync(
+  tenant: Tenant,
+  userId: string,
+  adminEmail: string,
+  adminPassword: string,
+  adminFirstName = 'Admin',
+  adminLastName = 'Principal',
+): void {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    TENANT_SLUG: tenant.slug,
+    TENANT_NAME: tenant.name,
+    TENANT_DB_NAME: tenant.dbName,
+    TENANT_DB_PASSWORD: tenant.dbPassword,
+    TENANT_API_PORT: String(tenant.apiPort),
+    TENANT_WEB_PORT: String(tenant.webPort),
+    TENANT_POS_PORT: String(tenant.posPort),
+    TENANT_KDS_PORT: String(tenant.kdsPort),
+    TENANT_CLIENT_PORT: String(tenant.clientPort),
+    TENANT_JWT_SECRET: tenant.jwtSecret,
+    TENANT_JWT_REFRESH_SECRET: tenant.jwtRefreshSecret,
+    TENANT_CROSS_SECRET: tenant.apiCrossSecret,
+    TENANT_SUBDOMAIN: tenant.subdomain,
+    ADMIN_EMAIL: adminEmail,
+    ADMIN_PASSWORD: adminPassword,
+    ADMIN_FIRST_NAME: adminFirstName,
+    ADMIN_LAST_NAME: adminLastName,
+  }
+
+  const child = spawn('bash', [SCRIPT_NEW], { env, cwd: ROOT_DIR })
+
+  let stdoutBuf = ''
+  let stderrBuf = ''
+  // Throttle : on n'écrit pas un event par ligne (trop), on flush par ligne
+  // significative (header ═══) ou tous les 50 lines de stdout/stderr accumulées.
+  let lineBufferStdout: string[] = []
+
+  const flushBuffer = async () => {
+    if (lineBufferStdout.length === 0) return
+    const details = lineBufferStdout.join('\n').slice(-2000)
+    lineBufferStdout = []
+    await masterPrisma.tenantEvent.create({
+      data: { tenantId: tenant.id, userId, type: 'PROVISIONING_LOG', details },
+    }).catch(() => { /* non bloquant */ })
+  }
+
+  child.stdout.on('data', (chunk: Buffer) => {
+    const text = chunk.toString()
+    stdoutBuf += text
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue
+      lineBufferStdout.push(line)
+      // Header → flush immédiat pour un effet "étape par étape"
+      if (line.includes('═══') || line.includes('✅') || line.includes('❌') || line.includes('⚠️')) {
+        void flushBuffer()
+      } else if (lineBufferStdout.length >= 50) {
+        void flushBuffer()
+      }
+    }
+  })
+
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderrBuf += chunk.toString()
+  })
+
+  child.on('close', async (code) => {
+    await flushBuffer()
+    const ok = code === 0
+    try {
+      if (ok) {
+        await masterPrisma.tenant.update({
+          where: { id: tenant.id },
+          data: {
+            status: TenantStatus.ACTIVE,
+            provisionedAt: new Date(),
+            lastDeployedAt: new Date(),
+          },
+        })
+        await masterPrisma.tenantEvent.create({
+          data: {
+            tenantId: tenant.id,
+            userId,
+            type: 'PROVISIONED',
+            details: `Admin ${adminEmail} créé. Exit code ${code}.`,
+          },
+        })
+      } else {
+        await masterPrisma.tenant.update({
+          where: { id: tenant.id },
+          data: { status: TenantStatus.ERROR },
+        })
+        await masterPrisma.tenantEvent.create({
+          data: {
+            tenantId: tenant.id,
+            userId,
+            type: 'PROVISION_FAILED',
+            details: (stderrBuf || stdoutBuf).slice(-3000) + `\nExit code: ${code}`,
+          },
+        })
+      }
+    } catch (err) {
+      console.error('[provisioning] post-close update failed:', err)
+    }
+  })
+
+  child.on('error', async (err) => {
+    await masterPrisma.tenant.update({
+      where: { id: tenant.id },
+      data: { status: TenantStatus.ERROR },
+    }).catch(() => {})
+    await masterPrisma.tenantEvent.create({
+      data: {
+        tenantId: tenant.id,
+        userId,
+        type: 'PROVISION_FAILED',
+        details: `Spawn error: ${err.message}`,
+      },
+    }).catch(() => {})
+  })
 }
 
 export async function runDeletionScript(

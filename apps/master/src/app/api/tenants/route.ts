@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { masterPrisma, TenantStatus } from '@restaurant/master-database'
+import { masterPrisma } from '@restaurant/master-database'
 import { readSession } from '@/lib/auth'
-import { createTenantRecord, runProvisioningScript } from '@/lib/provisioning'
+import { createTenantRecord, runProvisioningScriptAsync } from '@/lib/provisioning'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,63 +58,30 @@ export async function POST(req: Request) {
     },
   })
 
-  const result = await runProvisioningScript(
+  // Fire-and-forget : le provisioning prend 5-10 min, on ne peut pas attendre
+  // dans le handler HTTP (nginx/CDN ferment vers 60s). On retourne immédiatement
+  // 202 Accepted + le tenantId. L'UI poll /api/tenants/:id/events pour le live
+  // log et /api/tenants/:id pour le statut final (ACTIVE | ERROR).
+  runProvisioningScriptAsync(
     tenant,
+    session.uid,
     parsed.data.adminEmail,
     parsed.data.adminPassword,
     parsed.data.adminFirstName,
-    parsed.data.adminLastName
+    parsed.data.adminLastName,
   )
 
-  if (!result.ok) {
-    await masterPrisma.tenant.update({
-      where: { id: tenant.id },
-      data: { status: TenantStatus.ERROR },
-    })
-    await masterPrisma.tenantEvent.create({
-      data: {
-        tenantId: tenant.id,
-        userId: session.uid,
-        type: 'PROVISION_FAILED',
-        details: result.stderr.slice(-2000),
-      },
-    })
-    return NextResponse.json(
-      {
-        error: 'Provisioning échoué — voir les logs',
-        logs: (result.stdout + '\n' + result.stderr).slice(-4000),
-      },
-      { status: 500 }
-    )
-  }
-
-  const updated = await masterPrisma.tenant.update({
-    where: { id: tenant.id },
-    data: {
-      status: TenantStatus.ACTIVE,
-      provisionedAt: new Date(),
-      lastDeployedAt: new Date(),
+  return NextResponse.json(
+    {
+      id: tenant.id,
+      slug: tenant.slug,
+      name: tenant.name,
+      subdomain: tenant.subdomain,
+      apiPort: tenant.apiPort,
+      status: tenant.status, // PROVISIONING
+      adminEmail: parsed.data.adminEmail,
+      adminPasswordSent: false,
     },
-  })
-
-  await masterPrisma.tenantEvent.create({
-    data: {
-      tenantId: tenant.id,
-      userId: session.uid,
-      type: 'PROVISIONED',
-      details: `Admin ${parsed.data.adminEmail} créé`,
-    },
-  })
-
-  return NextResponse.json({
-    id: updated.id,
-    slug: updated.slug,
-    name: updated.name,
-    subdomain: updated.subdomain,
-    apiPort: updated.apiPort,
-    status: updated.status,
-    adminEmail: parsed.data.adminEmail,
-    adminPasswordSent: false,
-    logs: (result.stdout + '\n' + result.stderr).slice(-4000),
-  })
+    { status: 202 }
+  )
 }
