@@ -169,6 +169,35 @@ Dashboard KPIs, Commandes, Tables/plan de salle, Menu + Modificateurs, Stock + d
 
 ---
 
+## Runbook : Création d'un nouveau client (tenant)
+
+1. **Une fois pour toutes sur le serveur** (idempotent) :
+   - `sudo bash deploy/install-finalize-cron.sh` (cron qui reload nginx + certbot, toutes les minutes)
+
+2. **Avant chaque nouvelle création** :
+   - Le `update.sh` doit avoir été lancé après tout fix code, pour rebuild les images globales (`restaurant_web:latest` etc.) avec le placeholder `__SAKAFIO_API_URL__` dans les chunks JS.
+
+3. **Création** via UI master.sakafio.mg → "Nouveau client". Le live log montre les étapes :
+   - Pré-checks : 5 images Sakafio présentes + placeholder `__SAKAFIO_API_URL__` détecté dans les 4 images Next + network `restaurant_shared` créé
+   - DB tenant créée + schema poussé
+   - Admin initial créé (l'email/mdp saisi dans le formulaire)
+   - 5 containers démarrés + vérification `docker inspect` que chacun est `running`
+   - Config nginx générée
+   - Health check API via `docker exec`
+   - Flag `.needs-ssl` créé → le cron prendra le relais (~1 min)
+
+4. **Après création**, le cron `finalize-tenants.sh` (toutes les min) :
+   - Reload nginx (active la conf du tenant)
+   - Certbot pour 5 sous-domaines : `<slug>.sakafio.mg, admin-<slug>, pos-<slug>, kds-<slug>, api-<slug>`
+
+5. **Identifiant de connexion** = email + password saisis dans le formulaire master. Le password n'est jamais réaffiché. Pour reset : `UPDATE users SET "passwordHash"='<hash bcrypt>' WHERE email='X'` dans `tenant_<slug>`.
+
+6. **Si erreur de connexion** sur `admin-<slug>.sakafio.mg/login` :
+   - `docker exec tenant_<slug>_web sh -c "grep -rho 'https://api[a-z.-]*sakafio\.mg' /app/.next/static/chunks 2>/dev/null | sort -u"` doit montrer **uniquement** `https://api-<slug>.sakafio.mg`. Si on voit aussi `https://api.sakafio.mg`, l'image globale a été buildée avec une URL hardcodée → `bash deploy/update.sh` puis `cd tenants/<slug> && docker compose up -d --force-recreate web pos kds client`.
+   - Si le spinner tourne sans fin sur mauvais mdp : interceptor axios cassé sur 401 — fix dans `apps/web/src/lib/api.ts` (skip refresh sur `/auth/login` + reject explicite).
+
+---
+
 ## Pièges connus
 
 - **Express route ordering** : toujours mettre `/bulk`, `/stats`, `/upload-image`, `/inventory-count`, `/reminders` AVANT `/:id` dans le même router (uniquement si même méthode HTTP — POST `/bulk` cohabite avec PUT `/:id` sans conflit).

@@ -58,6 +58,48 @@ MASTER_POSTGRES_PASSWORD="${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .
 MASTER_REDIS_PASSWORD="${REDIS_PASSWORD:?REDIS_PASSWORD manquant dans .env.prod}"
 export MASTER_POSTGRES_PASSWORD MASTER_REDIS_PASSWORD
 
+# ── Pré-checks : éviter de provisionner avec des images cassées ────────────
+# Les tenants réutilisent les images globales restaurant_web/pos/kds/client/api.
+# Si une image a été buildée avec une URL d'API hardcodée (ex: api.sakafio.mg
+# au lieu du placeholder __SAKAFIO_API_URL__), le tenant fera son login vers
+# la mauvaise API → 401 "Erreur de connexion" en boucle.
+header "Pré-checks images Docker"
+
+REQUIRED_IMAGES=(restaurant_api restaurant_web restaurant_pos restaurant_kds restaurant_client)
+for img in "${REQUIRED_IMAGES[@]}"; do
+  if ! docker image inspect "$img:latest" > /dev/null 2>&1; then
+    error "Image $img:latest absente. Lance d'abord : cd $ROOT_DIR && bash deploy/update.sh"
+  fi
+done
+log "5 images Sakafio présentes"
+
+# Vérifie que les images Next ont le placeholder (= build correct, sans
+# hardcoder l'URL du resto principal). Si l'image contient déjà
+# 'https://api.sakafio.mg' en dur, les tenants seront tous cassés.
+PLACEHOLDER_OK=true
+for img in restaurant_web restaurant_pos restaurant_kds restaurant_client; do
+  # On checke dans une instance jetable de l'image (sans la lancer)
+  has_placeholder=$(docker run --rm --entrypoint sh "$img:latest" -c "grep -rl '__SAKAFIO_API_URL__' /app/.next/static/chunks 2>/dev/null | head -1" 2>/dev/null || echo "")
+  if [ -z "$has_placeholder" ]; then
+    warn "  ✗ $img:latest n'a pas le placeholder __SAKAFIO_API_URL__ (URL probablement hardcodée)"
+    PLACEHOLDER_OK=false
+  else
+    echo "   ✓ $img:latest a le placeholder"
+  fi
+done
+
+if [ "$PLACEHOLDER_OK" = false ]; then
+  error "Une ou plusieurs images Next ont une URL d'API hardcodée. Le tenant ferait son login vers la mauvaise API. Rebuild avec : cd $ROOT_DIR && bash deploy/update.sh (s'assurer que deploy/update.sh ne passe PAS --build-arg NEXT_PUBLIC_API_URL)"
+fi
+log "Placeholders __SAKAFIO_API_URL__ détectés sur les 4 images Next"
+
+# Vérifie le network partagé
+if ! docker network inspect restaurant_shared > /dev/null 2>&1; then
+  warn "Network restaurant_shared absent — création"
+  docker network create restaurant_shared > /dev/null
+fi
+log "Network restaurant_shared OK"
+
 # Allouer un DB Redis numéro (entre 0-15) à partir du port API pour éviter les collisions
 TENANT_REDIS_DB=$(( (TENANT_API_PORT / 10) % 16 ))
 export TENANT_REDIS_DB
