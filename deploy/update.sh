@@ -92,9 +92,15 @@ else
   exit 1
 fi
 
-DOCKER_BUILDKIT=1 $DC build --no-cache \
-  --build-arg NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" \
-  --build-arg NEXT_PUBLIC_SOCKET_URL="$NEXT_PUBLIC_SOCKET_URL"
+# NE PAS passer --build-arg NEXT_PUBLIC_API_URL ici. Le compose a deja
+# 'args: NEXT_PUBLIC_API_URL: __SAKAFIO_API_URL__' (placeholder), et
+# runtime-env-rewrite.sh remplace ce placeholder au demarrage du container
+# avec la vraie env var (differente par tenant : api.sakafio.mg pour le
+# resto principal, api-<slug>.sakafio.mg pour les tenants qui reutilisent
+# la meme image restaurant_web:latest).
+# Si on overrise via build-arg ici, le placeholder disparait du bundle JS
+# et tous les tenants finissent par appeler l'API du resto principal.
+DOCKER_BUILDKIT=1 $DC build --no-cache
 
 header "5. Redémarrage (API d'abord, puis frontends)"
 $DC up -d --no-deps api
