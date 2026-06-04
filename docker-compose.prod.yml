@@ -322,6 +322,12 @@ services:
       MASTER_DATABASE_URL: postgresql://${POSTGRES_USER:-restaurant_user}:${POSTGRES_PASSWORD}@postgres:5432/${MASTER_DB_NAME:-master_db}?connection_limit=5&pool_timeout=20
       MASTER_JWT_SECRET: ${MASTER_JWT_SECRET}
       RESTAURANT_ROOT: /opt/restaurant
+      # SMTP pour les emails de bienvenue tenant (helper apps/master/src/lib/email.ts)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@sakafio.mg}
     ports:
       - "127.0.0.1:4010:3010"
     volumes:

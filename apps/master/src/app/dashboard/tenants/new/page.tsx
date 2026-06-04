@@ -174,9 +174,9 @@ export default function NewTenantPage() {
           </div>
 
           {finalStatus === 'ACTIVE' && (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
               <Info className="mr-1 inline h-3 w-3" />
-              Envoie les identifiants au client par un canal sûr. Le mot de passe n'est plus affiché après ce point.
+              Email de bienvenue envoyé au client (URLs + identifiants). Vérifie dans le journal du provisioning si l'événement <code>EMAIL_SENT</code> ou <code>EMAIL_FAILED</code>. Si échec, communique manuellement le mot de passe initial — il n'est plus affiché après ce point.
             </div>
           )}
 

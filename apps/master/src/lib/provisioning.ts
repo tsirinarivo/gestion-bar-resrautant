@@ -3,6 +3,7 @@ import { promisify } from 'util'
 import { randomBytes } from 'crypto'
 import path from 'path'
 import { masterPrisma, Tenant, TenantStatus } from '@restaurant/master-database'
+import { sendTenantWelcomeEmail } from './email'
 
 const execFileP = promisify(execFile)
 
@@ -222,6 +223,37 @@ export function runProvisioningScriptAsync(
             details: `Admin ${adminEmail} créé. Exit code ${code}.`,
           },
         })
+
+        // Envoi de l'email de bienvenue (URLs + credentials).
+        // Non-bloquant : si SMTP non configuré ou échec, on log et on
+        // continue (le provisioning reste ACTIVE, juste l'event d'envoi
+        // sera en EMAIL_FAILED). L'admin peut récupérer les infos depuis
+        // l'UI master de toute facon.
+        const sub = tenant.subdomain
+        const emailSent = await sendTenantWelcomeEmail({
+          to: tenant.contactEmail || adminEmail,
+          tenantName: tenant.name,
+          slug: tenant.slug,
+          adminEmail,
+          adminPassword,
+          urls: {
+            admin: `https://admin-${sub}.sakafio.mg`,
+            pos: `https://pos-${sub}.sakafio.mg`,
+            kds: `https://kds-${sub}.sakafio.mg`,
+            client: `https://${sub}.sakafio.mg`,
+            api: `https://api-${sub}.sakafio.mg`,
+          },
+        }).catch(() => false)
+        await masterPrisma.tenantEvent.create({
+          data: {
+            tenantId: tenant.id,
+            userId,
+            type: emailSent ? 'EMAIL_SENT' : 'EMAIL_FAILED',
+            details: emailSent
+              ? `Email de bienvenue envoyé à ${tenant.contactEmail || adminEmail}`
+              : `Échec envoi email (SMTP non configuré ?) — communiquer manuellement les identifiants à ${tenant.contactEmail || adminEmail}`,
+          },
+        }).catch(() => { /* non bloquant */ })
       } else {
         await masterPrisma.tenant.update({
           where: { id: tenant.id },
