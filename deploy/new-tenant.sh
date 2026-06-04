@@ -219,11 +219,21 @@ fi
 # ── 9. Healthcheck ─────────────────────────────────────────────────────────
 header "Vérification API"
 
-sleep 5
-if curl -sf "http://127.0.0.1:${TENANT_API_PORT}/api/health" > /dev/null; then
-  log "API tenant répond sur :$TENANT_API_PORT"
+# Le master container n'a pas accès aux ports publiés du host via 127.0.0.1
+# (docker.sock seulement). On exec dans le container API pour tester son
+# propre /health. Polling 30s (le container vient juste de démarrer).
+API_OK=false
+for i in 1 2 3 4 5 6; do
+  sleep 5
+  if docker exec "tenant_${TENANT_SLUG}_api" wget -qO- http://localhost:4000/api/health 2>/dev/null | grep -q '"status":"ok"'; then
+    API_OK=true
+    break
+  fi
+done
+if [ "$API_OK" = true ]; then
+  log "API tenant répond sur :$TENANT_API_PORT (vérifié via docker exec)"
 else
-  warn "API health check échoué — vérifier: docker logs tenant_${TENANT_SLUG}_api"
+  warn "API health check échoué après 30s — vérifier: docker logs tenant_${TENANT_SLUG}_api"
 fi
 
 # ── 10. Flag SSL pour le finalize daemon sur l'hôte ────────────────────────
