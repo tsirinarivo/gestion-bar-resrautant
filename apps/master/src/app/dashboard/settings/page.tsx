@@ -1,3 +1,5 @@
+import Link from 'next/link'
+import { Mail, ChevronRight } from 'lucide-react'
 import { masterPrisma } from '@restaurant/master-database'
 import { readSession } from '@/lib/auth'
 
@@ -13,8 +15,29 @@ export default async function SettingsPage() {
     <div className="px-6 py-8 md:px-10">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Paramètres</h1>
-        <p className="mt-1 text-sm text-slate-500">Utilisateurs de la console</p>
+        <p className="mt-1 text-sm text-slate-500">Utilisateurs de la console et configuration globale</p>
       </header>
+
+      {/* Sections de config (cards cliquables) */}
+      <div className="mb-6 grid gap-3 md:grid-cols-2">
+        <Link
+          href="/dashboard/settings/smtp"
+          className="card group flex items-center gap-4 p-4 transition-colors hover:bg-slate-50"
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+            <Mail className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-slate-900">Configuration SMTP</div>
+            <div className="text-xs text-slate-500">
+              Email de bienvenue automatique à la création de tenant
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700" />
+        </Link>
+      </div>
+
+      <h2 className="mb-3 text-sm font-semibold uppercase text-slate-500">Utilisateurs de la console</h2>
 
       <div className="card overflow-hidden">
         <table className="w-full text-sm">

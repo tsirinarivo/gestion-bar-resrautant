@@ -142,3 +142,13 @@ model TenantEvent {
 
   @@index([tenantId, createdAt])
 }
+
+// ─── CONFIG MASTER (paramètres globaux : SMTP, branding, etc.) ─────────────
+// Key-value pour rester flexible. Une row par clé, value en JSON pour les
+// configs structurées (ex: { host, port, user, pass, from } pour SMTP).
+model MasterSetting {
+  key       String   @id        // 'smtp', 'branding', etc.
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?              // userId du MasterUser qui a modifié
+}
