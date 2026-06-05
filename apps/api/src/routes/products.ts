@@ -532,6 +532,18 @@ productRouter.put('/:id/recipe', authorize('manager', 'superadmin'), async (req:
 //
 // Sécurité : limite à 5000 produits par import, validation des prix > 0.
 
+function normalizeHeader(s: string): string {
+  // 'Prix unitaire TTC' -> 'prix_unitaire_ttc'
+  // 'Réf.'             -> 'ref'
+  // 'Code-barres'      -> 'code_barres'
+  return s
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // strip accents diacritiques
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')                          // ponctuation -> espace
+    .trim()
+    .replace(/\s+/g, '_')                              // espaces -> _
+}
+
 function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
   // Auto-detect delimiter (Dolibarr utilise souvent ;)
   const firstLine = text.split(/\r?\n/, 1)[0] || ''
@@ -560,7 +572,8 @@ function parseCsv(text: string): { headers: string[]; rows: Record<string, strin
 
   const lines = text.split(/\r?\n/).filter(l => l.trim())
   if (lines.length === 0) return { headers: [], rows: [] }
-  const headers = parseLine(lines[0]!).map(h => h.toLowerCase().replace(/^"|"$/g, ''))
+  const rawHeaders = parseLine(lines[0]!).map(h => h.replace(/^"|"$/g, ''))
+  const headers = rawHeaders.map(normalizeHeader)
   const rows: Record<string, string>[] = []
   for (let i = 1; i < lines.length; i++) {
     const cells = parseLine(lines[i]!)
@@ -633,22 +646,31 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
       const row = rows[i]!
       const lineNo = i + 2 // +1 header, +1 1-indexed
 
-      const name = pick(row, ['label', 'name', 'nom', 'designation', 'libelle'])
+      // Nom : EN + FR (Dolibarr exporte 'Libellé' → 'libelle' après normalisation)
+      const name = pick(row, ['label', 'name', 'nom', 'designation', 'libelle', 'product_label'])
       if (!name) {
         results.errors.push({ line: lineNo, reason: 'Nom manquant' })
         continue
       }
 
-      const sku = pick(row, ['ref', 'sku', 'reference', 'code'])
+      // SKU : Dolibarr exporte 'Réf.' → 'ref'
+      const sku = pick(row, ['ref', 'sku', 'reference', 'code', 'product_ref'])
       if (sku && existingSkus.has(sku.toLowerCase())) {
         results.skipped++
         continue
       }
 
-      // Prix : priorité TTC, sinon HT + TVA pour calculer TTC
-      const taxRate = toFloat(pick(row, ['tva_tx', 'tva', 'taxrate', 'tax_rate'])) ?? 0
-      let price = toFloat(pick(row, ['price_ttc', 'prix_ttc', 'price', 'prix']))
-      const priceHT = toFloat(pick(row, ['price_ht', 'prix_ht']))
+      // Prix TTC : Dolibarr exporte 'Prix unitaire TTC' → 'prix_unitaire_ttc'
+      const taxRate = toFloat(pick(row, [
+        'tva_tx', 'tva', 'taux_tva', 'taxrate', 'tax_rate', 'vat_rate',
+      ])) ?? 0
+      let price = toFloat(pick(row, [
+        'price_ttc', 'prix_ttc', 'prix_unitaire_ttc', 'prix_de_vente_ttc',
+        'price', 'prix', 'prix_unitaire', 'prix_vente',
+      ]))
+      const priceHT = toFloat(pick(row, [
+        'price_ht', 'prix_ht', 'prix_unitaire_ht', 'prix_de_vente_ht', 'prix_vente_ht',
+      ]))
       if (price == null && priceHT != null) {
         price = priceHT * (1 + taxRate / 100)
       }
@@ -657,9 +679,20 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
         continue
       }
 
-      const description = pick(row, ['description', 'desc'])
-      const barcode = pick(row, ['barcode', 'code_barre', 'ean'])
-      const catName = pick(row, ['categories', 'category', 'categorie', 'cat'])
+      const description = pick(row, ['description', 'desc', 'note'])
+      const barcode = pick(row, ['barcode', 'code_barre', 'code_barres', 'ean', 'gencod'])
+      const catName = pick(row, ['categories', 'category', 'categorie', 'cat', 'rubrique', 'famille'])
+
+      // Stock : Dolibarr exporte 'Stock désiré optimal' + 'Limite stock pour alerte'
+      const reorderQty = toFloat(pick(row, [
+        'stock_desire_optimal', 'stock_desire', 'reorder_quantity', 'reorder', 'optimal_stock',
+      ]))
+      const minQty = toFloat(pick(row, [
+        'limite_stock_pour_alerte', 'stock_alerte', 'min_quantity', 'alert_threshold', 'seuil_alerte',
+      ]))
+      const initialStock = toFloat(pick(row, [
+        'stock_reel', 'stock', 'quantity', 'qte', 'stock_initial',
+      ]))
 
       let categoryId = defaultCatId
       if (catName) {
@@ -682,6 +715,9 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
       }
 
       try {
+        // Si des données stock sont fournies, créer le StockItem associé en même
+        // temps pour activer la gestion de stock du produit.
+        const hasStockData = initialStock != null || minQty != null || reorderQty != null
         await prisma.product.create({
           data: {
             name,
@@ -694,6 +730,20 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
             categoryId: categoryId!,
             isActive: true,
             isAvailable: true,
+            ...(hasStockData && {
+              stockItem: {
+                create: {
+                  name,
+                  sku: sku || null,
+                  barcode: barcode || null,
+                  unit: 'pièce',
+                  currentQuantity: initialStock ?? 0,
+                  minQuantity: minQty ?? 0,
+                  reorderQuantity: reorderQty ?? 0,
+                  restaurantId,
+                },
+              },
+            }),
           },
         })
         if (sku) existingSkus.add(sku.toLowerCase())

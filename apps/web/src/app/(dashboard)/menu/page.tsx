@@ -241,13 +241,15 @@ function ImportCsvModal({ onClose, onDone }: { onClose: () => void; onDone: () =
         </label>
 
         <div className="mt-4 text-xs text-brand-muted space-y-1">
-          <div className="font-medium text-white">Colonnes reconnues :</div>
-          <div>• <span className="font-mono">label</span> / <span className="font-mono">name</span> / <span className="font-mono">nom</span> → nom du produit</div>
-          <div>• <span className="font-mono">ref</span> / <span className="font-mono">sku</span> → référence (doublons skip)</div>
-          <div>• <span className="font-mono">price_ttc</span> ou <span className="font-mono">price</span> → prix TTC (sinon HT + TVA = TTC calculé)</div>
-          <div>• <span className="font-mono">tva_tx</span> → TVA %</div>
-          <div>• <span className="font-mono">categories</span> → catégorie (créée si manquante)</div>
-          <div>• <span className="font-mono">barcode</span>, <span className="font-mono">description</span> (optionnels)</div>
+          <div className="font-medium text-white">Colonnes reconnues (Dolibarr FR + EN) :</div>
+          <div>• <span className="font-mono">Libellé</span> / <span className="font-mono">label</span> / <span className="font-mono">nom</span> → nom du produit</div>
+          <div>• <span className="font-mono">Réf.</span> / <span className="font-mono">ref</span> / <span className="font-mono">sku</span> → référence (doublons skip)</div>
+          <div>• <span className="font-mono">Prix unitaire TTC</span> / <span className="font-mono">price_ttc</span> → prix TTC (sinon HT + TVA = TTC calculé)</div>
+          <div>• <span className="font-mono">Taux TVA</span> / <span className="font-mono">tva_tx</span> → TVA %</div>
+          <div>• <span className="font-mono">Code-barres</span> / <span className="font-mono">barcode</span></div>
+          <div>• <span className="font-mono">Stock désiré optimal</span> → réapprovisionnement (crée le StockItem)</div>
+          <div>• <span className="font-mono">Limite stock pour alerte</span> → seuil d'alerte stock</div>
+          <div>• <span className="font-mono">Description</span>, <span className="font-mono">Catégorie</span> (optionnels — catégorie créée si manquante)</div>
         </div>
 
         <div className="mt-6 flex gap-2">
