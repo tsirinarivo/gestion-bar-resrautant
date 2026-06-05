@@ -110,10 +110,23 @@ log "API redémarrée"
 $DC up -d --no-deps web pos kds client master
 log "Frontends + master redémarrés"
 
-header "6. Migrations (master + tous les tenants)"
-# Migration de la DB master (schéma packages/database)
+header "6. Migrations (master DB + master SaaS DB + tous les tenants)"
+# Migration de la DB master (schéma packages/database — schema tenant principal)
 if ! $DC run --rm migrate sh -c "npx prisma db push --accept-data-loss"; then
-  warn "Migration DB master a échoué — snapshot dispo : $PRE_DUMP"
+  warn "Migration DB master (schema tenant) a échoué — snapshot dispo : $PRE_DUMP"
+fi
+
+# Migration de la DB master SaaS (schéma packages/master-database — Tenant,
+# MasterSetting, TenantEvent, etc.). Sans ça, les nouveaux models ajoutés
+# au schema master-database ne sont jamais créés en DB.
+if $DC ps master | grep -q "Up"; then
+  if ! $DC exec -T master sh -c "cd packages/master-database && npx prisma db push --accept-data-loss" > /dev/null 2>&1; then
+    warn "Migration DB master SaaS a échoué — vérifier docker logs restaurant_master"
+  else
+    log "Schema master SaaS poussé"
+  fi
+else
+  warn "Container master non démarré — schema master SaaS non poussé"
 fi
 
 # Migration des DBs tenants : on liste toutes les DBs tenant_* et on pousse
