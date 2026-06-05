@@ -119,9 +119,10 @@ fi
 # Migration de la DB master SaaS (schéma packages/master-database — Tenant,
 # MasterSetting, TenantEvent, etc.). Sans ça, les nouveaux models ajoutés
 # au schema master-database ne sont jamais créés en DB.
-# On utilise le bind mount /opt/restaurant et MASTER_DATABASE_URL du container.
+# IMPORTANT : pinner prisma@5 sinon npx telecharge la 7.x qui a change de
+# syntaxe (datasource url plus supporte sans prisma.config.ts).
 if $DC ps master | grep -q "Up"; then
-  if ! $DC exec -T master sh -c "cd /opt/restaurant/packages/master-database && DATABASE_URL=\"\$MASTER_DATABASE_URL\" npx prisma db push --accept-data-loss" > /dev/null 2>&1; then
+  if ! $DC exec -T master sh -c "cd /opt/restaurant/packages/master-database && npx -y prisma@5 db push --accept-data-loss" > /dev/null 2>&1; then
     warn "Migration DB master SaaS a échoué — vérifier docker logs restaurant_master"
   else
     log "Schema master SaaS poussé"
