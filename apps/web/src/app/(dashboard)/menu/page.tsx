@@ -7,7 +7,7 @@ import {
   Plus, Search, Edit2, Trash2, Eye, EyeOff, X, ChefHat,
   BookOpen, Tag, DollarSign, TrendingUp, Package, Star, Flame,
   TrendingDown, AlertCircle, Target, ArrowUpDown, Calculator, BarChart3,
-  ChevronUp, ChevronDown, Filter,
+  ChevronUp, ChevronDown, Filter, Upload, FileUp, CheckCircle2, AlertTriangle,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, calculateMargin, convertUnit, ALLERGENS } from '@restaurant/utils'
@@ -61,6 +61,213 @@ function ImgWithFallback({ src, alt, className }: { src: string; alt: string; cl
     )
   }
   return <img src={src} alt={alt} loading="lazy" className={className} onError={() => setErr(true)} />
+}
+
+function ImportCsvModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [dryRunResult, setDryRunResult] = useState<{
+    total: number; created: number; skipped: number; preview: any[]; errors: { line: number; reason: string }[]
+  } | null>(null)
+  const [importResult, setImportResult] = useState<{ total: number; created: number; skipped: number; errors: { line: number; reason: string }[] } | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function runImport(dryRun: boolean) {
+    if (!file) return
+    setLoading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await api.post(`/products/import${dryRun ? '?dryRun=true' : ''}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      const data = res.data.data
+      if (dryRun) {
+        setDryRunResult(data)
+      } else {
+        setImportResult(data)
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? "Erreur d'import")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Étape 3 : import réussi
+  if (importResult) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+          className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-lg p-6"
+          onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Import terminé</h2>
+              <p className="text-sm text-brand-muted">{importResult.created} produit{importResult.created > 1 ? 's' : ''} créé{importResult.created > 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <Stat label="Lignes" value={importResult.total} />
+            <Stat label="Créés" value={importResult.created} color="text-green-400" />
+            <Stat label="Ignorés" value={importResult.skipped} color="text-yellow-400" />
+          </div>
+          {importResult.errors.length > 0 && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 max-h-40 overflow-auto">
+              <div className="text-sm font-medium text-red-400 mb-2">{importResult.errors.length} erreur{importResult.errors.length > 1 ? 's' : ''} :</div>
+              <ul className="text-xs space-y-1">
+                {importResult.errors.slice(0, 15).map((e, i) => (
+                  <li key={i} className="text-brand-muted">Ligne {e.line} : {e.reason}</li>
+                ))}
+                {importResult.errors.length > 15 && <li className="text-brand-muted italic">… et {importResult.errors.length - 15} autres</li>}
+              </ul>
+            </div>
+          )}
+          <button onClick={onDone} className="w-full btn-primary">Voir mes produits</button>
+        </motion.div>
+      </div>
+    )
+  }
+
+  // Étape 2 : preview après dryRun
+  if (dryRunResult) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+          className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto"
+          onClick={e => e.stopPropagation()}>
+          <div className="p-6 border-b border-brand-border sticky top-0 bg-brand-card z-10">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h2 className="text-lg font-bold">Aperçu de l'import</h2>
+                <p className="text-sm text-brand-muted">Vérifiez avant de confirmer</p>
+              </div>
+              <button onClick={onClose} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="grid grid-cols-4 gap-3 text-center">
+              <Stat label="Lignes" value={dryRunResult.total} />
+              <Stat label="À créer" value={dryRunResult.created} color="text-green-400" />
+              <Stat label="Doublons" value={dryRunResult.skipped} color="text-yellow-400" />
+              <Stat label="Erreurs" value={dryRunResult.errors.length} color={dryRunResult.errors.length ? 'text-red-400' : ''} />
+            </div>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {dryRunResult.errors.length > 0 && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-red-400 mb-2">
+                  <AlertTriangle className="w-4 h-4" /> Lignes en erreur (seront ignorées)
+                </div>
+                <ul className="text-xs space-y-1 max-h-32 overflow-auto">
+                  {dryRunResult.errors.slice(0, 15).map((e, i) => (
+                    <li key={i} className="text-brand-muted">Ligne {e.line} : {e.reason}</li>
+                  ))}
+                  {dryRunResult.errors.length > 15 && <li className="text-brand-muted italic">… et {dryRunResult.errors.length - 15} autres</li>}
+                </ul>
+              </div>
+            )}
+
+            <div>
+              <div className="text-xs font-medium text-brand-muted uppercase tracking-wider mb-2">Aperçu (10 premiers)</div>
+              <div className="border border-brand-border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-brand-dark/50 text-xs">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Nom</th>
+                      <th className="px-3 py-2 text-left">SKU</th>
+                      <th className="px-3 py-2 text-right">Prix</th>
+                      <th className="px-3 py-2 text-left">Catégorie</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dryRunResult.preview.slice(0, 10).map((r, i) => (
+                      <tr key={i} className="border-t border-brand-border">
+                        <td className="px-3 py-2">{r.name}</td>
+                        <td className="px-3 py-2 font-mono text-xs text-brand-muted">{r.sku ?? '—'}</td>
+                        <td className="px-3 py-2 text-right">{r.price.toLocaleString('fr-FR')} Ar</td>
+                        <td className="px-3 py-2 text-brand-muted">{r.category}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => { setDryRunResult(null); setFile(null) }} className="btn-secondary flex-1">
+                Annuler / changer fichier
+              </button>
+              <button onClick={() => runImport(false)} disabled={loading || dryRunResult.created === 0} className="btn-primary flex-1">
+                {loading ? 'Import en cours…' : `Importer ${dryRunResult.created} produit${dryRunResult.created > 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
+
+  // Étape 1 : upload
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-lg p-6"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-bold">Importer des produits depuis un CSV</h2>
+            <p className="text-sm text-brand-muted">Format Dolibarr (export Produits/Services) ou autre ERP</p>
+          </div>
+          <button onClick={onClose} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+
+        <label className={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${file ? 'border-brand-orange bg-brand-orange/5' : 'border-brand-border hover:border-brand-orange/50'}`}>
+          <input type="file" accept=".csv,text/csv" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f) }} />
+          <FileUp className="w-10 h-10 mx-auto mb-3 text-brand-muted" />
+          {file ? (
+            <div>
+              <div className="font-medium">{file.name}</div>
+              <div className="text-xs text-brand-muted mt-1">{(file.size / 1024).toFixed(1)} KB</div>
+            </div>
+          ) : (
+            <div>
+              <div className="font-medium">Cliquez pour sélectionner un fichier CSV</div>
+              <div className="text-xs text-brand-muted mt-1">Max 10 MB · délimiteur , ou ;</div>
+            </div>
+          )}
+        </label>
+
+        <div className="mt-4 text-xs text-brand-muted space-y-1">
+          <div className="font-medium text-white">Colonnes reconnues :</div>
+          <div>• <span className="font-mono">label</span> / <span className="font-mono">name</span> / <span className="font-mono">nom</span> → nom du produit</div>
+          <div>• <span className="font-mono">ref</span> / <span className="font-mono">sku</span> → référence (doublons skip)</div>
+          <div>• <span className="font-mono">price_ttc</span> ou <span className="font-mono">price</span> → prix TTC (sinon HT + TVA = TTC calculé)</div>
+          <div>• <span className="font-mono">tva_tx</span> → TVA %</div>
+          <div>• <span className="font-mono">categories</span> → catégorie (créée si manquante)</div>
+          <div>• <span className="font-mono">barcode</span>, <span className="font-mono">description</span> (optionnels)</div>
+        </div>
+
+        <div className="mt-6 flex gap-2">
+          <button onClick={onClose} className="btn-secondary flex-1">Annuler</button>
+          <button onClick={() => runImport(true)} disabled={!file || loading} className="btn-primary flex-1">
+            {loading ? 'Analyse…' : 'Analyser le fichier'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
+function Stat({ label, value, color = '' }: { label: string; value: number; color?: string }) {
+  return (
+    <div className="bg-brand-dark/50 rounded-lg p-3 text-center">
+      <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      <div className="text-xs text-brand-muted mt-1">{label}</div>
+    </div>
+  )
 }
 
 function ProductModal({
@@ -1376,6 +1583,7 @@ export default function MenuPage() {
   const [variantModal, setVariantModal] = useState<Product | null>(null)
   const [categoryModal, setCategoryModal] = useState<{ open: boolean; category: Category | null }>({ open: false, category: null })
   const [showCategories, setShowCategories] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const qc = useQueryClient()
 
   const { data: categoriesData } = useQuery<Category[]>({
@@ -1482,6 +1690,11 @@ export default function MenuPage() {
             className={`btn-secondary flex items-center gap-2 text-sm ${showCategories ? 'border-brand-orange text-brand-orange' : ''}`}>
             <Tag className="w-4 h-4" />
             <span className="hidden sm:inline">Catégories</span>
+          </button>
+          <button onClick={() => setShowImport(true)}
+            className="btn-secondary flex items-center gap-2 text-sm">
+            <Upload className="w-4 h-4" />
+            <span className="hidden sm:inline">Importer CSV</span>
           </button>
           <button onClick={() => setProductModal({ open: true, product: null })}
             className="btn-primary flex items-center gap-2 text-sm">
@@ -1704,6 +1917,12 @@ export default function MenuPage() {
       </div>}
 
       {/* Modals */}
+      {showImport && (
+        <ImportCsvModal
+          onClose={() => setShowImport(false)}
+          onDone={() => { setShowImport(false); qc.invalidateQueries({ queryKey: ['products'] }); qc.invalidateQueries({ queryKey: ['categories'] }) }}
+        />
+      )}
       {productModal.open && (
         <ProductModal
           product={productModal.product}

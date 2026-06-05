@@ -35,6 +35,16 @@ const upload = multer({
   },
 })
 
+// Upload mémoire pour les CSV (parsing direct, pas besoin de disque)
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/plain']
+    cb(null, allowed.includes(file.mimetype) || file.originalname.toLowerCase().endsWith('.csv'))
+  },
+})
+
 // POST /api/products/upload-image
 productRouter.post('/upload-image', authorize('manager', 'superadmin'), upload.single('image'), (req: AuthRequest, res) => {
   if (!req.file) { res.status(400).json({ success: false, error: 'Aucune image fournie' }); return }
@@ -502,4 +512,208 @@ productRouter.put('/:id/recipe', authorize('manager', 'superadmin'), async (req:
   } catch (error) {
     next(error)
   }
+})
+
+// ─── Import CSV (Dolibarr, Sage, Excel générique) ──────────────────────────
+//
+// Parse un CSV au format Dolibarr (export Produits/Services) ou générique.
+// Détection automatique du délimiteur (`,` ou `;`).
+//
+// Colonnes reconnues (insensible à la casse, prend la 1re qui matche) :
+//   - nom        : label | name | nom | designation | libelle
+//   - sku        : ref | sku | reference | code
+//   - description: description | desc
+//   - prix TTC   : price_ttc | prix_ttc | price | prix
+//   - prix HT    : price_ht | prix_ht
+//   - TVA %      : tva_tx | tva | taxrate | tax_rate
+//   - barcode    : barcode | code_barre | ean
+//   - catégorie  : categories | category | categorie | cat
+//   - stock      : stock_reel | stock | quantity | qte
+//
+// Sécurité : limite à 5000 produits par import, validation des prix > 0.
+
+function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
+  // Auto-detect delimiter (Dolibarr utilise souvent ;)
+  const firstLine = text.split(/\r?\n/, 1)[0] || ''
+  const delim = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ';' : ','
+
+  // Parser tolérant aux quoted strings + escaped quotes ""
+  const parseLine = (line: string): string[] => {
+    const cells: string[] = []
+    let cur = ''
+    let inQuote = false
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i]
+      if (inQuote) {
+        if (c === '"' && line[i + 1] === '"') { cur += '"'; i++ }
+        else if (c === '"') inQuote = false
+        else cur += c
+      } else {
+        if (c === '"') inQuote = true
+        else if (c === delim) { cells.push(cur); cur = '' }
+        else cur += c
+      }
+    }
+    cells.push(cur)
+    return cells.map(s => s.trim())
+  }
+
+  const lines = text.split(/\r?\n/).filter(l => l.trim())
+  if (lines.length === 0) return { headers: [], rows: [] }
+  const headers = parseLine(lines[0]!).map(h => h.toLowerCase().replace(/^"|"$/g, ''))
+  const rows: Record<string, string>[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseLine(lines[i]!)
+    const row: Record<string, string> = {}
+    headers.forEach((h, idx) => { row[h] = cells[idx] ?? '' })
+    rows.push(row)
+  }
+  return { headers, rows }
+}
+
+function pick(row: Record<string, string>, keys: string[]): string {
+  for (const k of keys) {
+    if (row[k] && row[k].trim()) return row[k].trim()
+  }
+  return ''
+}
+
+function toFloat(s: string): number | null {
+  if (!s) return null
+  // Accepte virgule décimale (format FR) + remove spaces
+  const cleaned = s.replace(/\s/g, '').replace(',', '.')
+  const n = parseFloat(cleaned)
+  return Number.isFinite(n) ? n : null
+}
+
+// POST /api/products/import — import CSV (Dolibarr ou générique)
+productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.single('file'), async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.file) throw new AppError('Fichier CSV requis (champ "file")', 400)
+    const restaurantId = req.user!.restaurantId
+
+    const dryRun = req.query.dryRun === 'true'
+
+    const text = req.file.buffer.toString('utf8')
+    const { headers, rows } = parseCsv(text)
+    if (rows.length === 0) {
+      return res.json({ success: true, data: { headers, total: 0, created: 0, skipped: 0, errors: [] } })
+    }
+    if (rows.length > 5000) {
+      throw new AppError(`Trop de lignes (${rows.length}). Limite : 5000 par import. Coupez votre fichier.`, 400)
+    }
+
+    // Préparer les catégories : map des existantes + créer les nouvelles à la volée
+    const existingCats = await prisma.category.findMany({
+      where: { restaurantId },
+      select: { id: true, name: true },
+    })
+    const catMap = new Map(existingCats.map(c => [c.name.toLowerCase(), c.id]))
+
+    // Catégorie "Import" par défaut (si la ligne n'en spécifie pas)
+    let defaultCatId = catMap.get('import')
+    if (!defaultCatId && !dryRun) {
+      const created = await prisma.category.create({
+        data: { name: 'Import', restaurantId, isActive: true },
+      })
+      defaultCatId = created.id
+      catMap.set('import', created.id)
+    }
+
+    // SKUs déjà en DB pour skip les doublons (par restaurantId)
+    const existingProducts = await prisma.product.findMany({
+      where: { restaurantId, sku: { not: null } },
+      select: { sku: true },
+    })
+    const existingSkus = new Set(existingProducts.map(p => (p.sku || '').toLowerCase()))
+
+    const results = { created: 0, skipped: 0, errors: [] as { line: number; reason: string }[], preview: [] as any[] }
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!
+      const lineNo = i + 2 // +1 header, +1 1-indexed
+
+      const name = pick(row, ['label', 'name', 'nom', 'designation', 'libelle'])
+      if (!name) {
+        results.errors.push({ line: lineNo, reason: 'Nom manquant' })
+        continue
+      }
+
+      const sku = pick(row, ['ref', 'sku', 'reference', 'code'])
+      if (sku && existingSkus.has(sku.toLowerCase())) {
+        results.skipped++
+        continue
+      }
+
+      // Prix : priorité TTC, sinon HT + TVA pour calculer TTC
+      const taxRate = toFloat(pick(row, ['tva_tx', 'tva', 'taxrate', 'tax_rate'])) ?? 0
+      let price = toFloat(pick(row, ['price_ttc', 'prix_ttc', 'price', 'prix']))
+      const priceHT = toFloat(pick(row, ['price_ht', 'prix_ht']))
+      if (price == null && priceHT != null) {
+        price = priceHT * (1 + taxRate / 100)
+      }
+      if (price == null || price <= 0) {
+        results.errors.push({ line: lineNo, reason: 'Prix manquant ou invalide' })
+        continue
+      }
+
+      const description = pick(row, ['description', 'desc'])
+      const barcode = pick(row, ['barcode', 'code_barre', 'ean'])
+      const catName = pick(row, ['categories', 'category', 'categorie', 'cat'])
+
+      let categoryId = defaultCatId
+      if (catName) {
+        const k = catName.toLowerCase()
+        const found = catMap.get(k)
+        if (found) categoryId = found
+        else if (!dryRun) {
+          const cat = await prisma.category.create({
+            data: { name: catName, restaurantId, isActive: true },
+          })
+          catMap.set(k, cat.id)
+          categoryId = cat.id
+        }
+      }
+
+      if (dryRun) {
+        results.preview.push({ name, sku: sku || null, price: Math.round(price), category: catName || 'Import' })
+        results.created++
+        continue
+      }
+
+      try {
+        await prisma.product.create({
+          data: {
+            name,
+            description: description || null,
+            sku: sku || null,
+            barcode: barcode || null,
+            price: Math.round(price),
+            taxRate,
+            restaurantId,
+            categoryId: categoryId!,
+            isActive: true,
+            isAvailable: true,
+          },
+        })
+        if (sku) existingSkus.add(sku.toLowerCase())
+        results.created++
+      } catch (err: any) {
+        results.errors.push({ line: lineNo, reason: err?.message?.slice(0, 200) || 'Erreur DB' })
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        headers,
+        total: rows.length,
+        created: results.created,
+        skipped: results.skipped,
+        errors: results.errors,
+        preview: dryRun ? results.preview.slice(0, 50) : undefined,
+        dryRun,
+      },
+    })
+  } catch (error) { next(error) }
 })
