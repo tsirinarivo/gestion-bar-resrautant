@@ -87,82 +87,201 @@ export async function sendTenantWelcomeEmail(input: TenantWelcomeEmailInput): Pr
   if (!ctx) return false
   const { transporter: t, from } = ctx
 
-  const html = `
-<!DOCTYPE html>
-<html lang="fr"><head><meta charset="utf-8"><title>Bienvenue sur Sakafio</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;margin:0;padding:24px;">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+  const html = `<!DOCTYPE html>
+<html lang="fr" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Bienvenue sur Sakafio</title>
+  <!--[if mso]><style>td,th{font-family:Arial,sans-serif!important;}</style><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#fff8f1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;-webkit-text-size-adjust:100%;">
 
-    <div style="background:linear-gradient(135deg,#EA580C,#F97316);padding:24px;color:#fff;">
-      <div style="font-size:24px;font-weight:700;">Sakafio</div>
-      <div style="font-size:14px;opacity:.85;margin-top:4px;">Logiciel pour votre restaurant et bar</div>
-    </div>
-
-    <div style="padding:24px;color:#1e293b;">
-      <h1 style="font-size:20px;margin:0 0 8px;">Bienvenue, ${escapeHtml(input.tenantName)} 👋</h1>
-      <p style="font-size:14px;line-height:1.6;color:#475569;margin:0 0 20px;">
-        Votre instance Sakafio est prête. Voici vos accès — conservez ce message dans un endroit sûr.
-      </p>
-
-      <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:20px;font-size:13px;color:#92400e;">
-        ⚠️ <strong>Important :</strong> changez votre mot de passe à la première connexion depuis le menu Paramètres.
-      </div>
-
-      <h2 style="font-size:14px;text-transform:uppercase;color:#64748b;margin:24px 0 8px;letter-spacing:.5px;">
-        Identifiants de connexion
-      </h2>
-      <table style="width:100%;font-size:14px;border-collapse:collapse;">
-        <tr>
-          <td style="padding:8px 0;color:#64748b;width:140px;">Email</td>
-          <td style="padding:8px 0;font-family:monospace;">${escapeHtml(input.adminEmail)}</td>
-        </tr>
-        <tr>
-          <td style="padding:8px 0;color:#64748b;">Mot de passe</td>
-          <td style="padding:8px 0;font-family:monospace;background:#f1f5f9;border-radius:4px;padding-left:6px;padding-right:6px;">${escapeHtml(input.adminPassword)}</td>
-        </tr>
-      </table>
-
-      <h2 style="font-size:14px;text-transform:uppercase;color:#64748b;margin:24px 0 8px;letter-spacing:.5px;">
-        Vos URLs
-      </h2>
-      <table style="width:100%;font-size:13px;border-collapse:collapse;">
-        <tr><td style="padding:6px 0;color:#64748b;width:140px;">Admin manager</td><td style="padding:6px 0;"><a href="${input.urls.admin}" style="color:#EA580C;text-decoration:none;font-family:monospace;">${input.urls.admin}</a></td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;">Caisse (POS)</td><td style="padding:6px 0;"><a href="${input.urls.pos}" style="color:#EA580C;text-decoration:none;font-family:monospace;">${input.urls.pos}</a></td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;">Cuisine (KDS)</td><td style="padding:6px 0;"><a href="${input.urls.kds}" style="color:#EA580C;text-decoration:none;font-family:monospace;">${input.urls.kds}</a></td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;">Site client</td><td style="padding:6px 0;"><a href="${input.urls.client}" style="color:#EA580C;text-decoration:none;font-family:monospace;">${input.urls.client}</a></td></tr>
-      </table>
-
-      <div style="margin-top:24px;text-align:center;">
-        <a href="${input.urls.admin}/login" style="display:inline-block;background:#EA580C;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">
-          Se connecter à mon admin
-        </a>
-      </div>
-
-      <p style="font-size:12px;color:#94a3b8;margin-top:32px;text-align:center;">
-        Une question ? Répondez à cet email ou contactez support@sakafio.mg.
-      </p>
-    </div>
+  <!-- Preheader (caché mais visible dans la preview du client mail) -->
+  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#fff8f1;">
+    Votre instance Sakafio est prête. Cliquez pour vous connecter à votre admin.
   </div>
-</body></html>`
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:linear-gradient(180deg,#fff8f1 0%,#fff 30%);background-color:#fff8f1;">
+    <tr>
+      <td align="center" style="padding:32px 16px 48px 16px;">
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;">
+
+          <!-- ── Logo header ──────────────────────────── -->
+          <tr>
+            <td align="center" style="padding-bottom:24px;">
+              <div style="font-size:28px;font-weight:800;color:#EA580C;letter-spacing:-.5px;line-height:1;">
+                <span style="display:inline-block;width:36px;height:36px;background:#EA580C;border-radius:50%;vertical-align:middle;margin-right:8px;text-align:center;line-height:36px;font-size:18px;">🍽️</span>Sakafio
+              </div>
+              <div style="font-size:12px;color:#94a3b8;margin-top:4px;letter-spacing:.5px;text-transform:uppercase;">
+                Restaurant &amp; bar management
+              </div>
+            </td>
+          </tr>
+
+          <!-- ── Carte principale ─────────────────────── -->
+          <tr>
+            <td style="background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.04),0 8px 32px rgba(15,23,42,.06);overflow:hidden;">
+
+              <!-- Hero -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="background:linear-gradient(135deg,#EA580C 0%,#F97316 50%,#FB923C 100%);padding:40px 32px;text-align:center;">
+                    <div style="font-size:48px;line-height:1;margin-bottom:8px;">🎉</div>
+                    <h1 style="font-size:24px;font-weight:700;color:#ffffff;margin:0 0 8px;line-height:1.2;">
+                      Bienvenue, ${escapeHtml(input.tenantName)}
+                    </h1>
+                    <p style="font-size:14px;color:#ffedd5;margin:0;line-height:1.5;">
+                      Votre instance Sakafio est prête à servir vos clients
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Corps -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:32px;">
+
+                    <!-- Intro -->
+                    <p style="font-size:15px;line-height:1.6;color:#475569;margin:0 0 24px;">
+                      Tout est configuré : votre admin, votre caisse, votre cuisine et votre site client. Vous trouverez ci-dessous vos accès personnels.
+                    </p>
+
+                    <!-- Card credentials -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fefce8;border:1px solid #fde68a;border-radius:12px;margin-bottom:24px;">
+                      <tr>
+                        <td style="padding:20px;">
+                          <div style="font-size:11px;font-weight:700;color:#a16207;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">
+                            🔐 Vos identifiants
+                          </div>
+                          <div style="font-size:12px;color:#78716c;margin-bottom:4px;">Email</div>
+                          <div style="font-family:'SFMono-Regular',Consolas,monospace;font-size:14px;color:#1c1917;font-weight:600;margin-bottom:12px;word-break:break-all;">
+                            ${escapeHtml(input.adminEmail)}
+                          </div>
+                          <div style="font-size:12px;color:#78716c;margin-bottom:4px;">Mot de passe</div>
+                          <div style="font-family:'SFMono-Regular',Consolas,monospace;font-size:14px;color:#1c1917;font-weight:600;background:#fef3c7;padding:8px 12px;border-radius:6px;border:1px dashed #fcd34d;display:inline-block;word-break:break-all;">
+                            ${escapeHtml(input.adminPassword)}
+                          </div>
+                          <div style="font-size:12px;color:#a16207;margin-top:12px;line-height:1.5;">
+                            ⚠️ <strong>Changez ce mot de passe</strong> à votre 1<sup>re</sup> connexion (menu Paramètres &gt; Mon compte).
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- CTA principal -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td align="center" style="padding:8px 0 32px;">
+                          <a href="${input.urls.admin}/login" style="display:inline-block;background:linear-gradient(135deg,#EA580C 0%,#F97316 100%);color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;padding:14px 32px;border-radius:10px;box-shadow:0 4px 12px rgba(234,88,12,.3);">
+                            Accéder à mon espace admin →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Séparateur -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:24px;">
+                      <tr>
+                        <td style="border-top:1px solid #e2e8f0;font-size:0;line-height:0;">&nbsp;</td>
+                      </tr>
+                    </table>
+
+                    <!-- Vos URLs -->
+                    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">
+                      Vos 4 applications
+                    </div>
+
+                    ${appLinkRow('🍽️', 'Admin (manager)', 'Gestion menu, stocks, clients, finances', input.urls.admin)}
+                    ${appLinkRow('💳', 'POS (caisse)', 'Prise de commande + encaissement', input.urls.pos)}
+                    ${appLinkRow('👨‍🍳', 'KDS (cuisine)', 'Affichage commandes en cuisine', input.urls.kds)}
+                    ${appLinkRow('🛒', 'Site client', 'Menu public + commande en ligne', input.urls.client)}
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Footer carte -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="background:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;">
+                    <div style="font-size:13px;color:#475569;line-height:1.6;">
+                      <strong style="color:#1e293b;">Besoin d'aide ?</strong><br>
+                      Répondez simplement à cet email ou contactez nous sur <a href="mailto:support@sakafio.mg" style="color:#EA580C;text-decoration:none;font-weight:600;">support@sakafio.mg</a>.
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- ── Footer externe ───────────────────────── -->
+          <tr>
+            <td align="center" style="padding:24px 16px 0;font-size:11px;color:#94a3b8;line-height:1.6;">
+              © ${new Date().getFullYear()} Sakafio — Logiciel pour votre restaurant et bar.<br>
+              Cet email contient vos identifiants — ne le partagez avec personne.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
 
   const text = `
-Bienvenue sur Sakafio — ${input.tenantName}
+🎉 Bienvenue ${input.tenantName} !
 
-Vos identifiants :
-  Email      : ${input.adminEmail}
+Votre instance Sakafio est prête à servir vos clients.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔐 VOS IDENTIFIANTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Email        : ${input.adminEmail}
   Mot de passe : ${input.adminPassword}
 
-⚠️ Changez votre mot de passe à la première connexion (menu Paramètres).
+⚠️  Changez ce mot de passe à votre 1re connexion
+   (Paramètres > Mon compte).
 
-Vos URLs :
-  Admin manager : ${input.urls.admin}
-  Caisse (POS)  : ${input.urls.pos}
-  Cuisine (KDS) : ${input.urls.kds}
-  Site client   : ${input.urls.client}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 SE CONNECTER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Se connecter : ${input.urls.admin}/login
+  ${input.urls.admin}/login
 
-Une question ? Répondez à cet email ou contactez support@sakafio.mg.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📱 VOS 4 APPLICATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🍽️  Admin (manager)
+   Gestion menu, stocks, clients, finances
+   ${input.urls.admin}
+
+💳 POS (caisse)
+   Prise de commande + encaissement
+   ${input.urls.pos}
+
+👨‍🍳 KDS (cuisine)
+   Affichage commandes en cuisine
+   ${input.urls.kds}
+
+🛒 Site client
+   Menu public + commande en ligne
+   ${input.urls.client}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Besoin d'aide ? Répondez à cet email
+ou écrivez à support@sakafio.mg.
+
+© ${new Date().getFullYear()} Sakafio — Logiciel pour votre restaurant et bar
+Cet email contient vos identifiants — ne le partagez avec personne.
 `.trim()
 
   try {
@@ -185,17 +304,60 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
 }
 
+function appLinkRow(emoji: string, title: string, desc: string, url: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;">
+    <tr>
+      <td style="padding:14px 16px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <td width="44" valign="middle" style="font-size:24px;line-height:1;width:44px;padding-right:12px;">${emoji}</td>
+            <td valign="middle">
+              <div style="font-size:14px;font-weight:600;color:#1e293b;line-height:1.3;">${title}</div>
+              <div style="font-size:12px;color:#64748b;margin-top:2px;line-height:1.4;">${desc}</div>
+              <a href="${url}" style="display:inline-block;font-family:'SFMono-Regular',Consolas,monospace;font-size:11px;color:#EA580C;text-decoration:none;margin-top:4px;word-break:break-all;">${url}</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>`
+}
+
 /** Envoie un email de test simple. Utilise la config SMTP enregistrée. */
 export async function sendTestEmail(to: string): Promise<{ ok: boolean; error?: string }> {
   const ctx = await getTransporter()
   if (!ctx) return { ok: false, error: 'SMTP non configuré' }
+  const now = new Date().toLocaleString('fr-FR')
   try {
     await ctx.transporter.sendMail({
       from: ctx.from,
       to,
-      subject: 'Test SMTP Sakafio Master',
-      text: `Bonjour,\n\nCet email confirme que ta configuration SMTP fonctionne.\n\nEnvoyé depuis Sakafio Master à ${new Date().toLocaleString('fr-FR')}.`,
-      html: `<p>Bonjour,</p><p>Cet email confirme que ta configuration SMTP fonctionne. ✅</p><p style="color:#94a3b8;font-size:12px;">Envoyé depuis Sakafio Master à ${new Date().toLocaleString('fr-FR')}.</p>`,
+      subject: '✅ Test SMTP Sakafio — config OK',
+      text: `Test SMTP réussi !\n\nCet email confirme que ta configuration SMTP fonctionne correctement.\nLes prochains tenants créés depuis https://master.sakafio.mg recevront leurs identifiants automatiquement.\n\nEnvoyé le ${now}.`,
+      html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#fff8f1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fff8f1;">
+    <tr><td align="center" style="padding:48px 16px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:480px;background:#fff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.04),0 8px 32px rgba(15,23,42,.06);overflow:hidden;">
+        <tr><td style="background:linear-gradient(135deg,#10B981 0%,#059669 100%);padding:32px;text-align:center;color:#fff;">
+          <div style="font-size:48px;line-height:1;margin-bottom:8px;">✅</div>
+          <h1 style="font-size:22px;font-weight:700;margin:0;line-height:1.3;">Test SMTP réussi !</h1>
+        </td></tr>
+        <tr><td style="padding:32px;text-align:center;">
+          <p style="font-size:15px;line-height:1.6;color:#475569;margin:0 0 16px;">
+            Ta configuration SMTP fonctionne parfaitement. Les <strong>prochains clients</strong> créés depuis le master recevront leurs identifiants automatiquement.
+          </p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;font-size:12px;color:#166534;margin-top:16px;">
+            🎉 Tout est prêt. Tu peux créer ton premier client tenant.
+          </div>
+        </td></tr>
+        <tr><td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center;line-height:1.5;">
+          Envoyé le ${now}<br>
+          © ${new Date().getFullYear()} Sakafio
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`,
     })
     return { ok: true }
   } catch (err) {
