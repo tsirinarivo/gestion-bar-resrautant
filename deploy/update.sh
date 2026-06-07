@@ -150,6 +150,31 @@ else
   log "Aucune DB tenant détectée"
 fi
 
+header "6bis. Recreate containers des tenants existants (nouvelles images)"
+# Quand on rebuild restaurant_web:latest etc., les nouveaux containers utilisent
+# la nouvelle image, mais les containers tenants existants tournent toujours
+# sur l'ancienne. Il faut explicitement les recreate pour propager les fixes.
+# On itere sur /opt/restaurant/tenants/*/docker-compose.yml.
+if [ -d "./tenants" ]; then
+  TENANT_COUNT=0
+  for tdir in ./tenants/*/; do
+    [ -f "${tdir}docker-compose.yml" ] || continue
+    slug=$(basename "$tdir")
+    echo "  → Recreate containers tenant '$slug'..."
+    if (cd "$tdir" && docker compose up -d --force-recreate api web pos kds client > /dev/null 2>&1); then
+      log "    ✓ $slug : containers recreated"
+      TENANT_COUNT=$((TENANT_COUNT + 1))
+    else
+      warn "    ✗ $slug : recreate a échoué — vérifier $tdir manuellement"
+    fi
+  done
+  if [ "$TENANT_COUNT" -gt 0 ]; then
+    log "$TENANT_COUNT tenant(s) recréé(s) avec les nouvelles images"
+  fi
+else
+  log "Aucun tenant à recréer (dossier tenants/ inexistant)"
+fi
+
 header "7. Services d'infrastructure (backup + watchdog)"
 mkdir -p ./logs
 $DC up -d postgres-backup watchdog
