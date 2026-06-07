@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Users, LogOut, Settings, Receipt } from 'lucide-react'
+import { LayoutDashboard, Users, LogOut, Settings, Receipt, RefreshCw } from 'lucide-react'
 import { readSession } from '@/lib/auth'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -20,6 +20,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 space-y-1 px-3 py-4">
           <SideLink href="/dashboard" icon={LayoutDashboard} label="Vue d'ensemble" />
           <SideLink href="/dashboard/tenants" icon={Users} label="Clients" />
+          <SideLink href="/dashboard/updates" icon={RefreshCw} label="Déploiements" />
           <SideLink href="/dashboard/billing" icon={Receipt} label="Facturation" disabled />
           <SideLink href="/dashboard/settings" icon={Settings} label="Paramètres" />
         </nav>

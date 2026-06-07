@@ -152,3 +152,17 @@ model MasterSetting {
   updatedAt DateTime @updatedAt
   updatedBy String?              // userId du MasterUser qui a modifié
 }
+
+// ─── DÉPLOIEMENTS (bash deploy/update.sh lancé depuis l'UI) ────────────────
+// Trace chaque exécution du script de mise à jour avec son log live (append).
+model UpdateRun {
+  id          String    @id @default(cuid())
+  status      String    @default("RUNNING") // RUNNING, SUCCESS, FAILED
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  startedBy   String?   // userId du MasterUser qui a déclenché
+  log         String    @default("") // stdout + stderr append au fur et à mesure
+  exitCode    Int?
+
+  @@index([startedAt(sort: Desc)])
+}
