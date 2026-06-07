@@ -338,10 +338,11 @@ services:
       # Écriture des configs Nginx tenant (reload manuel après création)
       - /etc/nginx/sites-available:/etc/nginx/sites-available
       - /etc/nginx/sites-enabled:/etc/nginx/sites-enabled
-      # Clés SSH du host (read-only) pour : git pull (si remote ssh) +
-      # ssh-add la clé github qui clone imprimantcloud (repo privé) dans le
-      # build api. Sans ça, le bouton 'Déployer' du master échoue sur build.
-      - /root/.ssh:/root/.ssh:ro
+      # Clés SSH du host pour : git pull + ssh-add la clé github qui clone
+      # imprimantcloud (repo privé) au build api. RW (pas :ro) car ssh-agent
+      # crée son socket dans /root/.ssh/agent au démarrage — n'écrit pas
+      # dans les fichiers existants, juste un sous-dossier 'agent'.
+      - /root/.ssh:/root/.ssh
     depends_on:
       postgres:
         condition: service_healthy
