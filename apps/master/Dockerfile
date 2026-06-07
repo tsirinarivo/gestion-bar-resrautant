@@ -29,7 +29,13 @@ RUN cd apps/master && npm run build
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat openssl docker-cli docker-cli-compose bash gettext curl
+# Tous les outils nécessaires pour exécuter bash deploy/update.sh depuis l'UI :
+# - git : git fetch/pull/reset/log au début du script
+# - openssh-client : ssh-agent + ssh-add pour cloner imprimantcloud (repo privé)
+# - docker-cli + compose : provisioning + recreate tenants
+# - bash + gettext : envsubst dans new-tenant.sh
+# - curl : debug + smoke tests
+RUN apk add --no-cache libc6-compat openssl docker-cli docker-cli-compose bash gettext curl git openssh-client
 WORKDIR /app
 
 ENV NODE_ENV=production
