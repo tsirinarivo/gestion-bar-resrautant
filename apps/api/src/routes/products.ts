@@ -631,26 +631,41 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
     // Préparer les catégories : map des existantes + créer les nouvelles à la volée
     const existingCats = await prisma.category.findMany({
       where: { restaurantId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, slug: true },
     })
     const catMap = new Map(existingCats.map(c => [c.name.toLowerCase(), c.id]))
+
+    // slug est requis + @@unique([restaurantId, slug]) sur Category ET Product.
+    // On génère des slugs uniques au sein de l'import + vis-à-vis de l'existant.
+    const usedCatSlugs = new Set(existingCats.map(c => c.slug))
+    function uniqueSlug(name: string, used: Set<string>): string {
+      const base = slugify(name) || 'item'
+      let s = base
+      let n = 2
+      while (used.has(s)) s = `${base}-${n++}`
+      used.add(s)
+      return s
+    }
 
     // Catégorie "Import" par défaut (si la ligne n'en spécifie pas)
     let defaultCatId = catMap.get('import')
     if (!defaultCatId && !dryRun) {
       const created = await prisma.category.create({
-        data: { name: 'Import', restaurantId, isActive: true },
+        data: { name: 'Import', slug: uniqueSlug('Import', usedCatSlugs), restaurantId, isActive: true },
       })
       defaultCatId = created.id
       catMap.set('import', created.id)
     }
 
-    // SKUs déjà en DB pour skip les doublons (par restaurantId)
+    // SKUs + slugs déjà en DB pour skip les doublons / garantir l'unicité
     const existingProducts = await prisma.product.findMany({
-      where: { restaurantId, sku: { not: null } },
-      select: { sku: true },
+      where: { restaurantId },
+      select: { sku: true, slug: true },
     })
-    const existingSkus = new Set(existingProducts.map(p => (p.sku || '').toLowerCase()))
+    const existingSkus = new Set(
+      existingProducts.filter(p => p.sku).map(p => (p.sku || '').toLowerCase())
+    )
+    const usedProductSlugs = new Set(existingProducts.map(p => p.slug))
 
     const results = { created: 0, skipped: 0, errors: [] as { line: number; reason: string }[], preview: [] as any[] }
 
@@ -719,11 +734,15 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
         const found = catMap.get(k)
         if (found) categoryId = found
         else if (!dryRun) {
-          const cat = await prisma.category.create({
-            data: { name: catName, restaurantId, isActive: true },
-          })
-          catMap.set(k, cat.id)
-          categoryId = cat.id
+          try {
+            const cat = await prisma.category.create({
+              data: { name: catName, slug: uniqueSlug(catName, usedCatSlugs), restaurantId, isActive: true },
+            })
+            catMap.set(k, cat.id)
+            categoryId = cat.id
+          } catch {
+            categoryId = defaultCatId
+          }
         }
       }
 
@@ -740,6 +759,7 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
         await prisma.product.create({
           data: {
             name,
+            slug: uniqueSlug(name, usedProductSlugs),
             description: description || null,
             sku: sku || null,
             barcode: barcode || null,
