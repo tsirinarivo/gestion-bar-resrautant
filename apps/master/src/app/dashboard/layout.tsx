@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Users, LogOut, Settings, Receipt, RefreshCw } from 'lucide-react'
+import { LayoutDashboard, Users, LogOut, Settings, Receipt, RefreshCw, Package } from 'lucide-react'
 import { readSession } from '@/lib/auth'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +21,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <SideLink href="/dashboard" icon={LayoutDashboard} label="Vue d'ensemble" />
           <SideLink href="/dashboard/tenants" icon={Users} label="Clients" />
           <SideLink href="/dashboard/updates" icon={RefreshCw} label="Déploiements" />
-          <SideLink href="/dashboard/billing" icon={Receipt} label="Facturation" disabled />
+          <SideLink href="/dashboard/plans" icon={Package} label="Plans" />
+          <SideLink href="/dashboard/billing" icon={Receipt} label="Facturation" />
           <SideLink href="/dashboard/settings" icon={Settings} label="Paramètres" />
         </nav>
         <form action="/api/auth/logout" method="post" className="border-t border-slate-200 p-3">

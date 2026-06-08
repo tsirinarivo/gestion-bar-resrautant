@@ -128,6 +128,20 @@ enum InvoiceStatus {
   CANCELED
 }
 
+// ─── PLANS D'ABONNEMENT (catalogue, sprint MT-2) ───────────────────────────
+// Subscription.plan référence Plan.key (string libre, pas de FK pour rester
+// flexible si un plan est supprimé alors que des tenants l'utilisent encore).
+model Plan {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  amountMga Int      @default(0)
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // ─── AUDIT TRAIL (qui a fait quoi sur un tenant) ───────────────────────────
 
 model TenantEvent {

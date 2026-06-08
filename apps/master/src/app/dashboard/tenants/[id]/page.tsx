@@ -5,6 +5,7 @@ import { masterPrisma } from '@restaurant/master-database'
 import { readSession } from '@/lib/auth'
 import { DeleteTenantButton } from '@/components/DeleteTenantButton'
 import { SuspendResumeButton } from '@/components/SuspendResumeButton'
+import { TenantSubscriptionCard } from '@/components/TenantSubscriptionCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,6 +106,8 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
             )}
           </div>
         </section>
+
+        <TenantSubscriptionCard tenantId={tenant.id} />
       </div>
 
       {tenant.notes && (

@@ -4,5 +4,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const { markZombieRuns } = await import('@/lib/zombie-runs')
     await markZombieRuns()
+    const { startBillingScheduler } = await import('@/lib/billing-scheduler')
+    startBillingScheduler()
   }
 }

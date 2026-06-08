@@ -106,6 +106,20 @@
 - [x] Architecture : 1 Postgres partagé / 1 DB par tenant / 1 stack Docker isolée par tenant
 - [x] Allocation auto de ports (4100 + idx*10) et de DB Redis numérique
 
+### Multi-tenant SaaS (sprint MT-2 — Abonnements + facturation, juin 2026)
+- [x] Modèle `Plan` (catalogue) dans le schema master + CRUD complet (`/api/plans`, page `/dashboard/plans`)
+- [x] Assignation d'un plan à un tenant depuis la fiche client (`PUT /api/tenants/:id/subscription` → crée/màj `Subscription`)
+- [x] Moteur de facturation `lib/billing.ts` : `runBillingCycle()` idempotent (génère factures dues, marque OVERDUE, suspend après grâce)
+- [x] Scheduler `lib/billing-scheduler.ts` (setInterval 6h, démarré dans `instrumentation.ts`) + bouton "Lancer la facturation" manuel
+- [x] Génération mensuelle auto des factures depuis les abonnements actifs (numérotation `F-YYYYMM-NNNN`)
+- [x] Page `/dashboard/billing` : liste + filtres (toutes/PENDING/OVERDUE/PAID/CANCELED) + marquer payée + annuler
+- [x] Marquer payée → réactive auto la subscription (PAST_DUE→ACTIVE) + le tenant s'il était suspendu pour impayé
+- [x] Suspension auto si facture impayée > X jours (défaut 7, configurable via `/api/billing/settings`)
+- [x] **Décision** : suspension SOFT (flag DB `status=SUSPENDED` + event `AUTO_SUSPENDED`), la stack Docker n'est PAS coupée automatiquement (protège le tenant prod d'un bug de facturation). Coupure réelle = bouton manuel existant.
+- [x] Sidebar master : liens Plans + Facturation activés
+
+**Reporté (suite MT-2)** : coupure Docker réelle + page nginx "abonnement échu" sur suspension auto (sprint infra séparé, à activer une fois la facturation rodée en prod).
+
 ### Branding Sakafio (mai 2026)
 - [x] Renommage complet "RestaurantOS" → "Sakafio" (code, scripts, README, doc, JSX)
 - [x] Création de 3 propositions de logo SVG (moderne, gourmand, Madagascar) dans `docs/branding/logo-options/`
@@ -269,14 +283,6 @@ Audit approfondi de 4 clusters de workflows (~100 trouvailles consolidées).
 > Sprints regroupés par thème, dans l'ordre de priorité recommandé.
 
 ### 🔴 Priorité haute — Multi-tenant SaaS
-
-#### Sprint MT-2 — Abonnements + suspension auto
-- CRUD plans (basic / pro / enterprise) avec prix MGA mensuel
-- Génération mensuelle automatique des factures (cron node-cron ou via Redis)
-- Page facturation dans la master (liste + filtre + marquer payée)
-- Suspension automatique d'un tenant si facture impayée depuis X jours (config)
-- Quand suspendu : stack Docker stoppée + Nginx renvoie page "Abonnement échu, contactez votre admin"
-- Bouton "Réactiver" dans la console master
 
 #### Sprint MT-3 — Login as client + audit
 - Endpoint master : `POST /api/tenants/:id/impersonate` génère un JWT cross-instance signé avec `apiCrossSecret`
