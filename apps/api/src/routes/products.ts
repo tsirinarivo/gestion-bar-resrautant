@@ -611,6 +611,22 @@ function toFloat(s: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+// Les erreurs Prisma de validation ('Invalid invocation') répètent d'abord le
+// bloc de données puis donnent la VRAIE raison à la fin. On extrait la dernière
+// ligne significative plutôt que le début (inutile) du message.
+function prismaReason(err: any): string {
+  const msg = String(err?.message ?? '')
+  if (!msg) return 'Erreur DB'
+  const lines = msg.split('\n').map((l) => l.trim()).filter(Boolean)
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const l = lines[i]!
+    if (/missing|unknown|invalid|expected|relation|constraint|violat|did you mean|required|null/i.test(l)) {
+      return l.slice(0, 300)
+    }
+  }
+  return (lines[lines.length - 1] || 'Erreur DB').slice(0, 300)
+}
+
 // POST /api/products/import — import CSV (Dolibarr ou générique)
 productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.single('file'), async (req: AuthRequest, res, next) => {
   try {
@@ -753,42 +769,51 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
       }
 
       try {
-        // Si des données stock sont fournies, créer le StockItem associé en même
-        // temps pour activer la gestion de stock du produit.
+        // Si des données stock sont fournies, créer le StockItem associé pour
+        // activer la gestion de stock du produit. On crée le produit puis le
+        // StockItem séparément (au lieu d'un nested write) dans une transaction
+        // → atomique, et plus lisible côté erreurs.
         const hasStockData = initialStock != null || minQty != null || reorderQty != null
-        await prisma.product.create({
-          data: {
-            name,
-            slug: uniqueSlug(name, usedProductSlugs),
-            description: description || null,
-            sku: sku || null,
-            barcode: barcode || null,
-            price: Math.round(price),
-            taxRate,
-            restaurantId,
-            categoryId: categoryId!,
-            isActive: true,
-            isAvailable: true,
-            ...(hasStockData && {
-              stockItem: {
-                create: {
-                  name,
-                  sku: sku || null,
-                  barcode: barcode || null,
-                  unit: 'pièce',
-                  currentQuantity: initialStock ?? 0,
-                  minQuantity: minQty ?? 0,
-                  reorderQuantity: reorderQty ?? 0,
-                  restaurantId,
-                },
+        await prisma.$transaction(async (tx) => {
+          const product = await tx.product.create({
+            data: {
+              name,
+              slug: uniqueSlug(name, usedProductSlugs),
+              description: description || null,
+              sku: sku || null,
+              barcode: barcode || null,
+              price: Math.round(price),
+              taxRate,
+              restaurantId,
+              categoryId: categoryId!,
+              isActive: true,
+              isAvailable: true,
+            },
+          })
+          if (hasStockData) {
+            const stock = await tx.stockItem.create({
+              data: {
+                name,
+                sku: sku || null,
+                barcode: barcode || null,
+                unit: 'pièce',
+                currentQuantity: initialStock ?? 0,
+                minQuantity: minQty ?? 0,
+                reorderQuantity: reorderQty ?? 0,
+                restaurantId,
               },
-            }),
-          },
+            })
+            await tx.product.update({
+              where: { id: product.id },
+              data: { stockItemId: stock.id },
+            })
+          }
         })
         if (sku) existingSkus.add(sku.toLowerCase())
         results.created++
       } catch (err: any) {
-        results.errors.push({ line: lineNo, reason: err?.message?.slice(0, 200) || 'Erreur DB' })
+        console.error(`[import-csv] ligne ${lineNo} "${name}" échouée:`, err?.message ?? err)
+        results.errors.push({ line: lineNo, reason: prismaReason(err) })
       }
     }
 
