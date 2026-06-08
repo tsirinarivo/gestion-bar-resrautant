@@ -16,9 +16,14 @@ export async function runUpdateAsync(userId: string): Promise<string> {
     data: { status: 'RUNNING', startedBy: userId },
   })
 
+  // SAKAFIO_SKIP_MASTER_RECREATE=1 → update.sh ne fera pas le recreate du
+  // container master. Sinon le master se suicide pendant qu'il tourne le
+  // script, le process Node meurt avant child.on('close') → run zombie en
+  // RUNNING éternel. Pour un vrai update du master, lance update.sh en CLI
+  // sur le host (sans cette var).
   const child = spawn('bash', [SCRIPT_UPDATE], {
     cwd: ROOT_DIR,
-    env: process.env,
+    env: { ...process.env, SAKAFIO_SKIP_MASTER_RECREATE: '1' },
   })
 
   let pendingLog = ''

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, RefreshCw, CheckCircle2, XCircle, RotateCw, Info } from 'lucide-react'
+import { ArrowLeft, Loader2, RefreshCw, CheckCircle2, XCircle, RotateCw, Info, StopCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 type UpdateRun = {
@@ -126,14 +126,36 @@ export default function UpdatesPage() {
             Lance <code className="rounded bg-slate-100 px-1 text-xs">bash deploy/update.sh</code> qui pull le code, rebuild les images, migre les DBs et recréé tous les containers (master + tenants).
           </p>
         </div>
-        <button
-          onClick={startUpdate}
-          disabled={launching || isRunning}
-          className="btn-primary inline-flex items-center gap-2 whitespace-nowrap"
-        >
-          {launching || isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-          {isRunning ? `En cours… (${elapsedFmt})` : launching ? 'Démarrage…' : 'Déployer maintenant'}
-        </button>
+        <div className="flex items-center gap-2">
+          {isRunning && (
+            <button
+              onClick={async () => {
+                if (!confirm('Annuler le déploiement en cours ? Si des tenants étaient en cours de recreate, ils peuvent rester dans un état incohérent.')) return
+                try {
+                  const res = await fetch(`/api/updates/${activeRunId}/cancel`, { method: 'POST' })
+                  const body = await res.json().catch(() => ({}))
+                  if (!res.ok) throw new Error(body.error || "Échec de l'annulation")
+                  toast.success('Déploiement annulé')
+                  refreshHistory()
+                } catch (err) {
+                  toast.error((err as Error).message)
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+            >
+              <StopCircle className="h-4 w-4" />
+              Annuler
+            </button>
+          )}
+          <button
+            onClick={startUpdate}
+            disabled={launching || isRunning}
+            className="btn-primary inline-flex items-center gap-2 whitespace-nowrap"
+          >
+            {launching || isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+            {isRunning ? `En cours… (${elapsedFmt})` : launching ? 'Démarrage…' : 'Déployer maintenant'}
+          </button>
+        </div>
       </header>
 
       <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">

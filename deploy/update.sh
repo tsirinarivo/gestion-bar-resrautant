@@ -107,8 +107,17 @@ $DC up -d --no-deps api
 sleep 15
 log "API redémarrée"
 
-$DC up -d --no-deps web pos kds client master
-log "Frontends + master redémarrés"
+# Skip le recreate de 'master' si le script tourne LUI-MÊME dans le container
+# master (déclenché depuis l'UI). Sinon le master se suicide pendant qu'il
+# tourne update.sh, le process Node meurt, et la run UpdateRun reste éternel-
+# lement en RUNNING dans la DB (zombie).
+if [ "${SAKAFIO_SKIP_MASTER_RECREATE:-}" = "1" ]; then
+  $DC up -d --no-deps web pos kds client
+  log "Frontends redémarrés (master skip — détecté lancement depuis l'UI)"
+else
+  $DC up -d --no-deps web pos kds client master
+  log "Frontends + master redémarrés"
+fi
 
 header "6. Migrations (master DB + master SaaS DB + tous les tenants)"
 # Migration de la DB master (schéma packages/database — schema tenant principal)
