@@ -536,12 +536,16 @@ function normalizeHeader(s: string): string {
   // 'Prix unitaire TTC' -> 'prix_unitaire_ttc'
   // 'Réf.'             -> 'ref'
   // 'Code-barres'      -> 'code_barres'
+  // 'UnitPriceTTC'     -> 'unit_price_ttc'  (CamelCase split)
+  // 'VATRate'          -> 'vat_rate'        (acronyme + casse)
   return s
-    .normalize('NFD').replace(/[̀-ͯ]/g, '') // strip accents diacritiques
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')  // strip accents
+    .replace(/([a-z\d])([A-Z])/g, '$1_$2')              // camelCase -> camel_Case
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')          // VATRate -> VAT_Rate
     .toLowerCase()
-    .replace(/[^\w\s]/g, ' ')                          // ponctuation -> espace
+    .replace(/[^\w\s]/g, ' ')                           // ponctuation -> espace
     .trim()
-    .replace(/\s+/g, '_')                              // espaces -> _
+    .replace(/\s+/g, '_')                               // espaces -> _
 }
 
 function parseCsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
@@ -585,8 +589,16 @@ function parseCsv(text: string): { headers: string[]; rows: Record<string, strin
 }
 
 function pick(row: Record<string, string>, keys: string[]): string {
+  // 1. Exact match sur la clé normalisée
   for (const k of keys) {
     if (row[k] && row[k].trim()) return row[k].trim()
+  }
+  // 2. Fallback : header qui CONTIENT le pattern (gère les variantes
+  // 'unit_price_ttc' qui contient 'price_ttc', 'tva_taux' qui contient 'tva', etc.)
+  const headers = Object.keys(row)
+  for (const k of keys) {
+    const matching = headers.find(h => h.includes(k))
+    if (matching && row[matching] && row[matching].trim()) return row[matching].trim()
   }
   return ''
 }
@@ -653,23 +665,27 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
         continue
       }
 
-      // SKU : Dolibarr exporte 'Réf.' → 'ref'
+      // SKU : Dolibarr FR 'Réf.' → 'ref', EN 'Ref' → 'ref'
       const sku = pick(row, ['ref', 'sku', 'reference', 'code', 'product_ref'])
       if (sku && existingSkus.has(sku.toLowerCase())) {
         results.skipped++
         continue
       }
 
-      // Prix TTC : Dolibarr exporte 'Prix unitaire TTC' → 'prix_unitaire_ttc'
+      // TVA : Dolibarr FR 'Taux TVA' → 'taux_tva', EN 'VATRate' → 'vat_rate'
       const taxRate = toFloat(pick(row, [
-        'tva_tx', 'tva', 'taux_tva', 'taxrate', 'tax_rate', 'vat_rate',
+        'tva_tx', 'tva', 'taux_tva', 'taxrate', 'tax_rate', 'vat_rate', 'vat',
       ])) ?? 0
+      // Prix TTC : Dolibarr FR 'Prix unitaire TTC' → 'prix_unitaire_ttc',
+      // EN 'UnitPriceTTC' → 'unit_price_ttc'
       let price = toFloat(pick(row, [
         'price_ttc', 'prix_ttc', 'prix_unitaire_ttc', 'prix_de_vente_ttc',
-        'price', 'prix', 'prix_unitaire', 'prix_vente',
+        'unit_price_ttc', 'price_with_tax', 'ttc_price',
+        'price', 'prix', 'prix_unitaire', 'prix_vente', 'unit_price',
       ]))
       const priceHT = toFloat(pick(row, [
         'price_ht', 'prix_ht', 'prix_unitaire_ht', 'prix_de_vente_ht', 'prix_vente_ht',
+        'unit_price_ht', 'price_excl_tax', 'ht_price',
       ]))
       if (price == null && priceHT != null) {
         price = priceHT * (1 + taxRate / 100)
@@ -680,18 +696,21 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
       }
 
       const description = pick(row, ['description', 'desc', 'note'])
-      const barcode = pick(row, ['barcode', 'code_barre', 'code_barres', 'ean', 'gencod'])
+      const barcode = pick(row, ['barcode', 'bar_code', 'code_barre', 'code_barres', 'ean', 'gencod'])
       const catName = pick(row, ['categories', 'category', 'categorie', 'cat', 'rubrique', 'famille'])
 
-      // Stock : Dolibarr exporte 'Stock désiré optimal' + 'Limite stock pour alerte'
+      // Stock : Dolibarr FR 'Stock désiré optimal' + 'Limite stock pour alerte',
+      // EN 'DesiredStock' → 'desired_stock', 'StockLimit' → 'stock_limit'
       const reorderQty = toFloat(pick(row, [
         'stock_desire_optimal', 'stock_desire', 'reorder_quantity', 'reorder', 'optimal_stock',
+        'desired_stock', 'desired', 'target_stock', 'optimal',
       ]))
       const minQty = toFloat(pick(row, [
         'limite_stock_pour_alerte', 'stock_alerte', 'min_quantity', 'alert_threshold', 'seuil_alerte',
+        'stock_limit', 'min_stock', 'low_stock', 'alert_stock',
       ]))
       const initialStock = toFloat(pick(row, [
-        'stock_reel', 'stock', 'quantity', 'qte', 'stock_initial',
+        'stock_reel', 'stock', 'quantity', 'qte', 'stock_initial', 'current_stock', 'on_hand',
       ]))
 
       let categoryId = defaultCatId
