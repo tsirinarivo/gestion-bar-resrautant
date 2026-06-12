@@ -9,38 +9,29 @@
  */
 
 import { chromium } from '@playwright/test'
-import { mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
+import { spawn } from 'node:child_process'
 
 const OUT_DIR = join(process.cwd(), 'public', 'screenshots')
 const VIEWPORT = { width: 1920, height: 1200 } as const
 
-const TAILWIND_HEAD = `
+let COMPILED_CSS = ''
+
+function head(): string {
+  return `
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          brand: {
-            50:'#fff7ed',100:'#ffedd5',200:'#fed7aa',300:'#fdba74',400:'#fb923c',
-            500:'#f97316',600:'#ea580c',700:'#c2410c',800:'#9a3412',900:'#7c2d12'
-          }
-        },
-        fontFamily: { sans: ['Inter','system-ui','sans-serif'] }
-      }
-    }
-  }
-</script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>${COMPILED_CSS}</style>
 <style>
-  body { font-family: Inter, system-ui, sans-serif; }
+  html, body { font-family: Inter, system-ui, sans-serif; }
   .scrollbar-hidden::-webkit-scrollbar { display: none; }
 </style>
 `
+}
 
 const Icon = {
   dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
@@ -124,7 +115,7 @@ const TODAY = '12 juin 2026'
 // ────────────────────────────────────────────────────────────────────────────
 // DASHBOARD
 // ────────────────────────────────────────────────────────────────────────────
-const DASHBOARD_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</head><body class="bg-slate-50">
+const DASHBOARD_HTML = `<!DOCTYPE html><html lang="fr"><head>__HEAD__</head><body class="bg-slate-50">
 <div class="flex h-screen overflow-hidden">
   ${sidebar('dashboard')}
   <div class="flex flex-1 flex-col overflow-hidden">
@@ -261,7 +252,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</h
 // ────────────────────────────────────────────────────────────────────────────
 // STOCK
 // ────────────────────────────────────────────────────────────────────────────
-const STOCK_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</head><body class="bg-slate-50">
+const STOCK_HTML = `<!DOCTYPE html><html lang="fr"><head>__HEAD__</head><body class="bg-slate-50">
 <div class="flex h-screen overflow-hidden">
   ${sidebar('stock')}
   <div class="flex flex-1 flex-col overflow-hidden">
@@ -355,7 +346,7 @@ const STOCK_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</head>
 // ────────────────────────────────────────────────────────────────────────────
 // CAISSE
 // ────────────────────────────────────────────────────────────────────────────
-const CAISSE_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</head><body class="bg-slate-50">
+const CAISSE_HTML = `<!DOCTYPE html><html lang="fr"><head>__HEAD__</head><body class="bg-slate-50">
 <div class="flex h-screen overflow-hidden">
   ${sidebar('caisse')}
   <div class="flex flex-1 flex-col overflow-hidden">
@@ -446,7 +437,7 @@ const CAISSE_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</head
 // ────────────────────────────────────────────────────────────────────────────
 // EMPLOYEES
 // ────────────────────────────────────────────────────────────────────────────
-const EMPLOYEES_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</head><body class="bg-slate-50">
+const EMPLOYEES_HTML = `<!DOCTYPE html><html lang="fr"><head>__HEAD__</head><body class="bg-slate-50">
 <div class="flex h-screen overflow-hidden">
   ${sidebar('employees')}
   <div class="flex flex-1 flex-col overflow-hidden">
@@ -514,7 +505,7 @@ const EMPLOYEES_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</h
 // ────────────────────────────────────────────────────────────────────────────
 // POS
 // ────────────────────────────────────────────────────────────────────────────
-const POS_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</head><body class="bg-slate-900">
+const POS_HTML = `<!DOCTYPE html><html lang="fr"><head>__HEAD__</head><body class="bg-slate-900">
 <div class="flex h-screen text-white">
   <!-- LEFT: products / tables -->
   <div class="flex-1 flex flex-col">
@@ -628,7 +619,7 @@ const POS_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</head><b
 // ────────────────────────────────────────────────────────────────────────────
 // KDS
 // ────────────────────────────────────────────────────────────────────────────
-const KDS_HTML = `<!DOCTYPE html><html lang="fr"><head>${TAILWIND_HEAD}</head><body class="bg-slate-950">
+const KDS_HTML = `<!DOCTYPE html><html lang="fr"><head>__HEAD__</head><body class="bg-slate-950">
 <div class="flex h-screen flex-col text-white">
   <header class="flex h-16 items-center justify-between border-b border-slate-800 bg-slate-900 px-6">
     <div class="flex items-center gap-3">
@@ -761,8 +752,93 @@ const SCREENS: Array<{ id: string; html: string }> = [
   { id: 'kds', html: KDS_HTML },
 ]
 
+function startServer(screens: Array<{ id: string; html: string }>): Promise<{ url: string; close: () => Promise<void> }> {
+  const map = new Map(screens.map(s => [s.id, s.html]))
+  const server = createServer((req, res) => {
+    const id = (req.url || '/').replace(/^\//, '').replace(/\?.*$/, '')
+    const html = map.get(id)
+    if (!html) {
+      res.statusCode = 404
+      res.end('Not found')
+      return
+    }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.end(html)
+  })
+  return new Promise(resolve => {
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address()
+      const port = typeof addr === 'object' && addr ? addr.port : 0
+      resolve({
+        url: `http://127.0.0.1:${port}`,
+        close: () => new Promise<void>(r => server.close(() => r())),
+      })
+    })
+  })
+}
+
+async function compileTailwind(htmls: string[]): Promise<string> {
+  const work = join(tmpdir(), `tw-${Date.now()}`)
+  await mkdir(work, { recursive: true })
+  const contentFile = join(work, 'content.html')
+  const inputCss = join(work, 'input.css')
+  const outputCss = join(work, 'output.css')
+  const configFile = join(work, 'tw.config.js')
+
+  await writeFile(contentFile, htmls.join('\n'))
+  await writeFile(inputCss, '@tailwind base;\n@tailwind components;\n@tailwind utilities;\n')
+  await writeFile(configFile, `module.exports = {
+  content: ['${contentFile}'],
+  theme: {
+    extend: {
+      colors: {
+        brand: {
+          50:'#fff7ed',100:'#ffedd5',200:'#fed7aa',300:'#fdba74',400:'#fb923c',
+          500:'#f97316',600:'#ea580c',700:'#c2410c',800:'#9a3412',900:'#7c2d12'
+        }
+      },
+      fontFamily: { sans: ['Inter','system-ui','sans-serif'] }
+    }
+  }
+}
+`)
+
+  const repoRoot = join(process.cwd(), '..', '..')
+  const cli = join(repoRoot, 'node_modules', '.bin', 'tailwindcss')
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(cli, ['-i', inputCss, '-o', outputCss, '-c', configFile, '--minify'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stderr = ''
+    child.stderr.on('data', d => { stderr += d.toString() })
+    child.on('error', reject)
+    child.on('close', code => {
+      if (code === 0) resolve()
+      else reject(new Error(`tailwindcss exited ${code}: ${stderr}`))
+    })
+  })
+
+  const css = await readFile(outputCss, 'utf8')
+  await rm(work, { recursive: true, force: true })
+  return css
+}
+
 async function main(): Promise<void> {
   await mkdir(OUT_DIR, { recursive: true })
+
+  console.log('→ Compilation Tailwind…')
+  COMPILED_CSS = await compileTailwind(SCREENS.map(s => s.html))
+  console.log(`  ✓ ${(COMPILED_CSS.length / 1024).toFixed(1)} KB de CSS`)
+
+  // Substitue le placeholder __HEAD__ par le head() avec le CSS compilé
+  const expandedScreens = SCREENS.map(s => ({
+    id: s.id,
+    html: s.html.replace('__HEAD__', head()),
+  }))
+
+  const { url: serverUrl, close: closeServer } = await startServer(expandedScreens)
+  console.log(`✓ Serveur de mockups: ${serverUrl}`)
 
   const browser = await chromium.launch({ headless: true })
   const context = await browser.newContext({
@@ -772,26 +848,22 @@ async function main(): Promise<void> {
   })
 
   try {
-    for (const screen of SCREENS) {
-      const tmpFile = join(tmpdir(), `sakafio-${screen.id}-${Date.now()}.html`)
-      await writeFile(tmpFile, screen.html)
-
+    for (const screen of expandedScreens) {
       const page = await context.newPage()
       console.log(`→ ${screen.id}`)
-      await page.goto(`file://${tmpFile}`, { waitUntil: 'networkidle' })
-      // attend que Tailwind CDN + fonts soient appliqués
-      await page.waitForTimeout(2500)
+      await page.goto(`${serverUrl}/${screen.id}`, { waitUntil: 'networkidle' })
+      await page.waitForTimeout(1500)
 
       const out = join(OUT_DIR, `${screen.id}.png`)
       await page.screenshot({ path: out, fullPage: false })
       console.log(`  ✓ ${out}`)
 
       await page.close()
-      await rm(tmpFile, { force: true })
     }
   } finally {
     await context.close()
     await browser.close()
+    await closeServer()
   }
 
   console.log('\n✓ Screenshots générés dans', OUT_DIR)
