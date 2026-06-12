@@ -76,9 +76,11 @@ export function Header() {
           </Link>
           <Link
             href="/signup"
-            className="hidden items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-brand-500/25 transition-all hover:shadow-lg hover:shadow-brand-500/40 hover:brightness-110 active:scale-[0.98] md:inline-flex"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-md shadow-brand-500/25 transition-all hover:shadow-lg hover:shadow-brand-500/40 hover:brightness-110 active:scale-[0.98]"
           >
-            Essai gratuit
+            <span className="hidden xs:inline sm:hidden">Essai</span>
+            <span className="hidden sm:inline">Essai gratuit</span>
+            <span className="xs:hidden">+</span>
           </Link>
           <button
             onClick={() => setOpen(true)}

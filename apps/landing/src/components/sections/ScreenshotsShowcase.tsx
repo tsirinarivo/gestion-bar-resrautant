@@ -18,7 +18,7 @@ export function ScreenshotsShowcase() {
   const tab = TABS.find(t => t.id === active)!
 
   return (
-    <section className="bg-slate-50 py-20 dark:bg-slate-900/50 md:py-32">
+    <section className="bg-slate-50 py-14 sm:py-20 dark:bg-slate-900/50 md:py-32">
       <div className="container-x">
         <div className="mx-auto max-w-3xl text-center">
           <motion.span
@@ -29,28 +29,30 @@ export function ScreenshotsShowcase() {
           </motion.span>
           <motion.h2
             initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-            className="mt-4 font-display text-4xl font-extrabold tracking-tight md:text-5xl text-balance"
+            className="mt-3 sm:mt-4 font-display text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-balance"
           >
             Pensé pour <span className="gradient-text">tous les rôles</span> de votre équipe
           </motion.h2>
         </div>
 
-        {/* Tabs */}
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-2">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setActive(t.id)}
-              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all ${
-                active === t.id
-                  ? 'border-brand-500 bg-brand-500 text-white shadow-md shadow-brand-500/30'
-                  : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
-              }`}
-            >
-              <t.icon className="h-4 w-4" />
-              {t.label}
-            </button>
-          ))}
+        {/* Tabs — scrollables horizontalement sur mobile */}
+        <div className="mt-10 sm:mt-12 -mx-4 sm:mx-0 overflow-x-auto scrollbar-thin">
+          <div className="flex items-center sm:justify-center gap-2 px-4 sm:px-0 pb-2 sm:flex-wrap">
+            {TABS.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActive(t.id)}
+                className={`inline-flex flex-shrink-0 items-center gap-2 rounded-full border px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                  active === t.id
+                    ? 'border-brand-500 bg-brand-500 text-white shadow-md shadow-brand-500/30'
+                    : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                }`}
+              >
+                <t.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Screenshot zone */}

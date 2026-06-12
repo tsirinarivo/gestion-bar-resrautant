@@ -83,7 +83,7 @@ const FEATURES = [
 
 export function Features() {
   return (
-    <section id="fonctionnalites" className="relative py-20 md:py-32">
+    <section id="fonctionnalites" className="relative py-14 sm:py-20 md:py-32">
       <div className="container-x">
         <div className="mx-auto max-w-3xl text-center">
           <motion.span
@@ -99,7 +99,7 @@ export function Features() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="mt-4 font-display text-4xl font-extrabold tracking-tight md:text-5xl text-balance"
+            className="mt-3 sm:mt-4 font-display text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-balance"
           >
             Tout ce dont vous avez besoin,<br />
             <span className="gradient-text">rien de ce qui vous ralentit</span>
@@ -115,7 +115,7 @@ export function Features() {
           </motion.p>
         </div>
 
-        <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-12 sm:mt-16 grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f, i) => (
             <motion.div
               key={f.title}
@@ -123,7 +123,7 @@ export function Features() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-50px' }}
               transition={{ duration: 0.4, delay: (i % 3) * 0.05 }}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900 dark:hover:shadow-black/30"
+              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900 dark:hover:shadow-black/30"
             >
               <div
                 className={`absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-0 blur-2xl transition-opacity group-hover:opacity-100 bg-${f.color}-300 dark:bg-${f.color}-700`}

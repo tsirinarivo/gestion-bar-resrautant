@@ -85,7 +85,7 @@ const PLANS = [
 
 export function Pricing() {
   return (
-    <section id="tarifs" className="relative py-20 md:py-32">
+    <section id="tarifs" className="relative py-14 sm:py-20 md:py-32">
       <div className="container-x">
         <div className="mx-auto max-w-3xl text-center">
           <motion.span
@@ -96,7 +96,7 @@ export function Pricing() {
           </motion.span>
           <motion.h2
             initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-            className="mt-4 font-display text-4xl font-extrabold tracking-tight md:text-5xl text-balance"
+            className="mt-3 sm:mt-4 font-display text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-balance"
           >
             Un prix juste, <span className="gradient-text">sans surprises</span>
           </motion.h2>
@@ -108,7 +108,7 @@ export function Pricing() {
           </motion.p>
         </div>
 
-        <div className="mt-16 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-12 sm:mt-16 grid gap-4 sm:gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {PLANS.map((p, i) => (
             <motion.div
               key={p.name}
@@ -116,9 +116,9 @@ export function Pricing() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.05 }}
-              className={`relative flex flex-col rounded-2xl border p-6 ${
+              className={`relative flex flex-col rounded-2xl border p-5 sm:p-6 ${
                 p.highlight
-                  ? 'border-brand-500 bg-gradient-to-br from-brand-50 via-white to-orange-50 shadow-2xl shadow-brand-500/20 dark:border-brand-600 dark:from-brand-950/50 dark:via-slate-900 dark:to-slate-900 dark:shadow-brand-900/40'
+                  ? 'border-brand-500 bg-gradient-to-br from-brand-50 via-white to-orange-50 shadow-2xl shadow-brand-500/20 dark:border-brand-600 dark:from-brand-950/50 dark:via-slate-900 dark:to-slate-900 dark:shadow-brand-900/40 mt-3 sm:mt-0'
                   : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'
               }`}
             >
@@ -131,10 +131,10 @@ export function Pricing() {
                 <p.icon className={`h-5 w-5 ${p.highlight ? 'text-brand-600' : 'text-slate-500'}`} />
                 <h3 className="font-display text-xl font-bold">{p.name}</h3>
               </div>
-              <div className="mb-2 flex items-baseline gap-1">
-                <span className="text-4xl font-extrabold">{p.price}</span>
-                {p.currency && <span className="text-lg font-semibold text-slate-500">{p.currency}</span>}
-                {p.period && <span className="text-sm text-slate-500">{p.period}</span>}
+              <div className="mb-2 flex flex-wrap items-baseline gap-1">
+                <span className="text-3xl sm:text-4xl font-extrabold">{p.price}</span>
+                {p.currency && <span className="text-base sm:text-lg font-semibold text-slate-500">{p.currency}</span>}
+                {p.period && <span className="text-xs sm:text-sm text-slate-500">{p.period}</span>}
               </div>
               <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">{p.desc}</p>
               <ul className="mb-6 space-y-2.5 text-sm">

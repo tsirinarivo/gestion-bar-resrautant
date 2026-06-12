@@ -11,9 +11,9 @@ const STATS = [
 
 export function Stats() {
   return (
-    <section className="relative overflow-hidden border-y border-slate-200 bg-gradient-to-br from-brand-50 via-orange-50 to-cyan-50 py-16 dark:border-slate-800 dark:from-brand-950/40 dark:via-orange-950/30 dark:to-cyan-950/30">
+    <section className="relative overflow-hidden border-y border-slate-200 bg-gradient-to-br from-brand-50 via-orange-50 to-cyan-50 py-10 sm:py-16 dark:border-slate-800 dark:from-brand-950/40 dark:via-orange-950/30 dark:to-cyan-950/30">
       <div className="container-x">
-        <div className="grid gap-8 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-6 sm:gap-8 md:grid-cols-4">
           {STATS.map((s, i) => (
             <motion.div
               key={s.label}
@@ -23,8 +23,8 @@ export function Stats() {
               transition={{ delay: i * 0.1 }}
               className="text-center"
             >
-              <div className="font-display text-5xl font-extrabold gradient-text">{s.value}</div>
-              <div className="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300">{s.label}</div>
+              <div className="font-display text-3xl sm:text-4xl md:text-5xl font-extrabold gradient-text">{s.value}</div>
+              <div className="mt-1.5 sm:mt-2 text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300">{s.label}</div>
             </motion.div>
           ))}
         </div>

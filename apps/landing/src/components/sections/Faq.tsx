@@ -41,12 +41,12 @@ const FAQ = [
 
 export function Faq() {
   return (
-    <section className="bg-slate-50 py-20 dark:bg-slate-900/50 md:py-32">
+    <section className="bg-slate-50 py-14 sm:py-20 dark:bg-slate-900/50 md:py-32">
       <div className="container-x">
         <div className="mx-auto max-w-3xl text-center">
           <motion.h2
             initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-            className="font-display text-4xl font-extrabold tracking-tight md:text-5xl"
+            className="font-display text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight"
           >
             Questions fréquentes
           </motion.h2>

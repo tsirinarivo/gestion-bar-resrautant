@@ -23,11 +23,28 @@
     color: rgb(var(--fg));
     font-feature-settings: "ss01", "cv01";
     -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden; /* évite le scroll horizontal sur mobile à cause des blobs */
+  }
+  /* Touch target min 44px (Apple HIG / WCAG) sur mobile */
+  @media (max-width: 640px) {
+    button, a, label[for], [role="button"] {
+      min-height: 44px;
+    }
+  }
+  /* Respecter reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
 @layer utilities {
-  .container-x { @apply mx-auto w-full max-w-7xl px-6 lg:px-8; }
+  .container-x { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
   .text-balance { text-wrap: balance; }
   .gradient-text {
     @apply bg-gradient-to-br from-brand-600 via-brand-500 to-orange-400 bg-clip-text text-transparent;
@@ -41,4 +58,11 @@
     background: rgba(15,23,42,0.6);
     border-color: rgba(255,255,255,0.05);
   }
+  /* Scrollbar custom pour les tabs scrollables horizontalement */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .scrollbar-thin::-webkit-scrollbar { height: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { @apply rounded-full bg-slate-300 dark:bg-slate-700; }
 }

@@ -26,12 +26,12 @@ const TESTIMONIALS = [
 
 export function Testimonials() {
   return (
-    <section id="temoignages" className="py-20 md:py-32">
+    <section id="temoignages" className="py-14 sm:py-20 md:py-32">
       <div className="container-x">
         <div className="mx-auto max-w-3xl text-center">
           <motion.h2
             initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-            className="font-display text-4xl font-extrabold tracking-tight md:text-5xl text-balance"
+            className="font-display text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-balance"
           >
             Ce qu'ils en pensent
           </motion.h2>
