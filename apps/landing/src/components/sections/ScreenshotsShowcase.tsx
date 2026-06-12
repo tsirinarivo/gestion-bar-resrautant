@@ -1,21 +1,77 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LayoutDashboard, ShoppingCart, ChefHat, Package, Receipt, Users } from 'lucide-react'
 
-const TABS = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', desc: "Vision 360° de votre restaurant. CA temps réel, top plats, alertes stock, planning du jour." },
-  { id: 'pos', icon: ShoppingCart, label: 'POS', desc: "Encaissement en moins de 30 secondes. Paiements mixtes, mobile money, pourboires." },
-  { id: 'kds', icon: ChefHat, label: 'KDS Cuisine', desc: "Écran cuisine multi-station. Filtrage chaud/froid/boissons. Notifications temps réel." },
-  { id: 'stock', icon: Package, label: 'Stock', desc: "Multi-entrepôts. Comptage par lots. FIFO. Alertes seuil + dates d'expiration." },
-  { id: 'caisse', icon: Receipt, label: 'Caisse', desc: "Sessions ouverture/fermeture. Comptage coupures MGA. Rapprochement bancaire." },
-  { id: 'employees', icon: Users, label: 'Équipe', desc: "Planning shifts hebdo. Clock-in/out. Heures travaillées. Permissions par rôle." },
+type TabId = 'dashboard' | 'pos' | 'kds' | 'stock' | 'caisse' | 'employees'
+
+type Tab = {
+  id: TabId
+  icon: typeof LayoutDashboard
+  label: string
+  desc: string
+  urlPath: string
+  hostPrefix: string
+}
+
+const TABS: Tab[] = [
+  {
+    id: 'dashboard',
+    icon: LayoutDashboard,
+    label: 'Dashboard',
+    desc: "Vision 360° de votre restaurant. CA temps réel, top plats, alertes stock, planning du jour.",
+    urlPath: '/dashboard',
+    hostPrefix: 'admin-',
+  },
+  {
+    id: 'pos',
+    icon: ShoppingCart,
+    label: 'POS',
+    desc: "Encaissement en moins de 30 secondes. Paiements mixtes, mobile money, pourboires.",
+    urlPath: '/',
+    hostPrefix: 'pos-',
+  },
+  {
+    id: 'kds',
+    icon: ChefHat,
+    label: 'KDS Cuisine',
+    desc: "Écran cuisine multi-station. Filtrage chaud/froid/boissons. Notifications temps réel.",
+    urlPath: '/',
+    hostPrefix: 'kds-',
+  },
+  {
+    id: 'stock',
+    icon: Package,
+    label: 'Stock',
+    desc: "Multi-entrepôts. Comptage par lots. FIFO. Alertes seuil + dates d'expiration.",
+    urlPath: '/inventory',
+    hostPrefix: 'admin-',
+  },
+  {
+    id: 'caisse',
+    icon: Receipt,
+    label: 'Caisse',
+    desc: "Sessions ouverture/fermeture. Comptage coupures MGA. Rapprochement bancaire.",
+    urlPath: '/caisse',
+    hostPrefix: 'admin-',
+  },
+  {
+    id: 'employees',
+    icon: Users,
+    label: 'Équipe',
+    desc: "Planning shifts hebdo. Clock-in/out. Heures travaillées. Permissions par rôle.",
+    urlPath: '/employees',
+    hostPrefix: 'admin-',
+  },
 ]
 
 export function ScreenshotsShowcase() {
-  const [active, setActive] = useState(TABS[0]!.id)
+  const [active, setActive] = useState<TabId>(TABS[0]!.id)
+  const [imgError, setImgError] = useState<Record<TabId, boolean>>({} as Record<TabId, boolean>)
   const tab = TABS.find(t => t.id === active)!
+  const hasImage = !imgError[tab.id]
 
   return (
     <section className="bg-slate-50 py-14 sm:py-20 dark:bg-slate-900/50 md:py-32">
@@ -64,7 +120,7 @@ export function ScreenshotsShowcase() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.3 }}
-              className="rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/40"
+              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/40"
             >
               <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
                 <div className="flex gap-1.5">
@@ -72,17 +128,31 @@ export function ScreenshotsShowcase() {
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
                 </div>
-                <div className="ml-4 flex-1 rounded-md bg-slate-100 px-3 py-1 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                  https://admin-mon-resto.sakafio.mg/{tab.id === 'dashboard' ? 'dashboard' : tab.id === 'pos' ? '../pos' : tab.id}
+                <div className="ml-4 flex-1 truncate rounded-md bg-slate-100 px-3 py-1 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  https://{tab.hostPrefix}mon-resto.sakafio.mg{tab.urlPath}
                 </div>
               </div>
-              {/* Screenshot placeholder — sera remplacé par image Playwright auto-générée */}
-              <div className="aspect-[16/10] bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center text-slate-400 dark:text-slate-600">
-                <div className="text-center">
-                  <tab.icon className="mx-auto mb-3 h-16 w-16 opacity-30" />
-                  <div className="text-sm">Screenshot {tab.label}</div>
-                  <div className="mt-1 text-xs opacity-60">(généré auto par Playwright à chaque deploy)</div>
-                </div>
+
+              <div className="relative aspect-[16/10] bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+                {hasImage ? (
+                  <Image
+                    src={`/screenshots/${tab.id}.png`}
+                    alt={`Capture ${tab.label} — Sakafio`}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1280px) 80vw, 1024px"
+                    className="object-cover object-top"
+                    priority={tab.id === 'dashboard'}
+                    onError={() => setImgError(prev => ({ ...prev, [tab.id]: true }))}
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-600">
+                    <div className="text-center">
+                      <tab.icon className="mx-auto mb-3 h-16 w-16 opacity-30" />
+                      <div className="text-sm">Capture {tab.label}</div>
+                      <div className="mt-1 text-xs opacity-60">(à générer via `npm run screenshots`)</div>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           </AnimatePresence>
