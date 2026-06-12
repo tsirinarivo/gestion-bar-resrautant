@@ -63,8 +63,8 @@ const FEATURES = [
   },
   {
     icon: Wifi,
-    title: 'Multi-tenant SaaS',
-    desc: 'Une instance isolée par restaurant. Vos données, votre infra, votre indépendance.',
+    title: 'Vos données, à vous',
+    desc: 'Sauvegardes quotidiennes chiffrées. Export complet à la demande. Aucun verrouillage commercial.',
     color: 'teal',
   },
   {
@@ -75,8 +75,8 @@ const FEATURES = [
   },
   {
     icon: Printer,
-    title: 'Imprimante cloud',
-    desc: 'Tickets via XPyun cloud — pas besoin de réseau local complexe.',
+    title: 'Tickets imprimés',
+    desc: 'Impression cuisine et reçus clients, sans installation réseau locale.',
     color: 'slate',
   },
 ]

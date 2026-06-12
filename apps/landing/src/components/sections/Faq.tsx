@@ -19,7 +19,7 @@ const FAQ = [
   },
   {
     q: "Mes données sont-elles en sécurité ?",
-    a: "Chaque restaurant a sa propre base de données isolée. Backups Postgres quotidiens (rétention 14j/8s/12m), HTTPS partout, JWT chiffré, headers sécurité. Hébergement sur VPS dédié à Madagascar.",
+    a: "Vos données restent isolées de celles des autres restaurants. Sauvegardes chiffrées quotidiennes avec longue rétention, HTTPS partout, infrastructure hébergée à Madagascar. Export complet disponible à la demande.",
   },
   {
     q: "Combien de terminaux puis-je connecter ?",

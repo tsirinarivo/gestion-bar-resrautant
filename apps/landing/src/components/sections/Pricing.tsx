@@ -34,7 +34,7 @@ const PLANS = [
       'Jusqu\'à 1000 commandes/mois',
       'Fidélité clients de base',
       'Support email & WhatsApp',
-      'Imprimante cloud XPyun incluse',
+      'Impression tickets incluse',
     ],
     cta: 'Choisir Starter',
     href: '/signup?plan=starter',
