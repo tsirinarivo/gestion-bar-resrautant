@@ -68,7 +68,39 @@ async function login(page: Page, app: Shot['app']): Promise<void> {
 
   await emailInput.fill(EMAIL)
   await page.locator('input[type="password"]').first().fill(PASSWORD)
+
+  const responsePromise = page.waitForResponse(
+    res => /\/auth\/login$/.test(res.url()) && res.request().method() === 'POST',
+    { timeout: 20_000 },
+  ).catch(() => null)
+
   await page.locator('button[type="submit"]').first().click()
+
+  const loginResponse = await responsePromise
+  if (loginResponse) {
+    const status = loginResponse.status()
+    if (status >= 400) {
+      const body = await loginResponse.text().catch(() => '')
+      const debug = join(OUT_DIR, `_debug-login-fail-${app}.png`)
+      await page.screenshot({ path: debug, fullPage: true }).catch(() => {})
+      throw new Error(
+        `Login API a renvoyé ${status} pour ${app} (${loginResponse.url()}). Body: ${body.slice(0, 200)}`,
+      )
+    }
+    console.log(`    POST /auth/login → ${status}`)
+  } else {
+    console.warn(`    Aucune réponse /auth/login interceptée pour ${app} (la requête est peut-être déjà passée)`)
+  }
+
+  // Attendre que le formulaire de login disparaisse (= session établie)
+  try {
+    await page.locator('input[type="password"]').first().waitFor({ state: 'hidden', timeout: 15_000 })
+  } catch {
+    const debug = join(OUT_DIR, `_debug-after-login-${app}.png`)
+    await page.screenshot({ path: debug, fullPage: true }).catch(() => {})
+    throw new Error(`Login submit n'a pas masqué le formulaire pour ${app} — debug: ${debug}`)
+  }
+
   try {
     await page.waitForLoadState('networkidle', { timeout: 15_000 })
   } catch {}
