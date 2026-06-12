@@ -295,10 +295,10 @@ services:
     logging: *default-logging
     environment:
       NODE_ENV: production
-      PORT: 4006
+      PORT: 4007
       HOSTNAME: "0.0.0.0"
     ports:
-      - "127.0.0.1:4006:4006"
+      - "127.0.0.1:4007:4007"
     networks:
       - restaurant_internal
     healthcheck: *next-healthcheck

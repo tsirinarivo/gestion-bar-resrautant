@@ -29,7 +29,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=4006
+ENV PORT=4007
 ENV HOSTNAME=0.0.0.0
 
 # Copy standalone output (Next.js)
@@ -38,7 +38,7 @@ COPY --from=builder /app/apps/landing/.next/static ./apps/landing/.next/static
 COPY --from=builder /app/apps/landing/public ./apps/landing/public
 COPY --from=builder /app/apps/landing/public ./public
 
-EXPOSE 4006
+EXPOSE 4007
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "apps/landing/server.js"]
