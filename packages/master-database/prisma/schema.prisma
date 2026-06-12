@@ -43,6 +43,14 @@ model Tenant {
   suspendedAt    DateTime?
   suspendReason  String?
 
+  // Subscription / trial — self-service signup depuis sakafio.mg/signup
+  signupSource       String?   // 'self-service', 'manual-master', 'imported'
+  seededWithDemo     Boolean   @default(false) // données démo (mofo gasy, etc.) pré-remplies
+  trialEndsAt        DateTime? // null = pas de trial / déjà payant
+  subscriptionPlan   String?   // 'trial', 'starter', 'pro', 'enterprise'
+  subscriptionStatus String?   // 'TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELED'
+  trialExpiredNoticeSentAt DateTime?  // pour ne pas spammer le mail J-1
+
   // Notes admin
   notes String?
 

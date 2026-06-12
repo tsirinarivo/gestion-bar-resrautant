@@ -112,11 +112,11 @@ log "API redémarrée"
 # tourne update.sh, le process Node meurt, et la run UpdateRun reste éternel-
 # lement en RUNNING dans la DB (zombie).
 if [ "${SAKAFIO_SKIP_MASTER_RECREATE:-}" = "1" ]; then
-  $DC up -d --no-deps web pos kds client
-  log "Frontends redémarrés (master skip — détecté lancement depuis l'UI)"
+  $DC up -d --no-deps web pos kds client landing
+  log "Frontends + landing redémarrés (master skip — détecté lancement depuis l'UI)"
 else
-  $DC up -d --no-deps web pos kds client master
-  log "Frontends + master redémarrés"
+  $DC up -d --no-deps web pos kds client landing master
+  log "Frontends + landing + master redémarrés"
 fi
 
 header "6. Migrations (master DB + master SaaS DB + tous les tenants)"
