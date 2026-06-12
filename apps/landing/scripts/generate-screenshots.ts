@@ -46,15 +46,30 @@ function urlFor(app: Shot['app'], path: string): string {
 }
 
 async function login(page: Page, app: Shot['app']): Promise<void> {
-  await page.goto(urlFor(app, '/login'), { waitUntil: 'networkidle' })
+  const loginUrl = urlFor(app, '/login')
+  console.log(`    goto ${loginUrl}`)
+  await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+  try {
+    await page.waitForLoadState('networkidle', { timeout: 10_000 })
+  } catch {}
+
   const emailInput = page.locator('input[type="email"], input[name="email"]').first()
-  const passwordInput = page.locator('input[type="password"]').first()
+  try {
+    await emailInput.waitFor({ state: 'visible', timeout: 30_000 })
+  } catch (err) {
+    const debug = join(OUT_DIR, `_debug-login-${app}.png`)
+    await page.screenshot({ path: debug, fullPage: true }).catch(() => {})
+    console.error(`    Login form introuvable — debug screenshot: ${debug}`)
+    console.error(`    Page URL au moment de l'erreur: ${page.url()}`)
+    throw err
+  }
+
   await emailInput.fill(EMAIL)
-  await passwordInput.fill(PASSWORD)
-  await Promise.all([
-    page.waitForLoadState('networkidle'),
-    page.locator('button[type="submit"]').first().click(),
-  ])
+  await page.locator('input[type="password"]').first().fill(PASSWORD)
+  await page.locator('button[type="submit"]').first().click()
+  try {
+    await page.waitForLoadState('networkidle', { timeout: 15_000 })
+  } catch {}
   await page.waitForTimeout(1500)
 }
 
@@ -72,7 +87,10 @@ async function main(): Promise<void> {
     deviceScaleFactor: 2,
     locale: 'fr-FR',
     timezoneId: 'Indian/Antananarivo',
+    ignoreHTTPSErrors: true,
   })
+  context.setDefaultNavigationTimeout(60_000)
+  context.setDefaultTimeout(30_000)
 
   try {
     const byApp = SHOTS.reduce<Record<Shot['app'], Shot[]>>(
