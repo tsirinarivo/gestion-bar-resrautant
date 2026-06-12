@@ -1,13 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { Loader2, ArrowRight, Check, ShieldCheck, Sparkles } from 'lucide-react'
+import { Loader2, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen pt-24"><div className="container-x"><Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" /></div></div>}>
+      <SignupContent />
+    </Suspense>
+  )
+}
+
+function SignupContent() {
   const sp = useSearchParams()
   const plan = sp.get('plan') || 'trial'
   const [loading, setLoading] = useState(false)
