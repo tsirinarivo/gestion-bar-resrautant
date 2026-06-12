@@ -46,7 +46,9 @@ function urlFor(app: Shot['app'], path: string): string {
 }
 
 async function login(page: Page, app: Shot['app']): Promise<void> {
-  const loginUrl = urlFor(app, '/login')
+  // POS et KDS sont des SPA single-page : le login est sur '/', pas '/login'
+  const loginPath = app === 'admin' ? '/login' : '/'
+  const loginUrl = urlFor(app, loginPath)
   console.log(`    goto ${loginUrl}`)
   await page.goto(loginUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
   try {
