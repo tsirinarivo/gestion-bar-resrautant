@@ -155,7 +155,20 @@ export default function SignupPage() {
   )
 }
 
-function Field({ label, value, onChange, ...props }: any) {
+function Field({
+  label,
+  value,
+  onChange,
+  ...props
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  type?: string
+  placeholder?: string
+  required?: boolean
+  minLength?: number
+}) {
   return (
     <div>
       <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">{label}</label>

@@ -82,7 +82,12 @@ export default function ContactPage() {
   )
 }
 
-function ContactBlock({ icon: Icon, title, value, href }: any) {
+function ContactBlock({ icon: Icon, title, value, href }: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  value: string
+  href?: string
+}) {
   const Content = (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 transition-all hover:border-brand-400 dark:border-slate-800 dark:bg-slate-900">
       <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-100 text-brand-600 dark:bg-brand-950/50">
@@ -95,7 +100,20 @@ function ContactBlock({ icon: Icon, title, value, href }: any) {
   return href ? <a href={href}>{Content}</a> : Content
 }
 
-function Field({ label, value, onChange, ...props }: any) {
+function Field({
+  label,
+  value,
+  onChange,
+  ...props
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  type?: string
+  placeholder?: string
+  required?: boolean
+  minLength?: number
+}) {
   return (
     <div>
       <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">{label}</label>
