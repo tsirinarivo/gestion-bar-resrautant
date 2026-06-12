@@ -75,7 +75,7 @@ check "Web admin (Next.js)"        "http://127.0.0.1:4002/login"
 check "POS"                        "http://127.0.0.1:4003"
 check "KDS"                        "http://127.0.0.1:4004"
 check "Client shop"                "http://127.0.0.1:4005"
-check "Landing vitrine"            "http://127.0.0.1:4007"
+check "Landing vitrine"            "http://127.0.0.1:4008"
 
 echo -e "\n${BOLD}Endpoints publics${RESET}"
 check_json "API public info"          "http://127.0.0.1:4001/api/public/restaurant-demo/info" '"success"'
