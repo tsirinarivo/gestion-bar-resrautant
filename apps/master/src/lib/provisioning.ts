@@ -139,7 +139,7 @@ export async function runProvisioningScript(
  */
 export function runProvisioningScriptAsync(
   tenant: Tenant,
-  userId: string,
+  userId: string | null,
   adminEmail: string,
   adminPassword: string,
   adminFirstName = 'Admin',

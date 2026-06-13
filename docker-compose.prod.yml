@@ -297,6 +297,7 @@ services:
       NODE_ENV: production
       PORT: 4008
       HOSTNAME: "0.0.0.0"
+      MASTER_API_URL: http://master:3010
     ports:
       - "127.0.0.1:4008:4008"
     networks:
