@@ -65,7 +65,7 @@ export async function createTenantRecord(input: CreateTenantInput): Promise<Tena
         contactPhone: input.contactPhone,
         notes: input.notes,
         status: TenantStatus.PROVISIONING,
-        dbName: `tenant_${input.slug}`,
+        dbName: `tenant_${input.slug.replace(/-/g, '_')}`,
         apiPort,
         webPort: apiPort + 1,
         posPort: apiPort + 2,
