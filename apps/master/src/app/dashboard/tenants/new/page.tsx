@@ -2,9 +2,22 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { Loader2, ArrowLeft, Info, CheckCircle2, XCircle } from 'lucide-react'
+import {
+  Loader2,
+  ArrowLeft,
+  Info,
+  CheckCircle2,
+  XCircle,
+  Building2,
+  Mail,
+  ShieldCheck,
+  Sparkles,
+  Terminal,
+} from 'lucide-react'
 import Link from 'next/link'
+import { PageHeader } from '@/components/ui/PageHeader'
 
 type CreatedTenant = {
   id: string
@@ -47,29 +60,25 @@ export default function NewTenantPage() {
   })
 
   function update<K extends keyof typeof form>(k: K, v: string) {
-    setForm((f) => ({ ...f, [k]: v }))
+    setForm(f => ({ ...f, [k]: v }))
   }
 
-  // ── Live polling des events pendant le provisioning ──────────────────────
   useEffect(() => {
     if (!tenant || finalStatus) return
     let cancelled = false
     let lastEventTime = ''
-
     const poll = async () => {
       try {
         const url = `/api/tenants/${tenant.id}/events${lastEventTime ? `?since=${encodeURIComponent(lastEventTime)}` : ''}`
         const res = await fetch(url, { cache: 'no-store' })
         if (!res.ok) return
-        const data = await res.json() as { tenant: { status: string }; events: TenantEvent[] }
+        const data = (await res.json()) as { tenant: { status: string }; events: TenantEvent[] }
         if (cancelled) return
-
         if (data.events.length > 0) {
           setEvents(prev => [...prev, ...data.events])
           const last = data.events[data.events.length - 1]
           if (last) lastEventTime = last.createdAt
         }
-
         if (data.tenant.status === 'ACTIVE') {
           setFinalStatus('ACTIVE')
           toast.success(`Client ${form.name} provisionné`)
@@ -77,24 +86,22 @@ export default function NewTenantPage() {
           setFinalStatus('ERROR')
           toast.error('Le provisioning a échoué — voir les logs')
         }
-      } catch {
-        /* ignore network blip, next poll réessaiera */
-      }
+      } catch {}
     }
-
     void poll()
     const id = setInterval(poll, 1500)
-    return () => { cancelled = true; clearInterval(id) }
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
   }, [tenant, finalStatus, form.name])
 
-  // ── Compteur de temps écoulé ─────────────────────────────────────────────
   useEffect(() => {
     if (!startedAt || finalStatus) return
     const id = setInterval(() => setElapsedSec(Math.floor((Date.now() - startedAt) / 1000)), 1000)
     return () => clearInterval(id)
   }, [startedAt, finalStatus])
 
-  // ── Auto-scroll du log vers le bas ───────────────────────────────────────
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [events])
@@ -116,8 +123,6 @@ export default function NewTenantPage() {
         setStartedAt(null)
         return
       }
-      // 202 Accepted : le provisioning tourne en background, l'effect lance
-      // le polling des events
       setTenant(body)
     } catch (err) {
       toast.error((err as Error).message)
@@ -130,272 +135,420 @@ export default function NewTenantPage() {
   if (tenant) {
     const elapsed = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, '0')}`
     return (
-      <div className="px-6 py-8 md:px-10">
-        <div className="mb-4">
-          <Link
-            href="/dashboard/tenants"
-            className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
-          >
-            <ArrowLeft className="h-4 w-4" /> Retour à la liste
-          </Link>
-        </div>
+      <div className="container-x py-8 sm:py-10">
+        <PageHeader
+          backHref="/dashboard/tenants"
+          backLabel="Tous les clients"
+          title={
+            finalStatus === 'ACTIVE'
+              ? 'Client provisionné'
+              : finalStatus === 'ERROR'
+                ? 'Provisioning échoué'
+                : 'Provisioning en cours…'
+          }
+          subtitle={
+            <span>
+              {tenant.name} · temps écoulé : <span className="font-mono">{elapsed}</span>
+            </span>
+          }
+        />
 
-        <div className="card p-6">
-          <div className="mb-6 flex items-center gap-3">
-            {finalStatus === 'ACTIVE' ? (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                <CheckCircle2 className="h-5 w-5" />
+        <div className="grid gap-5 lg:grid-cols-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card p-5 lg:col-span-1"
+          >
+            <div className="flex items-center gap-3">
+              <StatusIcon finalStatus={finalStatus} />
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Statut
+                </div>
+                <div className="font-display text-base font-bold text-slate-900">
+                  {finalStatus === 'ACTIVE'
+                    ? 'Actif'
+                    : finalStatus === 'ERROR'
+                      ? 'En erreur'
+                      : 'En cours…'}
+                </div>
               </div>
-            ) : finalStatus === 'ERROR' ? (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-700">
-                <XCircle className="h-5 w-5" />
-              </div>
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700">
-                <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+
+            <div className="mt-5 space-y-1 rounded-xl bg-slate-50 p-4 text-xs">
+              <InfoRow label="Slug" value={tenant.slug} mono />
+              <InfoRow label="Sous-domaine" value={`${tenant.subdomain}.sakafio.mg`} mono />
+              <InfoRow label="URL admin" value={`admin-${tenant.subdomain}.sakafio.mg`} mono />
+              <InfoRow label="Port API" value={String(tenant.apiPort)} mono />
+              <InfoRow label="Email admin" value={tenant.adminEmail} />
+            </div>
+
+            {finalStatus === 'ACTIVE' && (
+              <div className="mt-4 flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+                <Info className="h-4 w-4 flex-shrink-0" />
+                <div>
+                  Email de bienvenue envoyé au client. Vérifie l'event{' '}
+                  <code className="font-mono">EMAIL_SENT</code> ou{' '}
+                  <code className="font-mono">EMAIL_FAILED</code> dans le journal.
+                </div>
               </div>
             )}
-            <div className="flex-1">
-              <h1 className="text-xl font-bold text-slate-900">
-                {finalStatus === 'ACTIVE' && 'Client provisionné'}
-                {finalStatus === 'ERROR' && 'Provisioning échoué'}
-                {!finalStatus && 'Provisioning en cours…'}
-              </h1>
-              <p className="text-sm text-slate-500">{tenant.name} — temps écoulé : <span className="font-mono">{elapsed}</span></p>
-            </div>
-          </div>
 
-          <div className="grid gap-3 rounded-lg bg-slate-50 p-4 text-sm">
-            <Row label="Slug" value={tenant.slug} mono />
-            <Row label="Sous-domaine" value={`${tenant.subdomain}.sakafio.mg`} mono />
-            <Row label="URL admin" value={`https://admin-${tenant.subdomain}.sakafio.mg`} mono />
-            <Row label="Port API alloué" value={String(tenant.apiPort)} mono />
-            <Row label="Email admin" value={tenant.adminEmail} />
-          </div>
-
-          {finalStatus === 'ACTIVE' && (
-            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
-              <Info className="mr-1 inline h-3 w-3" />
-              Email de bienvenue envoyé au client (URLs + identifiants). Vérifie dans le journal du provisioning si l'événement <code>EMAIL_SENT</code> ou <code>EMAIL_FAILED</code>. Si échec, communique manuellement le mot de passe initial — il n'est plus affiché après ce point.
+            <div className="mt-5 flex flex-wrap gap-2">
+              {finalStatus === 'ACTIVE' && (
+                <>
+                  <button onClick={() => router.push('/dashboard/tenants')} className="btn-primary">
+                    Voir tous les clients
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTenant(null)
+                      setEvents([])
+                      setFinalStatus(null)
+                      setLoading(false)
+                      setStartedAt(null)
+                    }}
+                    className="btn-secondary"
+                  >
+                    Créer un autre
+                  </button>
+                </>
+              )}
+              {finalStatus === 'ERROR' && (
+                <>
+                  <button
+                    onClick={() => router.push(`/dashboard/tenants/${tenant.id}`)}
+                    className="btn-secondary"
+                  >
+                    Voir le détail
+                  </button>
+                  <button
+                    onClick={() => router.push('/dashboard/tenants')}
+                    className="btn-secondary"
+                  >
+                    Retour
+                  </button>
+                </>
+              )}
             </div>
-          )}
+          </motion.div>
 
           {/* Live log */}
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-xs font-semibold uppercase text-slate-500">Journal du provisioning</h2>
-              <span className="text-xs text-slate-400">{events.length} event(s)</span>
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="card overflow-hidden lg:col-span-2"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Terminal className="h-4 w-4 text-slate-500" />
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                  Journal du provisioning
+                </h2>
+              </div>
+              <span className="text-[11px] text-slate-400">{events.length} event(s)</span>
             </div>
             <div
               ref={logRef}
-              className="max-h-96 min-h-40 overflow-auto rounded-lg bg-slate-900 p-3 font-mono text-[11px] leading-snug text-emerald-200"
+              className="max-h-[60vh] min-h-64 overflow-auto bg-slate-950 p-4 font-mono text-[11px] leading-relaxed text-emerald-200"
             >
               {events.length === 0 ? (
                 <div className="text-slate-500">En attente du premier événement…</div>
               ) : (
-                events.map(ev => (
-                  <div key={ev.id} className={`whitespace-pre-wrap ${ev.type === 'PROVISION_FAILED' ? 'text-red-300' : ev.type === 'PROVISIONED' ? 'text-emerald-300' : 'text-emerald-200'}`}>
-                    <span className="text-slate-500">[{new Date(ev.createdAt).toLocaleTimeString('fr-FR')}]</span> <span className="text-amber-300">{ev.type}</span>
-                    {ev.details && <div className="ml-4 text-slate-300">{ev.details}</div>}
-                  </div>
-                ))
+                <AnimatePresence initial={false}>
+                  {events.map(ev => (
+                    <motion.div
+                      key={ev.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className={`mb-1 whitespace-pre-wrap ${
+                        ev.type === 'PROVISION_FAILED'
+                          ? 'text-red-300'
+                          : ev.type === 'PROVISIONED'
+                            ? 'text-emerald-300'
+                            : 'text-emerald-200'
+                      }`}
+                    >
+                      <span className="text-slate-500">
+                        [{new Date(ev.createdAt).toLocaleTimeString('fr-FR')}]
+                      </span>{' '}
+                      <span className="text-amber-300">{ev.type}</span>
+                      {ev.details && (
+                        <div className="ml-4 text-slate-300">{ev.details}</div>
+                      )}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               )}
             </div>
-          </div>
-
-          <div className="mt-6 flex gap-2">
-            {finalStatus === 'ACTIVE' && (
-              <>
-                <button onClick={() => router.push('/dashboard/tenants')} className="btn-primary">
-                  Voir tous les clients
-                </button>
-                <button onClick={() => { setTenant(null); setEvents([]); setFinalStatus(null); setLoading(false); setStartedAt(null) }} className="btn-secondary">
-                  Créer un autre client
-                </button>
-              </>
-            )}
-            {finalStatus === 'ERROR' && (
-              <>
-                <button onClick={() => router.push(`/dashboard/tenants/${tenant.id}`)} className="btn-secondary">
-                  Voir le détail du tenant en erreur
-                </button>
-                <button onClick={() => router.push('/dashboard/tenants')} className="btn-secondary">
-                  Retour à la liste
-                </button>
-              </>
-            )}
-          </div>
+          </motion.div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="px-6 py-8 md:px-10">
-      <div className="mb-4">
-        <Link
-          href="/dashboard/tenants"
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
-        >
-          <ArrowLeft className="h-4 w-4" /> Retour à la liste
-        </Link>
-      </div>
+    <div className="container-x py-8 sm:py-10">
+      <PageHeader
+        backHref="/dashboard/tenants"
+        backLabel="Tous les clients"
+        title="Nouveau client"
+        subtitle="Le provisioning prend ~5 minutes. Le journal s'affichera en direct."
+      />
 
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Nouveau client</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Le provisioning prend ~5 minutes (build images Docker + push schema + seed). Le journal s'affichera en direct.
-        </p>
-      </header>
-
-      <form onSubmit={onSubmit} className="space-y-6">
-        <section className="card p-6">
-          <h2 className="mb-4 text-sm font-semibold uppercase text-slate-500">Identité</h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="label">Nom du restaurant *</label>
-              <input
-                className="input"
+      <form onSubmit={onSubmit} className="grid gap-5 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          <FormSection icon={Building2} title="Identité" subtitle="Nom et sous-domaine du client">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                label="Nom du restaurant *"
                 value={form.name}
-                onChange={(e) => update('name', e.target.value)}
+                onChange={v => update('name', v)}
                 required
                 placeholder="Restaurant de Pierre"
               />
+              <div>
+                <label className="label">Slug (sous-domaine) *</label>
+                <input
+                  className="input font-mono lowercase"
+                  value={form.slug}
+                  onChange={e => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  required
+                  pattern="^[a-z][a-z0-9-]{1,30}$"
+                  placeholder="pierre"
+                />
+                {form.slug && (
+                  <p className="mt-1.5 font-mono text-[11px] text-brand-700">
+                    → {form.slug}.sakafio.mg
+                  </p>
+                )}
+              </div>
             </div>
-            <div>
-              <label className="label">Slug (sous-domaine) *</label>
-              <input
-                className="input font-mono lowercase"
-                value={form.slug}
-                onChange={(e) => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                required
-                pattern="^[a-z][a-z0-9-]{1,30}$"
-                placeholder="pierre"
-              />
-              <p className="mt-1 text-xs text-slate-500">
-                {form.slug && `→ ${form.slug}.sakafio.mg`}
-              </p>
-            </div>
-          </div>
-        </section>
+          </FormSection>
 
-        <section className="card p-6">
-          <h2 className="mb-4 text-sm font-semibold uppercase text-slate-500">Contact propriétaire</h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="label">Nom du contact</label>
-              <input
-                className="input"
+          <FormSection icon={Mail} title="Contact propriétaire" subtitle="Pour les emails et le support">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                label="Nom du contact"
                 value={form.contactName}
-                onChange={(e) => update('contactName', e.target.value)}
+                onChange={v => update('contactName', v)}
                 placeholder="Pierre Rasolofo"
               />
-            </div>
-            <div>
-              <label className="label">Téléphone</label>
-              <input
-                className="input"
+              <Field
+                label="Téléphone"
                 value={form.contactPhone}
-                onChange={(e) => update('contactPhone', e.target.value)}
+                onChange={v => update('contactPhone', v)}
                 placeholder="+261 34 12 345 67"
               />
+              <div className="md:col-span-2">
+                <Field
+                  label="Email contact *"
+                  type="email"
+                  value={form.contactEmail}
+                  onChange={v => update('contactEmail', v)}
+                  required
+                />
+              </div>
             </div>
-            <div className="md:col-span-2">
-              <label className="label">Email contact *</label>
-              <input
-                type="email"
-                className="input"
-                value={form.contactEmail}
-                onChange={(e) => update('contactEmail', e.target.value)}
-                required
-              />
-            </div>
-          </div>
-        </section>
+          </FormSection>
 
-        <section className="card p-6">
-          <h2 className="mb-4 text-sm font-semibold uppercase text-slate-500">
-            Compte admin initial du restaurant
-          </h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="label">Email admin *</label>
-              <input
+          <FormSection
+            icon={ShieldCheck}
+            title="Compte admin initial du restaurant"
+            subtitle="Identifiants envoyés au client par email"
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                label="Email admin *"
                 type="email"
-                className="input"
                 value={form.adminEmail}
-                onChange={(e) => update('adminEmail', e.target.value)}
+                onChange={v => update('adminEmail', v)}
                 required
                 placeholder="admin@pierre.com"
               />
-            </div>
-            <div>
-              <label className="label">Mot de passe initial *</label>
-              <input
+              <Field
+                label="Mot de passe initial *"
                 type="password"
-                className="input font-mono"
                 value={form.adminPassword}
-                onChange={(e) => update('adminPassword', e.target.value)}
+                onChange={v => update('adminPassword', v)}
                 required
                 minLength={8}
                 placeholder="Au moins 8 caractères"
                 autoComplete="new-password"
+                mono
               />
-            </div>
-            <div>
-              <label className="label">Prénom</label>
-              <input
-                className="input"
+              <Field
+                label="Prénom"
                 value={form.adminFirstName}
-                onChange={(e) => update('adminFirstName', e.target.value)}
+                onChange={v => update('adminFirstName', v)}
+              />
+              <Field
+                label="Nom"
+                value={form.adminLastName}
+                onChange={v => update('adminLastName', v)}
               />
             </div>
-            <div>
-              <label className="label">Nom</label>
-              <input
-                className="input"
-                value={form.adminLastName}
-                onChange={(e) => update('adminLastName', e.target.value)}
-              />
+          </FormSection>
+
+          <FormSection icon={Sparkles} title="Notes internes" subtitle="Visibles uniquement par les admins master">
+            <textarea
+              className="input min-h-24"
+              value={form.notes}
+              onChange={e => update('notes', e.target.value)}
+              placeholder="Conditions particulières, contacts secondaires, etc."
+            />
+          </FormSection>
+
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" disabled={loading} className="btn-primary">
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Démarrage…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" /> Créer et provisionner
+                </>
+              )}
+            </button>
+            <Link href="/dashboard/tenants" className="btn-secondary">
+              Annuler
+            </Link>
+          </div>
+        </div>
+
+        {/* Side info */}
+        <aside className="lg:col-span-1">
+          <div className="card sticky top-20 p-5">
+            <h3 className="font-display text-sm font-bold text-slate-900">Que va-t-il se passer ?</h3>
+            <ol className="mt-4 space-y-3 text-xs text-slate-600">
+              {[
+                ['1', 'Vérification des images Docker et placeholders'],
+                ['2', 'Création de la base de données dédiée'],
+                ['3', 'Démarrage des 5 containers (api/web/pos/kds/client)'],
+                ['4', 'Création de l\'admin initial et seed optionnel'],
+                ['5', 'Génération de la config nginx + cron Certbot'],
+                ['6', 'Envoi de l\'email de bienvenue au client'],
+              ].map(([n, txt]) => (
+                <li key={n} className="flex items-start gap-2.5">
+                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-brand-500 to-brand-600 text-[10px] font-bold text-white">
+                    {n}
+                  </span>
+                  <span>{txt}</span>
+                </li>
+              ))}
+            </ol>
+            <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              <Info className="mr-1 inline h-3 w-3" />
+              SMTP doit être configuré pour l'email automatique.
             </div>
           </div>
-        </section>
-
-        <section className="card p-6">
-          <h2 className="mb-4 text-sm font-semibold uppercase text-slate-500">Notes internes</h2>
-          <textarea
-            className="input min-h-24"
-            value={form.notes}
-            onChange={(e) => update('notes', e.target.value)}
-            placeholder="Conditions particulières, contacts secondaires, etc."
-          />
-        </section>
-
-        <div className="flex gap-3">
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Démarrage…
-              </>
-            ) : (
-              'Créer et provisionner'
-            )}
-          </button>
-          <Link href="/dashboard/tenants" className="btn-secondary">
-            Annuler
-          </Link>
-        </div>
+        </aside>
       </form>
     </div>
   )
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function StatusIcon({ finalStatus }: { finalStatus: 'ACTIVE' | 'ERROR' | null }) {
+  if (finalStatus === 'ACTIVE') {
+    return (
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/30">
+        <CheckCircle2 className="h-6 w-6" />
+      </div>
+    )
+  }
+  if (finalStatus === 'ERROR') {
+    return (
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-red-500 to-red-600 text-white shadow-md shadow-red-500/30">
+        <XCircle className="h-6 w-6" />
+      </div>
+    )
+  }
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <span className="text-xs uppercase text-slate-500">{label}</span>
-      <span className={`col-span-2 text-sm ${mono ? 'font-mono' : ''} text-slate-900`}>
+    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30">
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>
+  )
+}
+
+function FormSection({
+  icon: Icon,
+  title,
+  subtitle,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  subtitle?: string
+  children: React.ReactNode
+}) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="card p-5 sm:p-6"
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+          {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="mt-5">{children}</div>
+    </motion.section>
+  )
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  required,
+  placeholder,
+  minLength,
+  autoComplete,
+  mono,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  type?: string
+  required?: boolean
+  placeholder?: string
+  minLength?: number
+  autoComplete?: string
+  mono?: boolean
+}) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <input
+        type={type}
+        className={`input ${mono ? 'font-mono' : ''}`}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        required={required}
+        placeholder={placeholder}
+        minLength={minLength}
+        autoComplete={autoComplete}
+      />
+    </div>
+  )
+}
+
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        {label}
+      </span>
+      <span className={`min-w-0 truncate text-right text-xs text-slate-900 ${mono ? 'font-mono' : ''}`}>
         {value}
       </span>
     </div>
