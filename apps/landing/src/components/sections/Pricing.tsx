@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Check, Sparkles, Zap, Crown, Building2 } from 'lucide-react'
+import { Check, Sparkles, Zap, Crown, Rocket } from 'lucide-react'
 
 const PLANS = [
   {
@@ -63,32 +63,45 @@ const PLANS = [
     highlight: true,
   },
   {
-    name: 'Groupe',
-    icon: Building2,
-    price: '199 000',
+    name: 'Pro+',
+    icon: Rocket,
+    price: '149 000',
     currency: 'Ar',
     period: '/mois',
-    desc: 'Pour les chaînes et groupes multi-établissements.',
+    desc: 'Pour les restos qui veulent passer un cap : marque, automatisation, performance.',
     features: [
       'Tout Pro +',
-      'Jusqu\'à 3 établissements',
-      'Tableau de bord consolidé multi-resto',
-      'Comptabilité agrégée par enseigne',
-      'Transferts de stock inter-établissements',
+      'Site client white-label (votre logo, vos couleurs)',
       'Domaine personnalisé (votre-resto.com)',
-      'SLA 99.9% garanti',
-      'Onboarding accompagné',
+      '500 SMS marketing inclus / mois',
+      'Email marketing illimité',
+      'Fidélité avancée (niveaux VIP, cashback)',
+      'Prévisions de ventes assistées',
+      'Export comptable (Sage, Dolibarr, CSV)',
+      'Onboarding + formation équipe',
+      'Support prioritaire 7j/7',
     ],
-    cta: 'Choisir Groupe',
-    href: '/signup?plan=groupe',
+    cta: 'Choisir Pro+',
+    href: '/signup?plan=pro-plus',
     highlight: false,
   },
 ]
 
-// Conservé pour réactivation future si nécessaire — non affiché publiquement.
-// Le canal "sur devis" crée trop de friction au démarrage : on privilégie
-// le self-service à prix fixe via le plan Groupe ci-dessus.
+// Conservés pour réactivation future si nécessaire — non affichés publiquement.
+// Stratégie actuelle : zéro friction sales, tout self-service à prix fixe.
 const _ARCHIVED_PLANS = [
+  {
+    name: 'Groupe',
+    price: '199 000 Ar/mois',
+    desc: 'Pour les chaînes multi-établissements (≤ 3 restos).',
+    features: [
+      'Tout Pro+ +',
+      'Jusqu\'à 3 établissements',
+      'Tableau de bord consolidé multi-resto',
+      'Comptabilité agrégée par enseigne',
+      'Transferts de stock inter-établissements',
+    ],
+  },
   {
     name: 'Enterprise',
     price: 'Sur devis',
@@ -101,8 +114,6 @@ const _ARCHIVED_PLANS = [
       'Manager de compte dédié',
       'Formation équipe sur site',
     ],
-    cta: 'Nous contacter',
-    href: '/contact',
   },
 ]
 
@@ -186,7 +197,7 @@ export function Pricing() {
           Tous les prix sont en Ariary (Ar), TVA incluse. Aucun engagement de durée. Annulation à tout moment.
         </p>
         <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-500">
-          Plus de 3 établissements ? <Link href="/contact" className="font-semibold text-brand-600 hover:underline">Parlons-en</Link> pour un tarif adapté.
+          Vous gérez plusieurs établissements ? <Link href="/contact" className="font-semibold text-brand-600 hover:underline">Parlons-en</Link> pour un tarif adapté.
         </p>
       </div>
     </section>

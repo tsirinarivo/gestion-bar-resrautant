@@ -12,7 +12,7 @@ const schema = z.object({
   phone: z.string().max(40).optional().default(''),
   password: z.string().min(8).max(200),
   seedDemo: z.boolean().optional().default(true),
-  plan: z.enum(['trial', 'starter', 'pro', 'groupe', 'enterprise']).optional().default('trial'),
+  plan: z.enum(['trial', 'starter', 'pro', 'pro-plus', 'groupe', 'enterprise']).optional().default('trial'),
 })
 
 function slugify(name: string): string {
