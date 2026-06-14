@@ -55,8 +55,6 @@ const PLANS = [
       'Analytics avancés + export Excel',
       'Multi-entrepôts',
       'Site client public + QR codes',
-      'Campagnes marketing email/SMS',
-      'Support prioritaire',
     ],
     cta: 'Choisir Pro',
     href: '/signup?plan=pro',
