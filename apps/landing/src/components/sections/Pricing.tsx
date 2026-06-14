@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Check, Sparkles, Zap, Crown, MessageCircle } from 'lucide-react'
+import { Check, Sparkles, Zap, Crown, Building2 } from 'lucide-react'
 
 const PLANS = [
   {
@@ -63,23 +63,46 @@ const PLANS = [
     highlight: true,
   },
   {
-    name: 'Enterprise',
-    icon: MessageCircle,
-    price: 'Sur devis',
-    desc: 'Pour les chaînes et groupes hôteliers.',
+    name: 'Groupe',
+    icon: Building2,
+    price: '199 000',
+    currency: 'Ar',
+    period: '/mois',
+    desc: 'Pour les chaînes et groupes multi-établissements.',
     features: [
       'Tout Pro +',
-      'Multi-établissements',
+      'Jusqu\'à 3 établissements',
+      'Tableau de bord consolidé multi-resto',
+      'Comptabilité agrégée par enseigne',
+      'Transferts de stock inter-établissements',
+      'Domaine personnalisé (votre-resto.com)',
       'SLA 99.9% garanti',
-      'Onboarding personnalisé',
+      'Onboarding accompagné',
+    ],
+    cta: 'Choisir Groupe',
+    href: '/signup?plan=groupe',
+    highlight: false,
+  },
+]
+
+// Conservé pour réactivation future si nécessaire — non affiché publiquement.
+// Le canal "sur devis" crée trop de friction au démarrage : on privilégie
+// le self-service à prix fixe via le plan Groupe ci-dessus.
+const _ARCHIVED_PLANS = [
+  {
+    name: 'Enterprise',
+    price: 'Sur devis',
+    desc: 'Pour les chaînes et groupes hôteliers > 3 établissements.',
+    features: [
+      'Tout Groupe +',
+      'Établissements illimités',
+      'SLA 99.95% garanti',
       'Intégrations sur mesure (compta, ERP)',
-      'Domaine custom (votre-resto.com)',
       'Manager de compte dédié',
       'Formation équipe sur site',
     ],
     cta: 'Nous contacter',
     href: '/contact',
-    highlight: false,
   },
 ]
 
@@ -161,6 +184,9 @@ export function Pricing() {
 
         <p className="mt-10 text-center text-sm text-slate-500 dark:text-slate-400">
           Tous les prix sont en Ariary (Ar), TVA incluse. Aucun engagement de durée. Annulation à tout moment.
+        </p>
+        <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-500">
+          Plus de 3 établissements ? <Link href="/contact" className="font-semibold text-brand-600 hover:underline">Parlons-en</Link> pour un tarif adapté.
         </p>
       </div>
     </section>

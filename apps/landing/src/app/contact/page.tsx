@@ -36,7 +36,7 @@ export default function ContactPage() {
             Parlons de votre <span className="gradient-text">restaurant</span>
           </h1>
           <p className="mt-4 text-base text-slate-600 dark:text-slate-300">
-            Vous voulez une démo personnalisée ? Un devis Enterprise ? Une question technique ? On vous répond sous 24h.
+            Vous voulez une démo personnalisée ? Un tarif sur-mesure pour un groupe multi-établissements ? Une question technique ? On vous répond sous 24h.
           </p>
         </motion.div>
 
@@ -57,7 +57,7 @@ export default function ContactPage() {
               <Field label="Email *" type="email" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} required />
             </div>
             <div className="mt-4">
-              <Field label="Sujet" value={form.subject} onChange={v => setForm(f => ({ ...f, subject: v }))} placeholder="Demande de démo, devis Enterprise, question technique…" />
+              <Field label="Sujet" value={form.subject} onChange={v => setForm(f => ({ ...f, subject: v }))} placeholder="Demande de démo, tarif multi-établissements, question technique…" />
             </div>
             <div className="mt-4">
               <label className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300">Message *</label>
