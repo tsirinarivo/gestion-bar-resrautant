@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { UserCog, Plus, Clock, Calendar, Pencil, Trash2, X, Mail, Phone, Banknote, Palmtree, CheckCircle2, XCircle, BarChart2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { UserCog, Plus, Clock, Calendar, Pencil, Trash2, X, Mail, Phone, Banknote, Palmtree, CheckCircle2, XCircle, BarChart2, ChevronLeft, ChevronRight, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { formatDate, initials, formatCurrency } from '@restaurant/utils'
@@ -715,13 +715,22 @@ export default function EmployeesPage() {
             {employees.length} employé{employees.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Nouvel employé
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="/employees/roles"
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Shield className="w-4 h-4" />
+            Rôles & permissions
+          </a>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Nouvel employé
+          </button>
+        </div>
       </div>
 
       {/* Cards */}

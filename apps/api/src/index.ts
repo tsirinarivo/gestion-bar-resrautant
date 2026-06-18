@@ -40,6 +40,7 @@ import { campaignRouter } from './routes/campaigns'
 import { modifierGroupRouter } from './routes/modifier-groups'
 import { invoiceRouter } from './routes/invoices'
 import { superadminRouter } from './routes/superadmin'
+import { roleRouter } from './routes/roles'
 import { errorHandler } from './middleware/errorHandler'
 import { setupSocketHandlers } from './socket/handlers'
 import { prisma } from './lib/prisma'
@@ -147,6 +148,7 @@ app.use('/api/campaigns', campaignRouter)
 app.use('/api/modifier-groups', modifierGroupRouter)
 app.use('/api/invoices', invoiceRouter)
 app.use('/api/superadmin', superadminRouter)
+app.use('/api/roles', roleRouter)
 
 app.get('/api/health', async (req, res) => {
   try {
@@ -172,6 +174,14 @@ async function main() {
   try {
     await prisma.$connect()
     console.log('✅ Database connected')
+
+    try {
+      const { ensurePermissionsAndDefaults } = await import('./lib/permissions-seed')
+      await ensurePermissionsAndDefaults(prisma)
+      console.log('✅ Permissions seeded')
+    } catch (err) {
+      console.error('⚠️  Permissions seed failed (non-blocking):', err)
+    }
 
     httpServer.listen(PORT, () => {
       console.log(`🚀 API server running on http://localhost:${PORT}`)
