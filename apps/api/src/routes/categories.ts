@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { slugify } from '@restaurant/utils'
+import { CATEGORY_PRESETS } from '../lib/category-presets'
 
 export const categoryRouter = Router()
 categoryRouter.use(authenticate)
@@ -17,6 +18,67 @@ const categorySchema = z.object({
   sortOrder: z.number().default(0),
   isActive: z.boolean().default(true),
   parentId: z.string().optional(),
+})
+
+// ─── ROUTES STATIQUES (avant /:id) ────────────────────────────────────────────
+
+// GET /api/categories/presets → catalogue de catégories importables
+categoryRouter.get('/presets', authorize('manager', 'superadmin'), (_req, res) => {
+  res.json({ success: true, data: CATEGORY_PRESETS })
+})
+
+// POST /api/categories/import-presets → upsert en masse depuis le catalogue
+const importSchema = z.object({
+  groups: z.array(z.string()).min(1),
+  slugs: z.array(z.string()).optional(),
+})
+categoryRouter.post('/import-presets', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { groups, slugs } = importSchema.parse(req.body)
+    const restaurantId = req.user!.restaurantId
+    const wanted = new Set<string>(slugs ?? [])
+    const useFilter = wanted.size > 0
+
+    const maxSort = await prisma.category.aggregate({
+      where: { restaurantId },
+      _max: { sortOrder: true },
+    })
+    let nextSort = (maxSort._max.sortOrder ?? 0) + 1
+
+    let created = 0
+    let skipped = 0
+
+    for (const groupKey of groups) {
+      const group = CATEGORY_PRESETS.find(g => g.key === groupKey)
+      if (!group) continue
+      for (const cat of group.categories) {
+        if (useFilter && !wanted.has(cat.slug)) continue
+        const existing = await prisma.category.findUnique({
+          where: { restaurantId_slug: { restaurantId, slug: cat.slug } },
+        })
+        if (existing) {
+          skipped++
+          continue
+        }
+        await prisma.category.create({
+          data: {
+            name: cat.name,
+            slug: cat.slug,
+            icon: cat.icon,
+            color: cat.color,
+            sortOrder: nextSort++,
+            isActive: true,
+            isAvailable: true,
+            restaurantId,
+          },
+        })
+        created++
+      }
+    }
+    res.json({ success: true, data: { created, skipped } })
+  } catch (error) {
+    next(error)
+  }
 })
 
 categoryRouter.get('/', async (req: AuthRequest, res, next) => {

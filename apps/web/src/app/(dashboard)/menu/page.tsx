@@ -7,7 +7,7 @@ import {
   Plus, Search, Edit2, Trash2, Eye, EyeOff, X, ChefHat,
   BookOpen, Tag, DollarSign, TrendingUp, Package, Star, Flame,
   TrendingDown, AlertCircle, Target, ArrowUpDown, Calculator, BarChart3,
-  ChevronUp, ChevronDown, Filter, Upload, FileUp, CheckCircle2, AlertTriangle,
+  ChevronUp, ChevronDown, Filter, Upload, FileUp, CheckCircle2, AlertTriangle, Sparkles, Loader2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, calculateMargin, convertUnit, ALLERGENS } from '@restaurant/utils'
@@ -1585,6 +1585,7 @@ export default function MenuPage() {
   const [variantModal, setVariantModal] = useState<Product | null>(null)
   const [categoryModal, setCategoryModal] = useState<{ open: boolean; category: Category | null }>({ open: false, category: null })
   const [showCategories, setShowCategories] = useState(false)
+  const [presetsModal, setPresetsModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const qc = useQueryClient()
 
@@ -1713,10 +1714,16 @@ export default function MenuPage() {
             className="glass-card p-4 overflow-hidden">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-sm">Catégories</h3>
-              <button onClick={() => setCategoryModal({ open: true, category: null })}
-                className="flex items-center gap-1 text-sm text-brand-orange hover:underline">
-                <Plus className="w-3.5 h-3.5" /> Nouvelle catégorie
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setPresetsModal(true)}
+                  className="flex items-center gap-1 text-sm text-cyan-400 hover:underline">
+                  <Sparkles className="w-3.5 h-3.5" /> Catégories suggérées
+                </button>
+                <button onClick={() => setCategoryModal({ open: true, category: null })}
+                  className="flex items-center gap-1 text-sm text-brand-orange hover:underline">
+                  <Plus className="w-3.5 h-3.5" /> Nouvelle catégorie
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
               {categories.map(cat => (
@@ -1947,6 +1954,214 @@ export default function MenuPage() {
           onSave={handleCategorySave}
         />
       )}
+      {presetsModal && (
+        <CategoryPresetsModal
+          onClose={() => setPresetsModal(false)}
+          onImported={() => {
+            qc.invalidateQueries({ queryKey: ['categories'] })
+            setPresetsModal(false)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+// ─── Category Presets Modal ───────────────────────────────────────────────────
+
+type PresetCategory = { name: string; slug: string; icon: string; color: string }
+type PresetGroup = { key: string; label: string; description: string; categories: PresetCategory[] }
+
+function CategoryPresetsModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [activeGroup, setActiveGroup] = useState<string>('')
+  const [selected, setSelected] = useState<Record<string, Set<string>>>({})
+  const [importing, setImporting] = useState(false)
+
+  const { data: presets, isLoading } = useQuery<PresetGroup[]>({
+    queryKey: ['category-presets'],
+    queryFn: () => api.get('/categories/presets').then(r => r.data.data),
+  })
+
+  useEffect(() => {
+    if (presets && presets.length > 0 && !activeGroup) {
+      setActiveGroup(presets[0]!.key)
+    }
+  }, [presets, activeGroup])
+
+  function toggle(groupKey: string, slug: string): void {
+    setSelected(prev => {
+      const set = new Set(prev[groupKey] ?? [])
+      if (set.has(slug)) set.delete(slug)
+      else set.add(slug)
+      return { ...prev, [groupKey]: set }
+    })
+  }
+
+  function toggleAll(group: PresetGroup, on: boolean): void {
+    setSelected(prev => ({
+      ...prev,
+      [group.key]: on ? new Set(group.categories.map(c => c.slug)) : new Set(),
+    }))
+  }
+
+  const totalSelected = Object.values(selected).reduce((s, set) => s + set.size, 0)
+
+  async function onImport(): Promise<void> {
+    if (totalSelected === 0) {
+      toast.error('Sélectionne au moins une catégorie')
+      return
+    }
+    setImporting(true)
+    try {
+      const groups: string[] = []
+      const slugs: string[] = []
+      for (const [groupKey, set] of Object.entries(selected)) {
+        if (set.size === 0) continue
+        groups.push(groupKey)
+        for (const s of set) slugs.push(s)
+      }
+      const res = await api.post('/categories/import-presets', { groups, slugs })
+      const { created, skipped } = res.data.data
+      toast.success(
+        `${created} catégorie${created > 1 ? 's' : ''} créée${created > 1 ? 's' : ''}` +
+          (skipped > 0 ? ` · ${skipped} ignorée${skipped > 1 ? 's' : ''} (déjà existantes)` : ''),
+      )
+      onImported()
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Erreur')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        onClick={e => e.stopPropagation()}
+        className="glass-card w-full max-w-3xl max-h-[88vh] overflow-hidden flex flex-col"
+      >
+        <div className="flex items-center justify-between border-b border-brand-border px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="h-5 w-5 text-cyan-400" />
+            <div>
+              <h2 className="text-lg font-bold text-white">Catégories suggérées</h2>
+              <p className="text-xs text-brand-muted">
+                Sélectionne les catégories à ajouter à ton menu. Les doublons sont ignorés.
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-brand-muted hover:bg-brand-darker">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {isLoading || !presets ? (
+          <div className="flex flex-1 items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-brand-muted" />
+          </div>
+        ) : (
+          <>
+            <div className="flex gap-1 overflow-x-auto border-b border-brand-border px-5 py-2 scrollbar-hidden">
+              {presets.map(g => (
+                <button
+                  key={g.key}
+                  onClick={() => setActiveGroup(g.key)}
+                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    activeGroup === g.key
+                      ? 'bg-brand-orange text-white'
+                      : 'text-brand-muted hover:bg-brand-darker hover:text-white'
+                  }`}
+                >
+                  {g.label}
+                  {(selected[g.key]?.size ?? 0) > 0 && (
+                    <span className="ml-1.5 rounded-full bg-black/30 px-1.5 py-0.5 text-[10px]">
+                      {selected[g.key]!.size}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {presets
+              .filter(g => g.key === activeGroup)
+              .map(group => {
+                const sel = selected[group.key] ?? new Set<string>()
+                const allOn = sel.size === group.categories.length
+                return (
+                  <div key={group.key} className="flex-1 overflow-auto p-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-xs text-brand-muted">{group.description}</p>
+                      <button
+                        onClick={() => toggleAll(group, !allOn)}
+                        className="text-xs font-semibold text-brand-orange hover:underline"
+                      >
+                        {allOn ? 'Tout désélectionner' : 'Tout sélectionner'}
+                      </button>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {group.categories.map(c => {
+                        const on = sel.has(c.slug)
+                        return (
+                          <button
+                            key={c.slug}
+                            type="button"
+                            onClick={() => toggle(group.key, c.slug)}
+                            className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all ${
+                              on
+                                ? 'border-brand-orange bg-brand-orange/10'
+                                : 'border-brand-border bg-brand-darker hover:border-brand-orange/40'
+                            }`}
+                          >
+                            <span
+                              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-lg"
+                              style={{ background: c.color + '33' }}
+                            >
+                              {c.icon}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-semibold text-white">{c.name}</div>
+                              <div className="truncate font-mono text-[10px] text-brand-muted">
+                                {c.slug}
+                              </div>
+                            </div>
+                            {on && <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-brand-orange" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+
+            <div className="flex items-center justify-between gap-3 border-t border-brand-border px-5 py-3">
+              <div className="text-sm text-brand-muted">
+                {totalSelected} sélectionnée{totalSelected > 1 ? 's' : ''}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={onClose} className="btn-secondary">
+                  Annuler
+                </button>
+                <button
+                  onClick={onImport}
+                  disabled={importing || totalSelected === 0}
+                  className="btn-primary"
+                >
+                  {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : `Importer ${totalSelected}`}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </motion.div>
   )
 }
