@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { UserCog, Plus, Clock, Calendar, Pencil, Trash2, X, Mail, Phone, Banknote, Palmtree, CheckCircle2, XCircle, BarChart2, ChevronLeft, ChevronRight, Shield } from 'lucide-react'
+import { UserCog, Plus, Clock, Calendar, Pencil, Trash2, X, Mail, Phone, Banknote, Palmtree, CheckCircle2, XCircle, BarChart2, ChevronLeft, ChevronRight, Shield, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { formatDate, initials, formatCurrency } from '@restaurant/utils'
@@ -594,6 +594,7 @@ export default function EmployeesPage() {
   const queryClient = useQueryClient()
 
   const [showCreate, setShowCreate] = useState(false)
+  const [showAddFromUser, setShowAddFromUser] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
   const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null)
   const [leaveEmployee, setLeaveEmployee] = useState<Employee | null>(null)
@@ -723,6 +724,14 @@ export default function EmployeesPage() {
             <Shield className="w-4 h-4" />
             Rôles & permissions
           </a>
+          <button
+            onClick={() => setShowAddFromUser(true)}
+            className="btn-secondary flex items-center gap-2"
+            title="Promouvoir un utilisateur existant en employé"
+          >
+            <UserCog className="w-4 h-4" />
+            <span className="hidden sm:inline">Depuis un compte</span>
+          </button>
           <button
             onClick={() => setShowCreate(true)}
             className="btn-primary flex items-center gap-2"
@@ -918,6 +927,18 @@ export default function EmployeesPage() {
       {/* ── Planning hebdomadaire ── */}
       <ShiftCalendar employees={employees} />
 
+      {/* ── Add From User Modal ── */}
+      {showAddFromUser && (
+        <AddFromUserModal
+          onClose={() => setShowAddFromUser(false)}
+          onCreated={() => {
+            setShowAddFromUser(false)
+            queryClient.invalidateQueries({ queryKey: ['employees'] })
+            toast.success('Employé créé')
+          }}
+        />
+      )}
+
       {/* ── Create Modal ── */}
       {showCreate && (
         <ModalBackdrop onClose={() => setShowCreate(false)}>
@@ -1010,3 +1031,252 @@ export default function EmployeesPage() {
     </div>
   )
 }
+
+// ─── Add From User Modal ──────────────────────────────────────────────────────
+
+type UserWithoutEmployee = {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  avatar: string | null
+  phone: string | null
+  role: { id: string; name: string; displayName: string } | null
+  createdAt: string
+}
+
+function AddFromUserModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [search, setSearch] = useState("")
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    position: "serveur",
+    salary: "",
+    salaryType: "MONTHLY" as "MONTHLY" | "HOURLY",
+    pin: "",
+    employeeCode: "",
+  })
+  const [saving, setSaving] = useState(false)
+
+  const { data: users, isLoading } = useQuery<UserWithoutEmployee[]>({
+    queryKey: ["users-without-employee"],
+    queryFn: () =>
+      api.get("/employees/users-without-employee").then(r => r.data.data),
+  })
+
+  const filtered = useMemo(() => {
+    if (!users) return []
+    const q = search.trim().toLowerCase()
+    if (!q) return users
+    return users.filter(u =>
+      [u.email, u.firstName, u.lastName].some(s => s.toLowerCase().includes(q)),
+    )
+  }, [users, search])
+
+  const selectedUser = users?.find(u => u.id === selectedUserId) ?? null
+
+  async function onSubmit(e: React.FormEvent): Promise<void> {
+    e.preventDefault()
+    if (!selectedUserId) {
+      toast.error("Sélectionne un utilisateur")
+      return
+    }
+    if (!form.position.trim()) {
+      toast.error("Poste requis")
+      return
+    }
+    setSaving(true)
+    try {
+      await api.post("/employees/from-user", {
+        userId: selectedUserId,
+        position: form.position.trim(),
+        salary: form.salary ? Number(form.salary) : undefined,
+        salaryType: form.salaryType,
+        pin: form.pin || undefined,
+        employeeCode: form.employeeCode || undefined,
+      })
+      onCreated()
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || "Erreur")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <form onSubmit={onSubmit}>
+        <div className="flex items-center justify-between p-6 border-b border-brand-border">
+          <div>
+            <h2 className="text-lg font-bold">Promouvoir un utilisateur en employé</h2>
+            <p className="text-xs text-brand-muted mt-0.5">
+              Sélectionnez un compte existant sans fiche employé, puis renseignez son poste.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-brand-muted hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* User picker */}
+          <div>
+            <label className="block text-xs text-brand-muted mb-1">
+              Utilisateur <span className="text-brand-orange">*</span>
+            </label>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher par nom, email..."
+              className="w-full rounded-xl border border-brand-border bg-brand-darker px-3 py-2 text-sm text-white placeholder:text-brand-muted/40 mb-2"
+            />
+            <div className="border border-brand-border rounded-xl bg-brand-darker/40 max-h-64 overflow-y-auto">
+              {isLoading ? (
+                <div className="p-6 text-center text-brand-muted">
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="p-6 text-center text-sm text-brand-muted">
+                  {users && users.length === 0
+                    ? "Tous les utilisateurs ont déjà une fiche employé."
+                    : "Aucun résultat."}
+                </div>
+              ) : (
+                <ul className="divide-y divide-brand-border">
+                  {filtered.map(u => {
+                    const on = selectedUserId === u.id
+                    return (
+                      <li key={u.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedUserId(u.id)}
+                          className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
+                            on ? "bg-brand-orange/10" : "hover:bg-brand-darker"
+                          }`}
+                        >
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-orange to-brand-gold flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {u.firstName[0]}
+                            {u.lastName[0]}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-white truncate">
+                              {u.firstName} {u.lastName}
+                            </div>
+                            <div className="text-xs text-brand-muted truncate">{u.email}</div>
+                          </div>
+                          {u.role && (
+                            <span className="rounded-full bg-brand-card px-2 py-0.5 text-[10px] font-semibold text-brand-muted">
+                              {u.role.displayName}
+                            </span>
+                          )}
+                          {on && (
+                            <CheckCircle2 className="w-4 h-4 text-brand-orange flex-shrink-0" />
+                          )}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {selectedUser && (
+            <>
+              <div className="border-t border-brand-border pt-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-brand-muted mb-1">
+                      Poste <span className="text-brand-orange">*</span>
+                    </label>
+                    <input
+                      value={form.position}
+                      onChange={e => setForm(f => ({ ...f, position: e.target.value }))}
+                      placeholder="ex: Serveur en salle"
+                      required
+                      className="w-full rounded-xl border border-brand-border bg-brand-darker px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-brand-muted mb-1">Code employé</label>
+                    <input
+                      value={form.employeeCode}
+                      onChange={e => setForm(f => ({ ...f, employeeCode: e.target.value }))}
+                      placeholder="EMP-001"
+                      className="w-full rounded-xl border border-brand-border bg-brand-darker px-3 py-2 text-sm text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-brand-muted mb-1">Salaire</label>
+                    <input
+                      type="number"
+                      value={form.salary}
+                      onChange={e => setForm(f => ({ ...f, salary: e.target.value }))}
+                      placeholder="0"
+                      className="w-full rounded-xl border border-brand-border bg-brand-darker px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-brand-muted mb-1">Type</label>
+                    <select
+                      value={form.salaryType}
+                      onChange={e =>
+                        setForm(f => ({ ...f, salaryType: e.target.value as "MONTHLY" | "HOURLY" }))
+                      }
+                      className="w-full rounded-xl border border-brand-border bg-brand-darker px-3 py-2 text-sm text-white"
+                    >
+                      <option value="MONTHLY">Mensuel</option>
+                      <option value="HOURLY">Horaire</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs text-brand-muted mb-1">
+                      Code PIN (4 chiffres, pour pointage)
+                    </label>
+                    <input
+                      value={form.pin}
+                      onChange={e =>
+                        setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, "").slice(0, 4) }))
+                      }
+                      placeholder="1234"
+                      maxLength={4}
+                      className="w-full rounded-xl border border-brand-border bg-brand-darker px-3 py-2 text-sm text-white font-mono tracking-widest"
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-brand-border">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            Annuler
+          </button>
+          <button
+            type="submit"
+            disabled={saving || !selectedUserId}
+            className="btn-primary flex items-center gap-2"
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4" />
+            )}
+            Créer la fiche employé
+          </button>
+        </div>
+      </form>
+    </ModalBackdrop>
+  )
+}
+

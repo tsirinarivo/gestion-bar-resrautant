@@ -118,6 +118,83 @@ const scheduleHandler = async (req: AuthRequest, res: any, next: any) => {
 employeeRouter.get('/schedule', authorize('manager', 'superadmin'), scheduleHandler)
 employeeRouter.get('/shifts', authorize('manager', 'superadmin'), scheduleHandler)
 
+// GET /api/employees/users-without-employee — utilisateurs du restaurant sans fiche employé
+employeeRouter.get('/users-without-employee', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        restaurantId: req.user!.restaurantId,
+        employee: null,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        avatar: true,
+        phone: true,
+        role: { select: { id: true, name: true, displayName: true } },
+        createdAt: true,
+      },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    })
+    res.json({ success: true, data: users })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/employees/from-user — crée une fiche employé à partir d'un user existant
+employeeRouter.post('/from-user', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const schema = z.object({
+      userId: z.string().min(1),
+      position: z.string().min(1),
+      department: z.string().optional(),
+      salary: z.number().nonnegative().optional(),
+      salaryType: z.enum(['HOURLY', 'MONTHLY']).optional(),
+      hireDate: z.string().optional(),
+      employeeCode: z.string().optional(),
+      pin: z.string().regex(/^\d{4}$/).optional(),
+      bankAccount: z.string().optional(),
+      notes: z.string().optional(),
+    })
+    const data = schema.parse(req.body)
+    const restaurantId = req.user!.restaurantId
+
+    const user = await prisma.user.findFirst({
+      where: { id: data.userId, restaurantId },
+      include: { employee: true },
+    })
+    if (!user) throw new AppError('Utilisateur introuvable', 404)
+    if (user.employee) {
+      throw new AppError('Cet utilisateur a déjà une fiche employé', 400)
+    }
+
+    const employee = await prisma.employee.create({
+      data: {
+        userId: user.id,
+        restaurantId,
+        position: data.position,
+        department: data.department,
+        salary: data.salary,
+        salaryType: data.salaryType ?? 'MONTHLY',
+        hireDate: data.hireDate ? new Date(data.hireDate) : new Date(),
+        employeeCode: data.employeeCode,
+        pin: data.pin,
+        bankAccount: data.bankAccount,
+        notes: data.notes,
+        isActive: true,
+      },
+      include: { user: { include: { role: true } } },
+    })
+    res.status(201).json({ success: true, data: employee })
+  } catch (error) {
+    next(error)
+  }
+})
+
 employeeRouter.get('/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const employee = await prisma.employee.findFirst({
