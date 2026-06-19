@@ -114,3 +114,27 @@
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 }
+
+/* ─── Date / time inputs in dark theme ─────────────────────────────────────── */
+/* L'icône native du picker est noire par défaut → invisible sur fond sombre.
+   On force color-scheme: dark + on inverse le pictogramme calendrier. */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"] {
+  color-scheme: dark;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) brightness(1.2);
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 4px;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
