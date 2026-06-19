@@ -7,7 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, X, Edit2, Trash2, ShoppingCart, Package,
   Phone, Mail, MapPin, Truck, FileText, ChevronRight,
-  CheckCircle, Clock, Send, Ban, ArrowLeft, Search
+  CheckCircle, Clock, Send, Ban, ArrowLeft, Search,
+  Upload, Loader2, FileSpreadsheet, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, formatDate } from '@restaurant/utils'
@@ -484,6 +485,7 @@ export default function SuppliersPage() {
   const [tab, setTab] = useState<'suppliers' | 'orders'>('suppliers')
   const [supplierModal, setSupplierModal] = useState<{ open: boolean; supplier: Supplier | null }>({ open: false, supplier: null })
   const [poModal, setPOModal] = useState<{ open: boolean; supplierId?: string }>({ open: false })
+  const [importModal, setImportModal] = useState<{ kind: 'suppliers' | 'prices' } | null>(null)
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null)
   const [filterStatus, setFilterStatus] = useState('')
   const [filterSupplier, setFilterSupplier] = useState('')
@@ -561,9 +563,17 @@ export default function SuppliersPage() {
             </button>
           )}
           {tab === 'suppliers' && (
-            <button onClick={() => setSupplierModal({ open: true, supplier: null })} className="btn-primary flex items-center gap-2 text-sm">
-              <Plus className="w-4 h-4" /> Nouveau fournisseur
-            </button>
+            <>
+              <button onClick={() => setImportModal({ kind: 'suppliers' })} className="btn-secondary flex items-center gap-2 text-sm">
+                <Upload className="w-4 h-4" /> <span className="hidden sm:inline">Importer fournisseurs</span>
+              </button>
+              <button onClick={() => setImportModal({ kind: 'prices' })} className="btn-secondary flex items-center gap-2 text-sm">
+                <FileSpreadsheet className="w-4 h-4" /> <span className="hidden sm:inline">Importer prix d'achat</span>
+              </button>
+              <button onClick={() => setSupplierModal({ open: true, supplier: null })} className="btn-primary flex items-center gap-2 text-sm">
+                <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nouveau fournisseur</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -756,6 +766,16 @@ export default function SuppliersPage() {
       )}
 
       {/* Modals */}
+      {importModal && (
+        <ImportCsvModal
+          kind={importModal.kind}
+          onClose={() => setImportModal(null)}
+          onDone={() => {
+            setImportModal(null)
+            qc.invalidateQueries({ queryKey: ['suppliers'] })
+          }}
+        />
+      )}
       {supplierModal.open && (
         <SupplierModal
           supplier={supplierModal.supplier}
@@ -778,6 +798,249 @@ export default function SuppliersPage() {
           }}
         />
       )}
+    </div>
+  )
+}
+
+// ─── Import CSV Modal (fournisseurs ou prix d'achat) ──────────────────────────
+
+type ImportResult = {
+  dryRun: boolean
+  headers: string[]
+  total: number
+  created: number
+  updated: number
+  skipped: number
+  errors: { line: number; reason: string }[]
+  preview?: { name: string; email?: string; phone?: string }[]
+  missing?: { stockItems: string[]; suppliers: string[] }
+}
+
+function ImportCsvModal({
+  kind,
+  onClose,
+  onDone,
+}: {
+  kind: 'suppliers' | 'prices'
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [file, setFile] = useState<File | null>(null)
+  const [running, setRunning] = useState(false)
+  const [preview, setPreview] = useState<ImportResult | null>(null)
+  const [result, setResult] = useState<ImportResult | null>(null)
+
+  const endpoint = kind === 'suppliers' ? '/suppliers/import' : '/suppliers/import-prices'
+  const title = kind === 'suppliers' ? 'Importer fournisseurs (CSV Dolibarr)' : "Importer prix d'achat par fournisseur"
+
+  const hints = kind === 'suppliers'
+    ? [
+        'Colonnes reconnues : Nom, Contact, Email, Téléphone, Adresse, Ville, Code postal, Pays, SIRET, Conditions paiement, Notes',
+        'Dolibarr : export "Tiers / Fournisseurs" en CSV (FR ou EN)',
+        "Un fournisseur avec le même nom n'est pas dupliqué — il est mis à jour",
+      ]
+    : [
+        'Colonnes reconnues : Produit (ref ou nom), Fournisseur, Prix d\'achat, Ref fournisseur, Préféré',
+        "Le produit doit correspondre à un article du stock (nom exact)",
+        "Le fournisseur doit avoir été créé/importé avant — utilise d'abord 'Importer fournisseurs'",
+      ]
+
+  async function run(dryRun: boolean): Promise<void> {
+    if (!file) {
+      toast.error('Sélectionne un fichier CSV')
+      return
+    }
+    setRunning(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const url = `${endpoint}${dryRun ? '?dryRun=true' : ''}`
+      const res = await api.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const data: ImportResult = res.data.data
+      if (dryRun) {
+        setPreview(data)
+      } else {
+        setResult(data)
+        toast.success(`${data.created} créé(s) · ${data.updated} mis à jour · ${data.skipped} ignoré(s)`)
+        setTimeout(onDone, 1500)
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Erreur')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      >
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+        <motion.div
+          className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-brand-card border border-brand-border rounded-2xl shadow-2xl"
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ type: 'spring', duration: 0.3 }}
+        >
+          <div className="flex items-center justify-between p-6 border-b border-brand-border">
+            <div>
+              <h2 className="text-lg font-bold">{title}</h2>
+              <p className="text-xs text-brand-muted mt-0.5">
+                Fichier CSV (séparateur , ou ;). Limite 10 MB.
+              </p>
+            </div>
+            <button onClick={onClose} className="text-brand-muted hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <ul className="space-y-1 rounded-xl border border-brand-border bg-brand-darker/40 p-3 text-xs text-brand-muted">
+              {hints.map((h, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-brand-orange">•</span>
+                  <span>{h}</span>
+                </li>
+              ))}
+            </ul>
+
+            <label className="flex items-center gap-3 rounded-xl border border-dashed border-brand-border bg-brand-darker/40 p-4 cursor-pointer hover:border-brand-orange/40">
+              <Upload className="w-5 h-5 text-brand-muted" />
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-white">
+                  {file ? file.name : 'Cliquer pour choisir un fichier CSV'}
+                </div>
+                {file && (
+                  <div className="text-xs text-brand-muted">
+                    {(file.size / 1024).toFixed(1)} KB
+                  </div>
+                )}
+              </div>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={e => {
+                  setFile(e.target.files?.[0] ?? null)
+                  setPreview(null)
+                  setResult(null)
+                }}
+                className="hidden"
+              />
+            </label>
+
+            {preview && (
+              <div className="rounded-xl border border-brand-border bg-brand-darker/40 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <h3 className="font-semibold text-sm">Aperçu (mode test, rien sauvegardé)</h3>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center mb-3">
+                  <Stat label="Total" value={preview.total} />
+                  <Stat label="À créer" value={preview.created} accent="emerald" />
+                  <Stat label="À mettre à jour" value={preview.updated} accent="blue" />
+                  <Stat label="Ignorés" value={preview.skipped} accent="amber" />
+                </div>
+
+                {preview.preview && preview.preview.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-xs text-brand-muted mb-1">Échantillon (10 premiers) :</div>
+                    <ul className="space-y-1 text-xs">
+                      {preview.preview.map((p, i) => (
+                        <li key={i} className="font-mono text-brand-muted">
+                          {p.name}{p.email ? ` · ${p.email}` : ''}{p.phone ? ` · ${p.phone}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {preview.missing && (preview.missing.stockItems.length > 0 || preview.missing.suppliers.length > 0) && (
+                  <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-semibold text-amber-300">Références introuvables</span>
+                    </div>
+                    {preview.missing.stockItems.length > 0 && (
+                      <div className="text-xs text-amber-200">
+                        <strong>Articles stock introuvables ({preview.missing.stockItems.length}) :</strong>
+                        <div className="font-mono mt-1">{preview.missing.stockItems.slice(0, 5).join(', ')}{preview.missing.stockItems.length > 5 ? '…' : ''}</div>
+                      </div>
+                    )}
+                    {preview.missing.suppliers.length > 0 && (
+                      <div className="text-xs text-amber-200 mt-2">
+                        <strong>Fournisseurs introuvables ({preview.missing.suppliers.length}) :</strong>
+                        <div className="font-mono mt-1">{preview.missing.suppliers.slice(0, 5).join(', ')}{preview.missing.suppliers.length > 5 ? '…' : ''}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {preview.errors.length > 0 && (
+                  <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                    <div className="text-xs font-semibold text-red-300 mb-1">{preview.errors.length} erreur(s)</div>
+                    <ul className="space-y-0.5 text-xs text-red-200 font-mono max-h-32 overflow-auto">
+                      {preview.errors.map((e, i) => (
+                        <li key={i}>L{e.line} — {e.reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {result && (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  <div className="text-sm font-semibold text-emerald-200">
+                    Import terminé : {result.created} créé(s), {result.updated} mis à jour
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 p-4 border-t border-brand-border">
+            <button type="button" onClick={onClose} className="btn-secondary">
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={() => run(true)}
+              disabled={running || !file}
+              className="btn-secondary"
+            >
+              {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+              Tester (dry-run)
+            </button>
+            <button
+              type="button"
+              onClick={() => run(false)}
+              disabled={running || !file}
+              className="btn-primary"
+            >
+              {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Importer pour de vrai
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
+function Stat({ label, value, accent }: { label: string; value: number; accent?: 'emerald' | 'blue' | 'amber' }) {
+  const color = accent === 'emerald' ? 'text-emerald-400'
+    : accent === 'blue' ? 'text-blue-400'
+    : accent === 'amber' ? 'text-amber-400'
+    : 'text-white'
+  return (
+    <div className="rounded-lg bg-brand-card p-2">
+      <div className={`text-xl font-bold ${color}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-brand-muted">{label}</div>
     </div>
   )
 }

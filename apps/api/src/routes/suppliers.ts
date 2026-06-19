@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
+import { csvUpload, parseCsv, pick, toFloat, toInt } from '../lib/csv-import'
 
 export const supplierRouter = Router()
 supplierRouter.use(authenticate)
@@ -21,6 +22,254 @@ const supplierSchema = z.object({
   leadTimeDays: z.number().int().default(2),
   isActive: z.boolean().default(true),
 })
+
+// ─── ROUTES STATIQUES (avant /:id pour respecter l'ordre Express) ─────────────
+
+// POST /api/suppliers/import — import CSV fournisseurs (Dolibarr ou generique)
+// Headers Dolibarr courants : nom/name, contact_nom/contact, email, telephone/phone,
+// adresse/address, ville/city, code_postal/postal_code, pays/country, code_tiers/ref,
+// note/notes, conditions_paiement/payment_terms, siret
+supplierRouter.post(
+  '/import',
+  authorize('manager', 'superadmin'),
+  csvUpload.single('file'),
+  async (req: AuthRequest, res, next) => {
+    try {
+      if (!req.file) throw new AppError('Fichier CSV manquant', 400)
+      const text = req.file.buffer.toString('utf8')
+      const { headers, rows } = parseCsv(text)
+      if (rows.length === 0) throw new AppError('CSV vide ou invalide', 400)
+      if (rows.length > 5000) throw new AppError('Import limité à 5000 fournisseurs', 400)
+
+      const dryRun = String(req.query.dryRun || '').toLowerCase() === 'true'
+      const restaurantId = req.user!.restaurantId
+      const existing = (await prisma.supplier.findMany({
+        where: { restaurantId },
+        select: { id: true, name: true },
+      })) as Array<{ id: string; name: string }>
+      const byName = new Map<string, string>(
+        existing.map(s => [s.name.trim().toLowerCase(), s.id]),
+      )
+
+      let created = 0
+      let updated = 0
+      let skipped = 0
+      const errors: Array<{ line: number; reason: string }> = []
+      const created_preview: Array<{ name: string; email?: string; phone?: string }> = []
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]!
+        const name = pick(row, ['nom', 'name', 'societe', 'raison_sociale', 'fournisseur', 'supplier', 'libelle'])
+        if (!name) {
+          skipped++
+          continue
+        }
+
+        const data = {
+          name,
+          contactName: pick(row, ['contact_nom', 'contact', 'contact_name', 'civilite_nom', 'nom_contact']) || undefined,
+          email: pick(row, ['email', 'mail', 'courriel']) || undefined,
+          phone: pick(row, ['telephone', 'tel', 'phone', 'mobile', 'gsm']) || undefined,
+          address: pick(row, ['adresse', 'address', 'rue']) || undefined,
+          city: pick(row, ['ville', 'city']) || undefined,
+          postalCode: pick(row, ['code_postal', 'postal_code', 'cp', 'zip']) || undefined,
+          country: pick(row, ['pays', 'country']) || 'MG',
+          siret: pick(row, ['siret', 'siren', 'tva', 'tva_intra', 'numero_tva']) || undefined,
+          paymentTerms: pick(row, ['conditions_paiement', 'payment_terms', 'cond_reglement']) || undefined,
+          notes: pick(row, ['note', 'notes', 'remarque', 'commentaire']) || undefined,
+          leadTimeDays: toInt(pick(row, ['delai_livraison', 'lead_time', 'leadtime'])) ?? 2,
+          isActive: true,
+        }
+
+        const key = name.trim().toLowerCase()
+        const existingId = byName.get(key)
+        try {
+          if (dryRun) {
+            if (existingId) updated++
+            else {
+              created++
+              if (created_preview.length < 10) {
+                created_preview.push({ name, email: data.email, phone: data.phone })
+              }
+            }
+            continue
+          }
+          if (existingId) {
+            await prisma.supplier.update({
+              where: { id: existingId },
+              data,
+            })
+            updated++
+          } else {
+            const inserted = await prisma.supplier.create({
+              data: { ...data, restaurantId },
+            })
+            byName.set(key, inserted.id)
+            created++
+          }
+        } catch (err: unknown) {
+          errors.push({ line: i + 2, reason: (err as Error).message.slice(0, 200) })
+        }
+      }
+
+      res.json({
+        success: true,
+        data: {
+          dryRun,
+          headers,
+          total: rows.length,
+          created,
+          updated,
+          skipped,
+          errors: errors.slice(0, 20),
+          preview: created_preview,
+        },
+      })
+    } catch (error) {
+      next(error)
+    }
+  },
+)
+
+// POST /api/suppliers/import-prices — import CSV prix d'achat par fournisseur
+// Lie un StockItem (par nom ou SKU) a un Supplier (par nom) avec unitCost + reference
+// Headers : produit/article/ref/sku/nom (cote stock_item), fournisseur/supplier (cote supplier),
+// prix/cout/prix_achat/unit_cost, ref_fournisseur/supplier_ref/code_fournisseur
+supplierRouter.post(
+  '/import-prices',
+  authorize('manager', 'superadmin'),
+  csvUpload.single('file'),
+  async (req: AuthRequest, res, next) => {
+    try {
+      if (!req.file) throw new AppError('Fichier CSV manquant', 400)
+      const text = req.file.buffer.toString('utf8')
+      const { headers, rows } = parseCsv(text)
+      if (rows.length === 0) throw new AppError('CSV vide ou invalide', 400)
+      if (rows.length > 20000) throw new AppError('Import limite a 20000 lignes', 400)
+
+      const dryRun = String(req.query.dryRun || '').toLowerCase() === 'true'
+      const restaurantId = req.user!.restaurantId
+
+      const stockItems = (await prisma.stockItem.findMany({
+        where: { restaurantId },
+        select: { id: true, name: true },
+      })) as Array<{ id: string; name: string }>
+      const itemByName = new Map<string, string>(
+        stockItems.map(s => [s.name.trim().toLowerCase(), s.id]),
+      )
+
+      const suppliers = (await prisma.supplier.findMany({
+        where: { restaurantId },
+        select: { id: true, name: true },
+      })) as Array<{ id: string; name: string }>
+      const supplierByName = new Map<string, string>(
+        suppliers.map(s => [s.name.trim().toLowerCase(), s.id]),
+      )
+
+      let created = 0
+      let updated = 0
+      let skipped = 0
+      const errors: Array<{ line: number; reason: string }> = []
+      const missing = { stockItems: new Set<string>(), suppliers: new Set<string>() }
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]!
+        const productKey = pick(row, [
+          'produit', 'article', 'product', 'ref', 'sku', 'reference', 'nom_produit', 'libelle',
+          'nom', 'name', 'designation',
+        ])
+        const supplierKey = pick(row, [
+          'fournisseur', 'supplier', 'vendeur', 'societe', 'nom_fournisseur',
+        ])
+        const priceRaw = pick(row, [
+          'prix_achat', 'prix', 'cout', 'unit_cost', 'unit_price', 'cost', 'prix_unitaire',
+          'prix_ht', 'achat',
+        ])
+        const supplierRef = pick(row, [
+          'ref_fournisseur', 'supplier_ref', 'code_fournisseur', 'reference_fournisseur',
+          'reference_supplier',
+        ]) || undefined
+
+        const isPreferredRaw = pick(row, ['prefere', 'preferred', 'principal', 'is_preferred'])
+        const isPreferred = /^(1|true|oui|yes|x)$/i.test(isPreferredRaw)
+
+        if (!productKey || !supplierKey || !priceRaw) {
+          skipped++
+          continue
+        }
+        const price = toFloat(priceRaw)
+        if (price === null || price < 0) {
+          errors.push({ line: i + 2, reason: `Prix invalide: "${priceRaw}"` })
+          continue
+        }
+
+        const stockItemId = itemByName.get(productKey.trim().toLowerCase())
+        if (!stockItemId) {
+          missing.stockItems.add(productKey)
+          skipped++
+          continue
+        }
+        const supplierId = supplierByName.get(supplierKey.trim().toLowerCase())
+        if (!supplierId) {
+          missing.suppliers.add(supplierKey)
+          skipped++
+          continue
+        }
+
+        try {
+          if (dryRun) {
+            const existing = await prisma.stockItemSupplier.findUnique({
+              where: { stockItemId_supplierId: { stockItemId, supplierId } },
+            })
+            if (existing) updated++
+            else created++
+            continue
+          }
+          await prisma.stockItemSupplier.upsert({
+            where: { stockItemId_supplierId: { stockItemId, supplierId } },
+            update: {
+              unitCost: price,
+              referenceCode: supplierRef,
+              isPreferred: isPreferred || undefined,
+            },
+            create: {
+              stockItemId,
+              supplierId,
+              unitCost: price,
+              referenceCode: supplierRef,
+              isPreferred,
+            },
+          })
+          // Note : on n'efface PAS isPreferred sur les autres fournisseurs de cet
+          // article si l'admin coche manuellement plusieurs prix preferes — c'est
+          // a lui de garder un seul prefere par article s'il le souhaite.
+          updated++
+        } catch (err: unknown) {
+          errors.push({ line: i + 2, reason: (err as Error).message.slice(0, 200) })
+        }
+      }
+
+      res.json({
+        success: true,
+        data: {
+          dryRun,
+          headers,
+          total: rows.length,
+          created,
+          updated,
+          skipped,
+          errors: errors.slice(0, 20),
+          missing: {
+            stockItems: Array.from(missing.stockItems).slice(0, 30),
+            suppliers: Array.from(missing.suppliers).slice(0, 30),
+          },
+        },
+      })
+    } catch (error) {
+      next(error)
+    }
+  },
+)
 
 // GET /api/suppliers
 supplierRouter.get('/', async (req: AuthRequest, res, next) => {
