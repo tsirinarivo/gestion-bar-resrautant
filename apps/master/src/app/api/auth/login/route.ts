@@ -5,7 +5,7 @@ import { masterPrisma } from '@restaurant/master-database'
 import { setSessionCookie, signSession } from '@/lib/auth'
 
 const schema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(s => s.trim().toLowerCase()),
   password: z.string().min(6),
 })
 

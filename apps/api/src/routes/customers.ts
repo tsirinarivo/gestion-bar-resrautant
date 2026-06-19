@@ -8,7 +8,7 @@ export const customerRouter = Router()
 customerRouter.use(authenticate)
 
 const customerSchema = z.object({
-  email: z.string().email().optional(),
+  email: z.string().email().transform(s => s.trim().toLowerCase()).optional(),
   phone: z.string().optional(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),

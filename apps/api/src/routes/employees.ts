@@ -142,7 +142,7 @@ employeeRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthReq
     const schema = z.object({
       firstName: z.string().min(1),
       lastName: z.string().min(1),
-      email: z.string().email(),
+      email: z.string().email().transform(s => s.trim().toLowerCase()),
       password: z.string().min(6),
       role: z.enum(['superadmin', 'manager', 'serveur', 'cuisinier', 'caissier']),
       phone: z.string().optional(),
@@ -206,7 +206,7 @@ employeeRouter.put('/:id', authorize('manager', 'superadmin'), async (req: AuthR
     const schema = z.object({
       firstName: z.string().min(1).optional(),
       lastName: z.string().min(1).optional(),
-      email: z.string().email().optional(),
+      email: z.string().email().transform(s => s.trim().toLowerCase()).optional(),
       role: z.enum(['superadmin', 'manager', 'serveur', 'cuisinier', 'caissier']).optional(),
       phone: z.string().optional().nullable(),
       address: z.string().optional().nullable(),

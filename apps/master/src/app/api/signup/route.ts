@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 const schema = z.object({
   restaurantName: z.string().min(2).max(80),
   contactName: z.string().max(80).optional().default(''),
-  email: z.string().email(),
+  email: z.string().email().transform(s => s.trim().toLowerCase()),
   phone: z.string().max(40).optional().default(''),
   password: z.string().min(8).max(200),
   seedDemo: z.boolean().optional().default(true),

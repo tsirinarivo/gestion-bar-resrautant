@@ -9,12 +9,12 @@ import { AppError } from '../middleware/errorHandler'
 export const authRouter = Router()
 
 const loginSchema = z.object({
-  email: z.string().email('Email invalide'),
+  email: z.string().email('Email invalide').transform(s => s.trim().toLowerCase()),
   password: z.string().min(1, 'Mot de passe requis'),
 })
 
 const registerSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(s => s.trim().toLowerCase()),
   password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères'),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
@@ -188,7 +188,7 @@ authRouter.put('/me', authenticate, async (req: AuthRequest, res, next) => {
     const { firstName, lastName, email, avatar, phone } = z.object({
       firstName: z.string().min(1).optional(),
       lastName: z.string().min(1).optional(),
-      email: z.string().email().optional(),
+      email: z.string().email().transform(s => s.trim().toLowerCase()).optional(),
       avatar: z.string().url().nullable().optional(),
       phone: z.string().nullable().optional(),
     }).parse(req.body)
