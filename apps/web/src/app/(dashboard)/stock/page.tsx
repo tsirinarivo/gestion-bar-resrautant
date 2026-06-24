@@ -442,7 +442,7 @@ export default function StockPage() {
       qc.invalidateQueries({ queryKey: ['stock-movements'] })
       qc.invalidateQueries({ queryKey: ['stock-item'] })
       setSelectedItem(null)
-      setMovementForm({ type: 'IN', quantity: '', notes: '', expiryDate: '' })
+      setMovementForm({ type: 'IN', quantity: '', notes: '', expiryDate: '', warehouseId: '' })
       toast.success('Mouvement enregistré')
     },
     onError: () => toast.error('Erreur lors de l\'enregistrement'),
