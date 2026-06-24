@@ -1220,8 +1220,8 @@ export default function POSPage() {
   const { data: products = [], error: productsError, isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ['pos-products', token, selectedCategory, terminal?.warehouseId ?? null],
     queryFn: () => apiFetch<Product[]>(token!,
-      `/products?isAvailable=true&limit=200${selectedCategory ? `&categoryId=${selectedCategory}` : ''}&warehouseId=${terminal!.warehouseId}`),
-    enabled: !!token && terminalReady && !!terminal?.warehouseId,
+      `/products?isAvailable=true&limit=200${selectedCategory ? `&categoryId=${selectedCategory}` : ''}${terminal?.warehouseId ? `&warehouseId=${terminal.warehouseId}` : ''}`),
+    enabled: !!token && terminalReady,
     staleTime: 30_000,
   });
 
