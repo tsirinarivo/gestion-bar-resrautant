@@ -103,8 +103,14 @@ productRouter.get('/', async (req: AuthRequest, res, next) => {
     // Build AND conditions so warehouseId filter and search can coexist
     const andConditions: any[] = []
     if (warehouseId) {
-      // correspondance stricte : seuls les produits assignés à cet entrepôt
-      andConditions.push({ warehouseId: warehouseId as string })
+      // produits assignés à cet entrepôt OU non assignés (warehouseId null =
+      // "visible sur tous les terminaux", cf. le label du formulaire menu).
+      // Sans le OR null, tout produit créé/importé/approvisionné sans entrepôt
+      // explicite n'apparaît jamais dans le POS.
+      andConditions.push({ OR: [
+        { warehouseId: warehouseId as string },
+        { warehouseId: null },
+      ]})
     }
     if (search) {
       andConditions.push({ OR: [
