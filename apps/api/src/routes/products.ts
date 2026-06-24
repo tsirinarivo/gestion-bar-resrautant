@@ -222,6 +222,15 @@ productRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthRequ
       include: { category: true, variants: true },
     })
 
+    // L'entrepôt de la fiche produit pilote aussi l'emplacement physique du
+    // stock lié (produit vendu tel quel) → sinon la page Entrepôt affiche 0.
+    if (product.warehouseId && product.stockItemId) {
+      await prisma.stockItem.updateMany({
+        where: { id: product.stockItemId, restaurantId },
+        data: { warehouseId: product.warehouseId },
+      })
+    }
+
     res.status(201).json({ success: true, data: product })
   } catch (error) {
     next(error)
@@ -253,6 +262,14 @@ productRouter.put('/:id', authorize('manager', 'superadmin'), async (req: AuthRe
       data: updateData,
       include: { category: true, variants: true },
     })
+
+    // Propage l'entrepôt vers le stock lié (cf. POST) quand il change.
+    if (data.warehouseId !== undefined && product.stockItemId) {
+      await prisma.stockItem.updateMany({
+        where: { id: product.stockItemId, restaurantId },
+        data: { warehouseId: data.warehouseId || null },
+      })
+    }
 
     res.json({ success: true, data: product })
   } catch (error) {
@@ -689,6 +706,14 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
     )
     const usedProductSlugs = new Set(existingProducts.map(p => p.slug))
 
+    // Entrepôt par défaut pour rattacher les StockItem créés (sinon ils sont
+    // orphelins et la page Entrepôt les compte nulle part → stock à 0).
+    const defaultWarehouse = await prisma.warehouse.findFirst({
+      where: { restaurantId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    })
+
     const results = { created: 0, skipped: 0, errors: [] as { line: number; reason: string }[], preview: [] as any[] }
 
     for (let i = 0; i < rows.length; i++) {
@@ -807,6 +832,7 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
                 minQuantity: minQty ?? 0,
                 reorderQuantity: reorderQty ?? 0,
                 restaurantId,
+                warehouseId: defaultWarehouse?.id ?? null,
               },
             })
             await tx.product.update({
