@@ -835,6 +835,11 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
                 warehouseId: defaultWarehouse?.id ?? null,
               },
             })
+            if (defaultWarehouse?.id) {
+              await tx.stockLevel.create({
+                data: { stockItemId: stock.id, warehouseId: defaultWarehouse.id, quantity: initialStock ?? 0 },
+              })
+            }
             await tx.product.update({
               where: { id: product.id },
               data: { stockItemId: stock.id },

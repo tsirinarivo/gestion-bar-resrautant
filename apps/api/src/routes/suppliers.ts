@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { csvUpload, parseCsv, pick, toFloat, toInt } from '../lib/csv-import'
+import { resolveWarehouseId, applyStockDelta } from '../lib/stock-levels'
 
 export const supplierRouter = Router()
 supplierRouter.use(authenticate)
@@ -510,13 +511,16 @@ supplierRouter.patch('/purchase-orders/:id/status', authorize('manager', 'supera
       if (status === 'RECEIVED') {
         for (const item of order.items) {
           const qty = item.receivedQuantity > 0 ? item.receivedQuantity : item.quantity
-          const stockData: any = { currentQuantity: { increment: qty } }
+          const warehouseId = await resolveWarehouseId(tx, req.user!.restaurantId, item.stockItem.warehouseId)
           // Only update costPerUnit if supplier actually provided a price
-          if (item.unitCost > 0) stockData.costPerUnit = item.unitCost
-          await tx.stockItem.update({ where: { id: item.stockItemId }, data: stockData })
+          if (item.unitCost > 0) {
+            await tx.stockItem.update({ where: { id: item.stockItemId }, data: { costPerUnit: item.unitCost } })
+          }
+          await applyStockDelta(tx, { stockItemId: item.stockItemId, warehouseId, delta: qty })
           await tx.stockMovement.create({
             data: {
               stockItemId: item.stockItemId,
+              warehouseId,
               type: 'IN',
               quantity: qty,
               unitCost: item.unitCost,

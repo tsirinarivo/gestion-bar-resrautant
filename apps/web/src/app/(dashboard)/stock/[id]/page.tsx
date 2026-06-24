@@ -135,6 +135,25 @@ export default function StockItemPage({ params }: { params: Promise<{ id: string
         ))}
       </div>
 
+      {item.levels?.length > 0 && (
+        <div className="glass-card p-5 mb-6">
+          <h2 className="font-semibold mb-4 flex items-center gap-2">
+            <Layers className="w-4 h-4 text-brand-orange" />
+            Répartition par entrepôt
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {item.levels.map((lv: any) => (
+              <div key={lv.id} className="rounded-xl border border-brand-border p-3">
+                <p className="text-xs text-brand-muted truncate">🏭 {lv.warehouse?.name}</p>
+                <p className={`text-lg font-bold ${lv.quantity <= 0 ? 'text-red-400' : 'text-white'}`}>
+                  {formatQuantity(lv.quantity, item.unit)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Movements */}
         <div className="glass-card p-5">

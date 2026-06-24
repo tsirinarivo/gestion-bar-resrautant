@@ -5,6 +5,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { generateOrderNumber, convertUnit } from '@restaurant/utils'
 import { autoPrintReceiptWithTable } from '../lib/printer'
+import { pickConsumeWarehouse, getLevelQty, applyStockDelta } from '../lib/stock-levels'
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Especes', MVOLA: 'MVola', ORANGE_MONEY: 'Orange Money',
@@ -113,6 +114,7 @@ export async function deductStockForOrder(
           product: {
             select: {
               stockItemId: true,
+              warehouseId: true,
               recipeItems: {
                 select: {
                   quantity: true,
@@ -138,24 +140,27 @@ export async function deductStockForOrder(
         const stockItem = await prisma.stockItem.findUnique({ where: { id: product.stockItemId } })
         if (!stockItem) continue
 
-        const actualQty = Math.min(item.quantity, stockItem.currentQuantity)
+        const warehouseId = await pickConsumeWarehouse(prisma, product.stockItemId, product.warehouseId)
+        const levelQty = warehouseId ? await getLevelQty(prisma, product.stockItemId, warehouseId) : stockItem.currentQuantity
+        const actualQty = Math.min(item.quantity, levelQty)
         const newQty = stockItem.currentQuantity - actualQty
 
-        await prisma.$transaction([
-          prisma.stockMovement.create({
+        await prisma.$transaction(async (tx) => {
+          await tx.stockMovement.create({
             data: {
               type: 'OUT',
               quantity: actualQty,
-              stockItemId: product.stockItemId,
+              stockItemId: product.stockItemId!,
+              warehouseId: warehouseId ?? undefined,
               reason: `Vente commande #${orderNumber}`,
               createdBy,
             },
-          }),
-          prisma.stockItem.update({
-            where: { id: product.stockItemId },
-            data: { currentQuantity: newQty },
-          }),
-        ])
+          })
+          if (actualQty > 0) {
+            if (warehouseId) await applyStockDelta(tx, { stockItemId: product.stockItemId!, warehouseId, delta: -actualQty })
+            else await tx.stockItem.update({ where: { id: product.stockItemId! }, data: { currentQuantity: { decrement: actualQty } } })
+          }
+        })
 
         if (newQty <= stockItem.minQuantity && stockItem.currentQuantity > stockItem.minQuantity) {
           const alertType = newQty <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'
@@ -197,24 +202,27 @@ export async function deductStockForOrder(
         }
 
         const theoreticalQty = item.quantity * baseQty / (recipeItem.yieldRate || 1)
-        const actualQty = Math.min(theoreticalQty, stockItem.currentQuantity)
+        const warehouseId = await pickConsumeWarehouse(prisma, stockItemId, product.warehouseId)
+        const levelQty = warehouseId ? await getLevelQty(prisma, stockItemId, warehouseId) : stockItem.currentQuantity
+        const actualQty = Math.min(theoreticalQty, levelQty)
         const newQty = stockItem.currentQuantity - actualQty
 
-        await prisma.$transaction([
-          prisma.stockMovement.create({
+        await prisma.$transaction(async (tx) => {
+          await tx.stockMovement.create({
             data: {
               type: 'OUT',
               quantity: actualQty,
               stockItemId,
+              warehouseId: warehouseId ?? undefined,
               reason: `Vente commande #${orderNumber}`,
               createdBy,
             },
-          }),
-          prisma.stockItem.update({
-            where: { id: stockItemId },
-            data: { currentQuantity: newQty },
-          }),
-        ])
+          })
+          if (actualQty > 0) {
+            if (warehouseId) await applyStockDelta(tx, { stockItemId, warehouseId, delta: -actualQty })
+            else await tx.stockItem.update({ where: { id: stockItemId }, data: { currentQuantity: { decrement: actualQty } } })
+          }
+        })
 
         if (actualQty < theoreticalQty) {
           await prisma.stockAlert.create({

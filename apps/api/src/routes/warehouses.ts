@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
+import { moveStock, getLevelQty } from '../lib/stock-levels'
 
 export const warehouseRouter = Router()
 warehouseRouter.use(authenticate)
@@ -68,8 +69,9 @@ warehouseRouter.delete('/:id', async (req: AuthRequest, res, next) => {
     const warehouse = await prisma.warehouse.findFirst({ where: { id: req.params.id, restaurantId } })
     if (!warehouse) throw new AppError('Entrepôt introuvable', 404)
     if (warehouse.isDefault) throw new AppError("Impossible de supprimer l'entrepôt par défaut", 400)
-    const stockCount = await prisma.stockItem.count({ where: { warehouseId: req.params.id } })
-    if (stockCount > 0) throw new AppError(`Cet entrepôt contient ${stockCount} article(s) de stock`, 400)
+    const stockCount = await prisma.stockLevel.count({ where: { warehouseId: req.params.id, quantity: { gt: 0 } } })
+    if (stockCount > 0) throw new AppError(`Cet entrepôt contient ${stockCount} article(s) en stock`, 400)
+    await prisma.stockLevel.deleteMany({ where: { warehouseId: req.params.id } })
     await prisma.warehouse.delete({ where: { id: req.params.id } })
     res.json({ success: true })
   } catch (error) { next(error) }
@@ -81,11 +83,19 @@ warehouseRouter.get('/:id/stock', async (req: AuthRequest, res, next) => {
     const restaurantId = req.user!.restaurantId
     const warehouse = await prisma.warehouse.findFirst({ where: { id: req.params.id, restaurantId } })
     if (!warehouse) throw new AppError('Entrepôt introuvable', 404)
-    const items = await prisma.stockItem.findMany({
-      where: { warehouseId: req.params.id },
-      include: { supplier: { select: { id: true, name: true } } },
-      orderBy: { name: 'asc' },
+    const levels = await prisma.stockLevel.findMany({
+      where: { warehouseId: req.params.id, stockItem: { restaurantId } },
+      include: { stockItem: { include: { supplier: { select: { id: true, name: true } } } } },
+      orderBy: { stockItem: { name: 'asc' } },
     })
+    // On expose l'article enrichi de sa quantité DANS cet entrepôt.
+    // `quantity` = niveau local (attendu par l'UI transfert) ; `currentQuantity`
+    // reste le total tous entrepôts confondus.
+    const items = levels.map((l: any) => ({
+      ...l.stockItem,
+      quantity: l.quantity,
+      warehouseQuantity: l.quantity,
+    }))
     res.json({ success: true, data: items })
   } catch (error) { next(error) }
 })
@@ -152,17 +162,18 @@ warehouseRouter.post('/transfers', async (req: AuthRequest, res, next) => {
     ])
     if (!from) throw new AppError('Entrepôt source introuvable', 404)
     if (!to) throw new AppError('Entrepôt destination introuvable', 404)
-    // Validate all stock items exist and have enough quantity
+    // Validate all stock items exist and have enough quantity IN THE SOURCE WAREHOUSE
     for (const item of data.items) {
       const stockItem = await prisma.stockItem.findFirst({
-        where: { id: item.stockItemId, warehouseId: data.fromWarehouseId },
+        where: { id: item.stockItemId, restaurantId },
       })
       if (!stockItem) {
-        throw new AppError(`Article ${item.stockItemId} introuvable dans l'entrepôt source`, 404)
+        throw new AppError(`Article ${item.stockItemId} introuvable`, 404)
       }
-      if (stockItem.currentQuantity < item.quantity) {
+      const available = await getLevelQty(prisma, item.stockItemId, data.fromWarehouseId)
+      if (available < item.quantity) {
         throw new AppError(
-          `Stock insuffisant pour "${stockItem.name}": ${stockItem.currentQuantity} ${stockItem.unit} disponible(s), ${item.quantity} demandé(s)`,
+          `Stock insuffisant pour "${stockItem.name}" dans l'entrepôt source : ${available} ${stockItem.unit} disponible(s), ${item.quantity} demandé(s)`,
           400,
         )
       }
@@ -230,14 +241,26 @@ warehouseRouter.post('/transfers/:id/complete', async (req: AuthRequest, res, ne
       }
       for (const item of transfer.items) {
         const src = item.stockItem
-        // Deduct from source
-        await tx.stockItem.update({
-          where: { id: src.id },
-          data: { currentQuantity: { decrement: item.quantity } },
+        // Re-vérif du niveau source dans la transaction (anti survente concurrente)
+        const available = await getLevelQty(tx, src.id, transfer.fromWarehouseId)
+        if (available < item.quantity) {
+          throw new AppError(
+            `Stock insuffisant pour "${src.name}" dans ${transfer.fromWarehouse.name} : ${available} ${src.unit} disponible(s)`,
+            400,
+          )
+        }
+        // Déplacement du même article entre niveaux d'entrepôt (pas de duplication).
+        // Le total currentQuantity est conservé.
+        await moveStock(tx, {
+          stockItemId: src.id,
+          fromWarehouseId: transfer.fromWarehouseId,
+          toWarehouseId: transfer.toWarehouseId,
+          quantity: item.quantity,
         })
         await tx.stockMovement.create({
           data: {
             stockItemId: src.id,
+            warehouseId: transfer.fromWarehouseId,
             type: 'TRANSFER',
             quantity: -item.quantity,
             unitCost: item.unitCost ?? src.costPerUnit,
@@ -246,34 +269,10 @@ warehouseRouter.post('/transfers/:id/complete', async (req: AuthRequest, res, ne
             createdBy: req.user!.id,
           },
         })
-        // Find or create matching item in destination warehouse
-        let dest = await tx.stockItem.findFirst({
-          where: { warehouseId: transfer.toWarehouseId, name: src.name, unit: src.unit },
-        })
-        if (!dest) {
-          dest = await tx.stockItem.create({
-            data: {
-              name: src.name,
-              description: src.description,
-              sku: src.sku,
-              unit: src.unit,
-              currentQuantity: 0,
-              minQuantity: src.minQuantity,
-              costPerUnit: item.unitCost ?? src.costPerUnit,
-              valuationMethod: src.valuationMethod,
-              isPerishable: src.isPerishable,
-              restaurantId,
-              warehouseId: transfer.toWarehouseId,
-            },
-          })
-        }
-        await tx.stockItem.update({
-          where: { id: dest.id },
-          data: { currentQuantity: { increment: item.quantity } },
-        })
         await tx.stockMovement.create({
           data: {
-            stockItemId: dest.id,
+            stockItemId: src.id,
+            warehouseId: transfer.toWarehouseId,
             type: 'TRANSFER',
             quantity: item.quantity,
             unitCost: item.unitCost ?? src.costPerUnit,

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
+import { resolveWarehouseId, applyStockDelta, setStockLevelAbsolute, getLevelQty } from '../lib/stock-levels'
 
 export const stockRouter = Router()
 stockRouter.use(authenticate)
@@ -41,7 +42,15 @@ const movementSchema = z.object({
   notes: z.string().optional(),
   reference: z.string().optional(),
   expiryDate: z.string().optional(),
+  warehouseId: z.string().optional(),
 })
+
+const levelInclude = {
+  levels: {
+    include: { warehouse: { select: { id: true, name: true } } },
+    orderBy: { warehouse: { name: 'asc' as const } },
+  },
+} as const
 
 stockRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
@@ -64,6 +73,7 @@ stockRouter.get('/', async (req: AuthRequest, res, next) => {
             include: { supplier: { select: { id: true, name: true } } },
             orderBy: { isPreferred: 'desc' },
           },
+          ...levelInclude,
         },
         orderBy: { name: 'asc' },
         take: 200,
@@ -75,6 +85,7 @@ stockRouter.get('/', async (req: AuthRequest, res, next) => {
           supplier: true,
           alerts: { where: { isRead: false }, take: 3 },
           _count: { select: { movements: true } },
+          ...levelInclude,
         },
         orderBy: { name: 'asc' },
         take: 200,
@@ -129,6 +140,7 @@ stockRouter.get('/:id', async (req: AuthRequest, res, next) => {
         movements: { orderBy: { createdAt: 'desc' }, take: 20 },
         alerts: { orderBy: { createdAt: 'desc' } },
         stockBatches: { orderBy: { receivedAt: 'asc' } },
+        ...levelInclude,
       },
     })
     if (!item) throw new AppError('Article de stock introuvable', 404)
@@ -142,14 +154,23 @@ stockRouter.post('/', authorize('manager', 'superadmin'), async (req: AuthReques
   try {
     const { supplierPrices, ...rest } = stockItemSchema.parse(req.body)
 
+    const restaurantId = req.user!.restaurantId
+    const warehouseId = await resolveWarehouseId(prisma, restaurantId, rest.warehouseId)
+
     // Create base item first (always works)
     const item = await prisma.stockItem.create({
       data: {
         ...rest,
-        restaurantId: req.user!.restaurantId,
+        warehouseId,
+        restaurantId,
         expiryDate: rest.expiryDate ? new Date(rest.expiryDate) : undefined,
       },
       include: { supplier: true },
+    })
+
+    // Stock initial placé dans l'entrepôt résolu (niveau par entrepôt)
+    await prisma.stockLevel.create({
+      data: { stockItemId: item.id, warehouseId, quantity: rest.currentQuantity ?? 0 },
     })
 
     // Add supplier prices if provided (requires stock_item_suppliers table — run db push)
@@ -224,26 +245,37 @@ stockRouter.post('/:id/movements', async (req: AuthRequest, res, next) => {
     })
     if (!item) throw new AppError('Article introuvable', 404)
 
-    const newQuantity = data.type === 'IN'
-      ? item.currentQuantity + data.quantity
-      : data.type === 'ADJUSTMENT'
-        ? data.quantity  // Pour ADJUSTMENT, quantity = nouvelle valeur absolue du stock
-        : item.currentQuantity - data.quantity
+    const restaurantId = req.user!.restaurantId
+    const warehouseId = await resolveWarehouseId(prisma, restaurantId, data.warehouseId)
+    const levelQty = await getLevelQty(prisma, item.id, warehouseId)
 
+    // Pour ADJUSTMENT, quantity = nouvelle valeur absolue de CET entrepôt.
+    const delta = data.type === 'IN'
+      ? data.quantity
+      : data.type === 'ADJUSTMENT'
+        ? data.quantity - levelQty
+        : -data.quantity
+
+    if ((data.type === 'OUT' || data.type === 'LOSS' || data.type === 'TRANSFER') && levelQty < data.quantity) {
+      throw new AppError(`Quantité insuffisante dans cet entrepôt (${levelQty} ${item.unit} disponible(s))`, 400)
+    }
+    const newQuantity = item.currentQuantity + delta
     if (newQuantity < 0) throw new AppError('Quantité insuffisante en stock', 400)
 
-    const stockUpdateData: any = { currentQuantity: newQuantity }
-    if (data.type === 'IN' && expiryDate) stockUpdateData.expiryDate = new Date(expiryDate)
-
-    const [movement, updatedItem] = await prisma.$transaction([
-      prisma.stockMovement.create({
-        data: { ...data, stockItemId: item.id, createdBy: req.user!.id },
-      }),
-      prisma.stockItem.update({
-        where: { id: item.id },
-        data: stockUpdateData,
-      }),
-    ])
+    const movement = await prisma.$transaction(async (tx) => {
+      const mv = await tx.stockMovement.create({
+        data: { ...data, warehouseId, stockItemId: item.id, createdBy: req.user!.id },
+      })
+      if (data.type === 'ADJUSTMENT') {
+        await setStockLevelAbsolute(tx, { stockItemId: item.id, warehouseId, target: data.quantity })
+      } else {
+        await applyStockDelta(tx, { stockItemId: item.id, warehouseId, delta })
+      }
+      if (data.type === 'IN' && expiryDate) {
+        await tx.stockItem.update({ where: { id: item.id }, data: { expiryDate: new Date(expiryDate) } })
+      }
+      return mv
+    })
 
     // Auto-create draft purchase order when stock falls below reorderQuantity
     if (
@@ -315,6 +347,10 @@ stockRouter.post('/:id/movements', async (req: AuthRequest, res, next) => {
       }
     }
 
+    const updatedItem = await prisma.stockItem.findUnique({
+      where: { id: item.id },
+      include: { supplier: true, ...levelInclude },
+    })
     res.status(201).json({ success: true, data: { movement, stockItem: updatedItem } })
   } catch (error) {
     next(error)
@@ -421,71 +457,56 @@ stockRouter.patch('/alerts/:alertId/read', async (req: AuthRequest, res, next) =
 // POST /api/stock/inventory-count — Physical inventory count: submit counted quantities, auto-create adjustments
 stockRouter.post('/inventory-count', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
-    const { items, notes } = z.object({
+    const { items, notes, warehouseId: rawWarehouseId } = z.object({
       items: z.array(z.object({
         stockItemId: z.string(),
         counted: z.number().min(0),
       })).min(1),
       notes: z.string().optional(),
+      warehouseId: z.string().optional(),
     }).parse(req.body)
 
     const restaurantId = req.user!.restaurantId
     const userId = req.user!.id
+    const warehouseId = await resolveWarehouseId(prisma, restaurantId, rawWarehouseId)
 
     const stockItems = await prisma.stockItem.findMany({
       where: { id: { in: items.map(i => i.stockItemId) }, restaurantId },
-      select: { id: true, name: true, currentQuantity: true, unit: true, minQuantity: true },
+      select: {
+        id: true, name: true, unit: true,
+        levels: { where: { warehouseId }, select: { quantity: true } },
+      },
     })
     const stockMap = Object.fromEntries(stockItems.map(s => [s.id, s]))
 
     const adjustments: { stockItemId: string; name: string; system: number; counted: number; diff: number }[] = []
-    const movements = []
 
     for (const item of items) {
       const stock = stockMap[item.stockItemId]
       if (!stock) continue
-      const diff = item.counted - stock.currentQuantity
+      const system = stock.levels[0]?.quantity ?? 0
+      const diff = item.counted - system
       if (Math.abs(diff) < 0.001) continue // no difference, skip
-
-      adjustments.push({ stockItemId: item.stockItemId, name: stock.name, system: stock.currentQuantity, counted: item.counted, diff })
-      movements.push({
-        stockItemId: item.stockItemId,
-        type: 'ADJUSTMENT' as const,
-        quantity: Math.abs(diff),
-        direction: diff > 0 ? 'IN' : 'OUT',
-        reason: 'inventory_count',
-        notes: notes || 'Inventaire physique',
-        performedBy: userId,
-        newQuantity: item.counted,
-      })
+      adjustments.push({ stockItemId: item.stockItemId, name: stock.name, system, counted: item.counted, diff })
     }
 
-    // Apply all movements in a transaction
-    if (movements.length > 0) {
-      await prisma.$transaction(
-        movements.map(m =>
-          prisma.stockMovement.create({
+    if (adjustments.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        for (const a of adjustments) {
+          await tx.stockMovement.create({
             data: {
-              stockItem: { connect: { id: m.stockItemId } },
-              type: m.type,
-              quantity: m.quantity,
-              reason: m.reason,
-              notes: m.notes,
-              createdBy: m.performedBy,
+              stockItem: { connect: { id: a.stockItemId } },
+              warehouseId,
+              type: 'ADJUSTMENT',
+              quantity: a.counted,
+              reason: 'inventory_count',
+              notes: notes || 'Inventaire physique',
+              createdBy: userId,
             },
           })
-        )
-      )
-
-      // Update stock quantities
-      await prisma.$transaction(
-        movements.map(m =>
-          prisma.stockItem.update({
-            where: { id: m.stockItemId },
-            data: { currentQuantity: m.newQuantity },
-          })
-        )
-      )
+          await setStockLevelAbsolute(tx, { stockItemId: a.stockItemId, warehouseId, target: a.counted })
+        }
+      })
     }
 
     res.json({

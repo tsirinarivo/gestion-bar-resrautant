@@ -369,7 +369,7 @@ export default function StockPage() {
   const [warehouseFilter, setWarehouseFilter] = useState('')
   // Movement modal
   const [selectedItem, setSelectedItem] = useState<any>(null)
-  const [movementForm, setMovementForm] = useState({ type: 'IN', quantity: '', notes: '', expiryDate: '' })
+  const [movementForm, setMovementForm] = useState({ type: 'IN', quantity: '', notes: '', expiryDate: '', warehouseId: '' })
   // New / edit item modal
   const [showItemModal, setShowItemModal] = useState(false)
   const [editItem, setEditItem]           = useState<any>(null)
@@ -377,6 +377,7 @@ export default function StockPage() {
   // Inventory modal
   const [showInventory, setShowInventory] = useState(false)
   const [inventoryCounts, setInventoryCounts] = useState<Record<string, string>>({})
+  const [inventoryWarehouse, setInventoryWarehouse] = useState('')
   // Transfer modal
   const [transferItem, setTransferItem] = useState<any>(null)
   const [transferForm, setTransferForm] = useState({ toLocation: '', quantity: '', notes: '' })
@@ -641,6 +642,7 @@ export default function StockPage() {
           counted: parseFloat(counted) || 0,
         })),
         notes: 'Inventaire physique',
+        warehouseId: inventoryWarehouse || undefined,
       }
       const res = await api.post('/stock/inventory-count', payload)
       const { adjusted } = res.data.data
@@ -823,11 +825,11 @@ export default function StockPage() {
                         <td className="px-4 py-3 text-sm font-medium">{formatCurrency(item.currentQuantity * item.costPerUnit)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
-                            <button onClick={() => { setSelectedItem(item); setMovementForm({ type: 'IN', quantity: '', notes: '', expiryDate: '' }) }}
+                            <button onClick={() => { setSelectedItem(item); setMovementForm({ type: 'IN', quantity: '', notes: '', expiryDate: '', warehouseId: item.warehouseId || '' }) }}
                               className="p-1.5 text-green-400 hover:bg-green-400/10 rounded-lg" title="Entrée">
                               <ArrowDown className="w-4 h-4" />
                             </button>
-                            <button onClick={() => { setSelectedItem(item); setMovementForm({ type: 'OUT', quantity: '', notes: '', expiryDate: '' }) }}
+                            <button onClick={() => { setSelectedItem(item); setMovementForm({ type: 'OUT', quantity: '', notes: '', expiryDate: '', warehouseId: item.warehouseId || '' }) }}
                               className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg" title="Sortie">
                               <ArrowUp className="w-4 h-4" />
                             </button>
@@ -1135,7 +1137,16 @@ export default function StockPage() {
                 <h2 className="font-bold text-lg">Mouvement de stock</h2>
                 <button onClick={() => setSelectedItem(null)} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
               </div>
-              <p className="text-brand-muted text-sm mb-4">{selectedItem.name} — stock actuel : <strong>{formatQuantity(selectedItem.currentQuantity, selectedItem.unit)}</strong></p>
+              <p className="text-brand-muted text-sm mb-4">{selectedItem.name} — stock total : <strong>{formatQuantity(selectedItem.currentQuantity, selectedItem.unit)}</strong></p>
+              {selectedItem.levels?.length > 0 && (
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {selectedItem.levels.map((lv: any) => (
+                    <span key={lv.id} className="text-xs px-2 py-1 rounded-lg bg-brand-border/40 text-brand-muted">
+                      🏭 {lv.warehouse?.name} : <strong className="text-white">{formatQuantity(lv.quantity, selectedItem.unit)}</strong>
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Type</label>
@@ -1148,6 +1159,19 @@ export default function StockPage() {
                     ))}
                   </div>
                 </div>
+                {warehouses.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Entrepôt {movementForm.type === 'ADJUSTMENT' && <span className="text-xs text-brand-muted">(quantité = nouvelle valeur dans cet entrepôt)</span>}</label>
+                    <select value={movementForm.warehouseId}
+                      onChange={e => setMovementForm(f => ({ ...f, warehouseId: e.target.value }))}
+                      className="input-field">
+                      {warehouses.map((w: any) => {
+                        const lv = selectedItem.levels?.find((l: any) => l.warehouseId === w.id)
+                        return <option key={w.id} value={w.id}>{w.name}{lv ? ` — ${formatQuantity(lv.quantity, selectedItem.unit)}` : ' — 0'}</option>
+                      })}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium mb-2">Quantité ({selectedItem.unit})</label>
                   <input type="number" value={movementForm.quantity}
@@ -1175,6 +1199,7 @@ export default function StockPage() {
                       type: movementForm.type,
                       quantity: parseFloat(movementForm.quantity),
                       notes: movementForm.notes || undefined,
+                      warehouseId: movementForm.warehouseId || undefined,
                       expiryDate: movementForm.type === 'IN' && movementForm.expiryDate ? movementForm.expiryDate : undefined,
                     }})}
                     disabled={!movementForm.quantity || recordMovement.isPending}
@@ -1376,24 +1401,38 @@ export default function StockPage() {
                 <h2 className="font-bold text-lg">Inventaire physique</h2>
                 <button onClick={() => setShowInventory(false)} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
               </div>
-              <p className="text-brand-muted text-sm mb-4">Saisissez les quantités réellement comptées. Les ajustements seront créés automatiquement.</p>
+              <p className="text-brand-muted text-sm mb-3">Saisissez les quantités réellement comptées. Les ajustements seront créés automatiquement.</p>
+              {warehouses.length > 0 && (
+                <div className="mb-4">
+                  <label className="text-xs text-brand-muted mb-1 block">Entrepôt compté</label>
+                  <select value={inventoryWarehouse}
+                    onChange={e => { setInventoryWarehouse(e.target.value); setInventoryCounts({}) }}
+                    className="input-field">
+                    <option value="">Entrepôt par défaut</option>
+                    {warehouses.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="overflow-y-auto flex-1 space-y-1 mb-4">
                 <div className="grid grid-cols-3 gap-2 px-2 pb-2 text-xs font-medium text-brand-muted uppercase">
                   <span>Article</span><span>Stock système</span><span>Compté</span>
                 </div>
                 {allItems.map((item: any) => {
-                  const counted = inventoryCounts[item.id] ?? String(item.currentQuantity)
-                  const diff = parseFloat(counted) - item.currentQuantity
+                  const sysQty = inventoryWarehouse
+                    ? (item.levels?.find((l: any) => l.warehouseId === inventoryWarehouse)?.quantity ?? 0)
+                    : item.currentQuantity
+                  const counted = inventoryCounts[item.id] ?? String(sysQty)
+                  const diff = parseFloat(counted) - sysQty
                   return (
                     <div key={item.id} className="grid grid-cols-3 gap-2 items-center px-2 py-2 rounded-xl hover:bg-white/3">
                       <div>
                         <p className="text-sm font-medium">{item.name}</p>
                         <p className="text-xs text-brand-muted">{item.unit}</p>
                       </div>
-                      <p className="text-sm text-brand-muted">{formatQuantity(item.currentQuantity, item.unit)}</p>
+                      <p className="text-sm text-brand-muted">{formatQuantity(sysQty, item.unit)}</p>
                       <div className="flex items-center gap-2">
                         <input type="number" min="0"
-                          value={inventoryCounts[item.id] ?? String(item.currentQuantity)}
+                          value={inventoryCounts[item.id] ?? String(sysQty)}
                           onChange={e => setInventoryCounts(c => ({ ...c, [item.id]: e.target.value }))}
                           className="input-field py-1.5 text-sm w-24" />
                         {!isNaN(diff) && diff !== 0 && (
