@@ -24,6 +24,7 @@ type Product = {
   prepTime?: number; allergens: string[]; tags: string[]
   categoryId: string; category?: { name: string; icon?: string }
   warehouseId?: string | null; warehouse?: { id: string; name: string }
+  stockItemId?: string | null
   recipeItems?: RecipeItem[]
   variants?: { id: string; name: string; price: number; isDefault: boolean; isActive: boolean }[]
 }
@@ -300,6 +301,7 @@ function ProductModal({
     fats: (product as any)?.fats?.toString() ?? '',
     categoryId: product?.categoryId ?? (categories[0]?.id ?? ''),
     warehouseId: product?.warehouseId ?? '',
+    stockItemId: product?.stockItemId ?? '',
     isAvailable: product?.isAvailable ?? true,
     isFeatured: product?.isFeatured ?? false,
     isNew: product?.isNew ?? false,
@@ -307,6 +309,11 @@ function ProductModal({
     requiresPreparation: product?.requiresPreparation ?? true,
     allergens: product?.allergens ?? [] as string[],
     tags: product?.tags?.filter(t => t !== 'no-recipe').join(', ') ?? '',
+  })
+
+  const { data: stockItems = [] } = useQuery<StockItem[]>({
+    queryKey: ['stock-items-link'],
+    queryFn: () => api.get('/stock?limit=500').then(r => r.data.data ?? []),
   })
 
   const margin = form.price && form.costPrice
@@ -350,6 +357,7 @@ function ProductModal({
       fats: form.fats ? parseFloat(form.fats) : undefined,
       categoryId: form.categoryId,
       warehouseId: form.warehouseId || null,
+      stockItemId: form.hasRecipe ? null : (form.stockItemId || null),
       isAvailable: form.isAvailable,
       isFeatured: form.isFeatured,
       isNew: form.isNew,
@@ -594,6 +602,30 @@ function ProductModal({
               {form.requiresPreparation ? '👨‍🍳 Passe en cuisine' : '⚡ Prêt à servir'}
             </button>
           </div>
+
+          {/* Article de stock lié (produit vendu tel quel) */}
+          {!form.hasRecipe && (
+            <div>
+              <label className="text-sm text-brand-muted mb-1 block">
+                Article de stock lié
+                <span className="text-xs text-brand-muted ml-2">(décrémenté de 1 à chaque vente · suit l'entrepôt du produit)</span>
+              </label>
+              <select value={form.stockItemId} onChange={e => setForm(f => ({ ...f, stockItemId: e.target.value }))}
+                className="input-field">
+                <option value="">— Aucun (pas de suivi de stock) —</option>
+                {stockItems.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {s.currentQuantity} {s.unit} en stock
+                  </option>
+                ))}
+              </select>
+              {stockItems.length === 0 && (
+                <p className="text-xs text-brand-muted mt-1">
+                  Aucun article de stock — <a href="/stock" className="text-brand-orange underline">créez-en un d'abord</a>
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Tags */}
           <div>
