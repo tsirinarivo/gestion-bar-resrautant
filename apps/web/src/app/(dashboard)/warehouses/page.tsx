@@ -499,10 +499,11 @@ export default function WarehousesPage() {
                       </td>
                       <td className="px-4 py-3 text-brand-muted">{w.location ?? '—'}</td>
                       <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Package className="w-3.5 h-3.5 text-brand-muted" />
-                          <span>{w.stockCount ?? 0}</span>
-                        </div>
+                        <button onClick={() => setDetailWarehouse(w)}
+                          className="inline-flex items-center gap-1 text-brand-muted hover:text-brand-orange transition-colors">
+                          <Package className="w-3.5 h-3.5" />
+                          <span>{w.stockCount ?? 0} {(w.stockCount ?? 0) > 1 ? 'articles' : 'article'}</span>
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
