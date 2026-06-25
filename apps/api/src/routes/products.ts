@@ -699,11 +699,12 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
     // SKUs + slugs déjà en DB pour skip les doublons / garantir l'unicité
     const existingProducts = await prisma.product.findMany({
       where: { restaurantId },
-      select: { sku: true, slug: true },
+      select: { sku: true, slug: true, name: true },
     })
     const existingSkus = new Set(
       existingProducts.filter(p => p.sku).map(p => (p.sku || '').toLowerCase())
     )
+    const existingNames = new Set(existingProducts.map(p => (p.name || '').trim().toLowerCase()))
     const usedProductSlugs = new Set(existingProducts.map(p => p.slug))
 
     // Entrepôt par défaut pour rattacher les StockItem créés (sinon ils sont
@@ -730,6 +731,14 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
       // SKU : Dolibarr FR 'Réf.' → 'ref', EN 'Ref' → 'ref'
       const sku = pick(row, ['ref', 'sku', 'reference', 'code', 'product_ref'])
       if (sku && existingSkus.has(sku.toLowerCase())) {
+        results.skipped++
+        continue
+      }
+
+      // Anti-doublon par nom : un produit du même nom existe déjà (ou plus haut
+      // dans le fichier) → on saute. Évite de dupliquer le catalogue si l'import
+      // est relancé alors que les produits n'ont pas de SKU.
+      if (existingNames.has(name.trim().toLowerCase())) {
         results.skipped++
         continue
       }
@@ -847,6 +856,7 @@ productRouter.post('/import', authorize('manager', 'superadmin'), csvUpload.sing
           }
         })
         if (sku) existingSkus.add(sku.toLowerCase())
+        existingNames.add(name.trim().toLowerCase())
         results.created++
       } catch (err: any) {
         console.error(`[import-csv] ligne ${lineNo} "${name}" échouée:`, err?.message ?? err)
