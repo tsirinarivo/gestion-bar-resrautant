@@ -1,6 +1,5 @@
 'use client'
 
-import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, Package, AlertTriangle, TrendingDown, TrendingUp, Calendar, Layers } from 'lucide-react'
@@ -18,8 +17,8 @@ const MOVEMENT_LABELS: Record<string, string> = {
   IN: 'Entrée', OUT: 'Sortie', ADJUSTMENT: 'Ajustement', LOSS: 'Perte', TRANSFER: 'Transfert',
 }
 
-export default function StockItemPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function StockItemPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const router = useRouter()
 
   const { data: item, isLoading } = useQuery({

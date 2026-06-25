@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, User, Phone, Mail, MapPin, Award, ShoppingBag, Calendar, Star, Edit2, Check, X, Plus, Minus } from 'lucide-react'
@@ -21,8 +21,8 @@ const STATUS_COLOR: Record<string, string> = {
   READY: 'text-green-400', COMPLETED: 'text-emerald-400', CANCELLED: 'text-red-400',
 }
 
-export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function CustomerDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const router = useRouter()
   const qc = useQueryClient()
   const [adjustPoints, setAdjustPoints] = useState(0)
