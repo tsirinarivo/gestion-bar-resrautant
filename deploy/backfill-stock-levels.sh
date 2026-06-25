@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Initialise les niveaux de stock par entrepôt (table stock_levels) à partir de
-# l'état actuel : pour chaque article, crée une ligne (article, entrepôt, quantité)
-# dans son entrepôt actuel (warehouseId) ou, à défaut, l'entrepôt par défaut du
-# restaurant. Sans ça, après le passage au modèle multi-entrepôt, les articles
-# existants n'apparaîtraient dans aucun entrepôt.
-# Idempotent : ne touche pas un article qui a déjà au moins un niveau.
-# À lancer UNE FOIS après le déploiement du fix "stock multi-entrepôt".
+# Réconcilie les niveaux de stock par entrepôt (table stock_levels) avec le total
+# de chaque article (stock_items.currentQuantity) : si la somme des niveaux d'un
+# article est inférieure à son total, l'écart est ajouté dans son entrepôt
+# (warehouseId) ou, à défaut, l'entrepôt par défaut du restaurant.
+# Couvre aussi bien les articles sans aucun niveau que ceux dont un niveau à 0
+# avait été créé après la migration (laissant le stock "coincé" dans le cache).
+# Idempotent : après exécution, somme(niveaux) == currentQuantity, donc une
+# relance ne change plus rien.
+# À lancer après le déploiement du fix "stock multi-entrepôt".
 
 set -euo pipefail
 
@@ -27,21 +29,25 @@ BEGIN
     RETURN;
   END IF;
 
+  WITH target AS (
+    SELECT si.id AS sid,
+           si."currentQuantity"
+             - COALESCE((SELECT SUM(sl.quantity) FROM stock_levels sl WHERE sl."stockItemId" = si.id), 0) AS shortfall,
+           COALESCE(si."warehouseId", w.id) AS wid
+    FROM stock_items si
+    LEFT JOIN LATERAL (
+      SELECT id FROM warehouses ww
+      WHERE ww."restaurantId" = si."restaurantId"
+      ORDER BY ww."isDefault" DESC, ww."createdAt" ASC
+      LIMIT 1
+    ) w ON true
+  )
   INSERT INTO stock_levels (id, "stockItemId", "warehouseId", quantity, "createdAt", "updatedAt")
-  SELECT gen_random_uuid()::text,
-         si.id,
-         COALESCE(si."warehouseId", w.id),
-         si."currentQuantity",
-         now(), now()
-  FROM stock_items si
-  LEFT JOIN LATERAL (
-    SELECT id FROM warehouses ww
-    WHERE ww."restaurantId" = si."restaurantId"
-    ORDER BY ww."isDefault" DESC, ww."createdAt" ASC
-    LIMIT 1
-  ) w ON true
-  WHERE COALESCE(si."warehouseId", w.id) IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM stock_levels sl WHERE sl."stockItemId" = si.id);
+  SELECT gen_random_uuid()::text, sid, wid, shortfall, now(), now()
+  FROM target
+  WHERE wid IS NOT NULL AND shortfall > 0
+  ON CONFLICT ("stockItemId", "warehouseId")
+  DO UPDATE SET quantity = stock_levels.quantity + EXCLUDED.quantity, "updatedAt" = now();
 END$$;
 SQL
 }
@@ -54,4 +60,5 @@ for db in $DBS; do
   backfill_db "$db"
 done
 
-echo "✅ Backfill niveaux de stock par entrepôt terminé"
+echo "✅ Réconciliation des niveaux de stock par entrepôt terminée"
+
