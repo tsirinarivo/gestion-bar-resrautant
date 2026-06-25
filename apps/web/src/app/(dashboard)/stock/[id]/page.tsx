@@ -170,7 +170,7 @@ export default function StockItemPage({ params }: { params: { id: string } }) {
                     {MOVEMENT_LABELS[m.type] ?? m.type}
                   </span>
                   <span className="font-medium">
-                    {m.type === 'IN' ? '+' : m.type === 'ADJUSTMENT' ? '→' : '−'}{formatQuantity(m.quantity, item.unit)}
+                    {m.type === 'IN' ? '+' : m.type === 'ADJUSTMENT' ? '→' : m.type === 'TRANSFER' ? (m.quantity >= 0 ? '+' : '') : '−'}{formatQuantity(m.quantity, item.unit)}
                   </span>
                   {m.notes && <span className="text-brand-muted text-xs truncate">{m.notes}</span>}
                   <span className="ml-auto text-xs text-brand-muted flex-shrink-0">
