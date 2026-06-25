@@ -108,6 +108,7 @@ export async function deductStockForOrder(
   const orderWithItems = await prisma.order.findUnique({
     where: { id: orderId },
     select: {
+      restaurant: { select: { allowNegativeStock: true } },
       items: {
         select: {
           quantity: true,
@@ -130,6 +131,8 @@ export async function deductStockForOrder(
     },
   })
 
+  const allowNegativeStock = orderWithItems?.restaurant?.allowNegativeStock ?? false
+
   for (const item of orderWithItems?.items ?? []) {
     const product = item.product
     if (!product) continue
@@ -142,7 +145,9 @@ export async function deductStockForOrder(
 
         const warehouseId = await pickConsumeWarehouse(prisma, product.stockItemId, product.warehouseId)
         const levelQty = warehouseId ? await getLevelQty(prisma, product.stockItemId, warehouseId) : stockItem.currentQuantity
-        const actualQty = Math.min(item.quantity, levelQty)
+        // allowNegativeStock : on déduit la quantité complète (stock négatif,
+        // régularisé au prochain réappro). Sinon on plafonne au disponible.
+        const actualQty = allowNegativeStock ? item.quantity : Math.min(item.quantity, levelQty)
         const newQty = stockItem.currentQuantity - actualQty
 
         await prisma.$transaction(async (tx) => {
@@ -204,7 +209,7 @@ export async function deductStockForOrder(
         const theoreticalQty = item.quantity * baseQty / (recipeItem.yieldRate || 1)
         const warehouseId = await pickConsumeWarehouse(prisma, stockItemId, product.warehouseId)
         const levelQty = warehouseId ? await getLevelQty(prisma, stockItemId, warehouseId) : stockItem.currentQuantity
-        const actualQty = Math.min(theoreticalQty, levelQty)
+        const actualQty = allowNegativeStock ? theoreticalQty : Math.min(theoreticalQty, levelQty)
         const newQty = stockItem.currentQuantity - actualQty
 
         await prisma.$transaction(async (tx) => {
@@ -500,7 +505,7 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { deliveryFee: true },
+      select: { deliveryFee: true, allowNegativeStock: true },
     })
     const deliveryFee = data.type === 'DELIVERY' ? (restaurant?.deliveryFee || 0) : 0
     const taxAmount = 0
@@ -522,7 +527,7 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
           where: { id: productId, restaurantId },
           select: { name: true, stockItemId: true, stockItem: { select: { currentQuantity: true, unit: true } } },
         })
-        if (product?.stockItemId && product.stockItem) {
+        if (!restaurant?.allowNegativeStock && product?.stockItemId && product.stockItem) {
           if (product.stockItem.currentQuantity < qty) {
             throw new AppError(
               `Stock insuffisant pour "${product.name}" : ${product.stockItem.currentQuantity} ${product.stockItem.unit} disponible(s), ${qty} demandé(s)`,

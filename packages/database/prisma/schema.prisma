@@ -41,6 +41,10 @@ model Restaurant {
   deliveryFee       Float   @default(0)
   estimatedPrepTime Int     @default(20) // minutes
 
+  // Autorise la vente d'un produit même à stock épuisé (le stock devient
+  // négatif et se régularise au prochain réapprovisionnement).
+  allowNegativeStock Boolean @default(false)
+
   // Monthly revenue target
   monthlyRevenueTarget Float?
 

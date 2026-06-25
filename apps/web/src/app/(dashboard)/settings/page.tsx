@@ -3,7 +3,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
-import { Building2, Clock, Truck, Save, Globe, Image } from 'lucide-react'
+import { Building2, Clock, Truck, Save, Globe, Image, Package } from 'lucide-react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 
@@ -184,6 +184,27 @@ export default function SettingsPage() {
                 type="number" step="1000" min="0" placeholder="Ex : 5000000" className="input-field" />
             </div>
           </div>
+        </div>
+
+        {/* Stock / Vente */}
+        <div className="glass-card p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-brand-orange/20 flex items-center justify-center">
+              <Package className="w-4 h-4 text-brand-orange" />
+            </div>
+            <h2 className="font-semibold">Stock &amp; Vente</h2>
+          </div>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input {...register('allowNegativeStock')} type="checkbox"
+              className="mt-1 w-4 h-4 rounded accent-brand-orange" />
+            <div>
+              <p className="text-sm font-medium">Autoriser la vente à stock épuisé</p>
+              <p className="text-xs text-brand-muted mt-0.5">
+                Le POS accepte de vendre un produit même si son stock est à zéro. Le stock
+                devient négatif et se régularise automatiquement au prochain réapprovisionnement.
+              </p>
+            </div>
+          </label>
         </div>
 
         <div className="flex justify-end">

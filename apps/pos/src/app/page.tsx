@@ -1225,6 +1225,14 @@ export default function POSPage() {
     staleTime: 30_000,
   });
 
+  const { data: restaurantConfig } = useQuery<{ allowNegativeStock?: boolean }>({
+    queryKey: ['pos-restaurant-config', token],
+    queryFn: () => apiFetch<{ allowNegativeStock?: boolean }>(token!, '/restaurants/me'),
+    enabled: !!token,
+    staleTime: 300_000,
+  });
+  const allowNegativeStock = restaurantConfig?.allowNegativeStock ?? false;
+
   const { data: openOrders = [], refetch: refetchOrders } = useQuery<Order[]>({
     queryKey: ['pos-open-orders', token, activeTable?.id],
     queryFn: () => apiFetch<Order[]>(token!,
@@ -1269,7 +1277,7 @@ export default function POSPage() {
   }
 
   const addToCart = useCallback((product: Product) => {
-    if (product.stockAvailable !== null && product.stockAvailable !== undefined) {
+    if (!allowNegativeStock && product.stockAvailable !== null && product.stockAvailable !== undefined) {
       const currentQty = cart.find(i => i.product.id === product.id)?.quantity ?? 0;
       if (currentQty + 1 > product.stockAvailable) {
         showToast(
@@ -1286,7 +1294,7 @@ export default function POSPage() {
       if (ex) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
       return [...prev, { product, quantity: 1 }];
     });
-  }, [cart]);
+  }, [cart, allowNegativeStock]);
 
   const removeFromCart = useCallback((productId: string) => {
     setCart(prev =>
@@ -1640,7 +1648,8 @@ export default function POSPage() {
               {filteredProducts.map(product => {
                 const inCart = cart.find(i => i.product.id === product.id);
                 const hasStock = product.stockAvailable !== null && product.stockAvailable !== undefined;
-                const outOfStock = hasStock && product.stockAvailable! <= 0;
+                // allowNegativeStock : on autorise la vente même à 0 (stock négatif régularisé au réappro)
+                const outOfStock = hasStock && product.stockAvailable! <= 0 && !allowNegativeStock;
                 const lowStock = hasStock && product.stockAvailable! > 0 && product.stockAvailable! <= 5;
                 return (
                   <button key={product.id} onClick={() => !outOfStock && addToCart(product)}

@@ -49,6 +49,7 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       deliveryFee: z.number().optional(),
       estimatedPrepTime: z.number().optional(),
       monthlyRevenueTarget: z.number().nullable().optional(),
+      allowNegativeStock: z.boolean().optional(),
     }).parse(req.body)
 
     const data: Record<string, unknown> = {}
@@ -56,7 +57,7 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       'name', 'description', 'logo', 'address', 'city', 'phone', 'email',
       'openingHours', 'defaultTaxRate', 'deliveryEnabled', 'pickupEnabled',
       'dineInEnabled', 'minOrderAmount', 'deliveryFee', 'estimatedPrepTime',
-      'monthlyRevenueTarget',
+      'monthlyRevenueTarget', 'allowNegativeStock',
     ] as const) {
       if (parsed[key] !== undefined) data[key] = parsed[key]
     }
