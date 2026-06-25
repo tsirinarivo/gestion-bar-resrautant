@@ -380,7 +380,7 @@ export default function StockPage() {
   const [inventoryWarehouse, setInventoryWarehouse] = useState('')
   // Transfer modal
   const [transferItem, setTransferItem] = useState<any>(null)
-  const [transferForm, setTransferForm] = useState({ toLocation: '', quantity: '', notes: '' })
+  const [transferForm, setTransferForm] = useState({ fromLocation: '', toLocation: '', quantity: '', notes: '' })
   const [batchItem, setBatchItem] = useState<any>(null)
   // Reorder
   const [reorderLines, setReorderLines]   = useState<ReorderLine[] | null>(null)
@@ -471,22 +471,24 @@ export default function StockPage() {
   })
 
   const recordTransfer = useMutation({
-    mutationFn: async ({ item, toLocation, quantity, notes }: any) => {
-      const destWarehouse = (warehouses as any[]).find((w: any) => w.id === toLocation)
-      await api.post(`/stock/${item.id}/movements`, {
-        type: 'TRANSFER',
-        quantity: parseFloat(quantity),
-        notes: `Transfert vers ${destWarehouse?.name ?? toLocation}${notes ? ` — ${notes}` : ''}`,
+    mutationFn: async ({ item, fromLocation, toLocation, quantity, notes }: any) => {
+      const res = await api.post('/warehouses/transfers', {
+        fromWarehouseId: fromLocation,
+        toWarehouseId: toLocation,
+        notes: notes || undefined,
+        items: [{ stockItemId: item.id, quantity: parseFloat(quantity) }],
       })
-      await api.put(`/stock/${item.id}`, { ...item, warehouseId: toLocation })
+      const transferId = res.data.data.id
+      await api.post(`/warehouses/transfers/${transferId}/complete`, {})
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['stock'] })
+      qc.invalidateQueries({ queryKey: ['transfers'] })
       setTransferItem(null)
-      setTransferForm({ toLocation: '', quantity: '', notes: '' })
-      toast.success('Transfert enregistré')
+      setTransferForm({ fromLocation: '', toLocation: '', quantity: '', notes: '' })
+      toast.success('Transfert effectué')
     },
-    onError: () => toast.error('Erreur lors du transfert'),
+    onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur lors du transfert'),
   })
 
   const allItems: any[] = data || []
@@ -833,7 +835,7 @@ export default function StockPage() {
                               className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg" title="Sortie">
                               <ArrowUp className="w-4 h-4" />
                             </button>
-                            <button onClick={() => { setTransferItem(item); setTransferForm({ toLocation: '', quantity: '', notes: '' }) }}
+                            <button onClick={() => { setTransferItem(item); setTransferForm({ fromLocation: item.levels?.find((l: any) => l.quantity > 0)?.warehouseId || item.warehouseId || '', toLocation: '', quantity: '', notes: '' }) }}
                               className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded-lg" title="Transfert">
                               <ArrowRightLeft className="w-4 h-4" />
                             </button>
@@ -1471,48 +1473,73 @@ export default function StockPage() {
                 </h2>
                 <button onClick={() => setTransferItem(null)} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
               </div>
-              <div className="space-y-4">
-                <div className="p-3 bg-white/3 rounded-xl text-sm">
-                  <p className="font-medium">{transferItem.name}</p>
-                  <p className="text-brand-muted mt-0.5">
-                    Dépôt actuel : <strong>{(warehouses as any[]).find((w: any) => w.id === transferItem.warehouseId)?.name || '—'}</strong>
-                    {' · '}Stock : <strong>{formatQuantity(transferItem.currentQuantity, transferItem.unit)}</strong>
-                  </p>
+              {(() => {
+                const srcAvail = transferItem.levels?.find((l: any) => l.warehouseId === transferForm.fromLocation)?.quantity ?? 0
+                return (
+                <div className="space-y-4">
+                  <div className="p-3 bg-white/3 rounded-xl text-sm">
+                    <p className="font-medium">{transferItem.name}</p>
+                    <p className="text-brand-muted mt-0.5">Stock total : <strong>{formatQuantity(transferItem.currentQuantity, transferItem.unit)}</strong></p>
+                    {transferItem.levels?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {transferItem.levels.map((lv: any) => (
+                          <span key={lv.id} className="text-xs px-2 py-0.5 rounded-lg bg-brand-border/40">
+                            🏭 {lv.warehouse?.name} : <strong>{formatQuantity(lv.quantity, transferItem.unit)}</strong>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Source *</label>
+                      <select value={transferForm.fromLocation}
+                        onChange={e => setTransferForm(f => ({ ...f, fromLocation: e.target.value, toLocation: f.toLocation === e.target.value ? '' : f.toLocation }))}
+                        className="input-field">
+                        <option value="">— Source —</option>
+                        {(warehouses as any[]).map((w: any) => {
+                          const lv = transferItem.levels?.find((l: any) => l.warehouseId === w.id)
+                          return <option key={w.id} value={w.id}>{w.name} ({formatQuantity(lv?.quantity ?? 0, transferItem.unit)})</option>
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Destination *</label>
+                      <select value={transferForm.toLocation}
+                        onChange={e => setTransferForm(f => ({ ...f, toLocation: e.target.value }))}
+                        className="input-field">
+                        <option value="">— Destination —</option>
+                        {(warehouses as any[]).filter((w: any) => w.id !== transferForm.fromLocation).map((w: any) => (
+                          <option key={w.id} value={w.id}>{w.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Quantité à transférer ({transferItem.unit})</label>
+                    <input type="number" value={transferForm.quantity}
+                      onChange={e => setTransferForm(f => ({ ...f, quantity: e.target.value }))}
+                      placeholder="0" min="0" max={srcAvail} className="input-field" />
+                    <p className="text-xs text-brand-muted mt-1">Max disponible dans la source : {formatQuantity(srcAvail, transferItem.unit)}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Note (optionnel)</label>
+                    <input value={transferForm.notes}
+                      onChange={e => setTransferForm(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Raison du transfert..." className="input-field" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setTransferItem(null)} className="btn-secondary flex-1">Annuler</button>
+                    <button
+                      onClick={() => recordTransfer.mutate({ item: transferItem, ...transferForm })}
+                      disabled={!transferForm.fromLocation || !transferForm.toLocation || !transferForm.quantity || parseFloat(transferForm.quantity) > srcAvail || recordTransfer.isPending}
+                      className="btn-primary flex-1 disabled:opacity-50">
+                      {recordTransfer.isPending ? 'Transfert...' : 'Confirmer le transfert'}
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Dépôt destination *</label>
-                  <select value={transferForm.toLocation}
-                    onChange={e => setTransferForm(f => ({ ...f, toLocation: e.target.value }))}
-                    className="input-field">
-                    <option value="">— Choisir un dépôt —</option>
-                    {(warehouses as any[]).filter((w: any) => w.id !== transferItem.warehouseId).map((w: any) => (
-                      <option key={w.id} value={w.id}>{w.name}{w.description ? ` — ${w.description}` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Quantité à transférer ({transferItem.unit})</label>
-                  <input type="number" value={transferForm.quantity}
-                    onChange={e => setTransferForm(f => ({ ...f, quantity: e.target.value }))}
-                    placeholder="0" min="0" max={transferItem.currentQuantity} className="input-field" />
-                  <p className="text-xs text-brand-muted mt-1">Max disponible : {formatQuantity(transferItem.currentQuantity, transferItem.unit)}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Note (optionnel)</label>
-                  <input value={transferForm.notes}
-                    onChange={e => setTransferForm(f => ({ ...f, notes: e.target.value }))}
-                    placeholder="Raison du transfert..." className="input-field" />
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setTransferItem(null)} className="btn-secondary flex-1">Annuler</button>
-                  <button
-                    onClick={() => recordTransfer.mutate({ item: transferItem, ...transferForm })}
-                    disabled={!transferForm.toLocation || !transferForm.quantity || recordTransfer.isPending}
-                    className="btn-primary flex-1 disabled:opacity-50">
-                    {recordTransfer.isPending ? 'Transfert...' : 'Confirmer le transfert'}
-                  </button>
-                </div>
-              </div>
+                )
+              })()}
             </motion.div>
           </motion.div>
         )}
