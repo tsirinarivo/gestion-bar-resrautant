@@ -20,14 +20,24 @@ const warehouseSchema = z.object({
 // GET /api/warehouses
 warehouseRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
+    const restaurantId = req.user!.restaurantId
     const warehouses = await prisma.warehouse.findMany({
-      where: { restaurantId: req.user!.restaurantId },
-      include: {
-        _count: { select: { stockItems: true } },
-      },
+      where: { restaurantId },
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
     })
-    res.json({ success: true, data: warehouses })
+    const stats = await prisma.stockLevel.groupBy({
+      by: ['warehouseId'],
+      where: { warehouseId: { in: warehouses.map(w => w.id) }, quantity: { gt: 0 } },
+      _count: { _all: true },
+      _sum: { quantity: true },
+    })
+    const statMap = Object.fromEntries(stats.map(s => [s.warehouseId, s]))
+    const data = warehouses.map(w => ({
+      ...w,
+      stockCount: statMap[w.id]?._count?._all ?? 0,
+      stockQuantity: statMap[w.id]?._sum?.quantity ?? 0,
+    }))
+    res.json({ success: true, data })
   } catch (error) { next(error) }
 })
 
@@ -97,6 +107,22 @@ warehouseRouter.get('/:id/stock', async (req: AuthRequest, res, next) => {
       warehouseQuantity: l.quantity,
     }))
     res.json({ success: true, data: items })
+  } catch (error) { next(error) }
+})
+
+// GET /api/warehouses/:id/movements — historique des mouvements dans cet entrepôt
+warehouseRouter.get('/:id/movements', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const warehouse = await prisma.warehouse.findFirst({ where: { id: req.params.id, restaurantId } })
+    if (!warehouse) throw new AppError('Entrepôt introuvable', 404)
+    const movements = await prisma.stockMovement.findMany({
+      where: { warehouseId: req.params.id, stockItem: { restaurantId } },
+      include: { stockItem: { select: { id: true, name: true, unit: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+    res.json({ success: true, data: movements })
   } catch (error) { next(error) }
 })
 

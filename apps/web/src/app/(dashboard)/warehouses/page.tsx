@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Warehouse, ArrowRightLeft, Plus, Edit2, Trash2, X,
-  CheckCircle2, Truck, XCircle, Clock, Package,
-  ChevronLeft, ChevronRight,
+  CheckCircle2, Truck, XCircle, Clock, Package, Eye,
+  ChevronLeft, ChevronRight, TrendingUp, TrendingDown,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency } from '@restaurant/utils'
@@ -22,6 +22,7 @@ type WarehouseItem = {
   isDefault: boolean
   isActive: boolean
   stockCount?: number
+  stockQuantity?: number
 }
 
 type StockItem = {
@@ -325,6 +326,7 @@ export default function WarehousesPage() {
   })
   const [transferModal, setTransferModal] = useState(false)
   const [transferPage, setTransferPage] = useState(1)
+  const [detailWarehouse, setDetailWarehouse] = useState<WarehouseItem | null>(null)
 
   // ── Warehouses ──
   const { data: warehouses = [], isLoading: loadingWarehouses } = useQuery<WarehouseItem[]>({
@@ -484,7 +486,7 @@ export default function WarehousesPage() {
                     <tr key={w.id} className="border-b border-brand-border/30 hover:bg-white/2 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{w.name}</span>
+                          <button onClick={() => setDetailWarehouse(w)} className="font-medium hover:text-brand-orange transition-colors text-left">{w.name}</button>
                           {w.isDefault && (
                             <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border bg-brand-orange/15 text-brand-orange border-brand-orange/30">
                               Défaut
@@ -513,6 +515,13 @@ export default function WarehousesPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setDetailWarehouse(w)}
+                            className="p-1.5 text-brand-muted hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                            title="Voir le stock et l'historique"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => setWarehouseModal({ open: true, warehouse: w })}
                             className="p-1.5 text-brand-muted hover:text-white hover:bg-white/10 rounded-lg transition-colors"
@@ -674,7 +683,100 @@ export default function WarehousesPage() {
             onSave={d => createTransfer.mutate(d)}
           />
         )}
+        {detailWarehouse && (
+          <WarehouseDetailModal
+            warehouse={detailWarehouse}
+            onClose={() => setDetailWarehouse(null)}
+          />
+        )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+const MOVEMENT_META: Record<string, { label: string; cls: string }> = {
+  IN: { label: 'Entrée', cls: 'text-green-400 bg-green-500/10' },
+  OUT: { label: 'Sortie', cls: 'text-red-400 bg-red-500/10' },
+  ADJUSTMENT: { label: 'Ajust.', cls: 'text-blue-400 bg-blue-500/10' },
+  LOSS: { label: 'Perte', cls: 'text-amber-400 bg-amber-500/10' },
+  TRANSFER: { label: 'Transfert', cls: 'text-purple-400 bg-purple-500/10' },
+}
+
+function WarehouseDetailModal({ warehouse, onClose }: { warehouse: WarehouseItem; onClose: () => void }) {
+  const [view, setView] = useState<'stock' | 'history'>('stock')
+
+  const { data: stock = [], isLoading: loadingStock } = useQuery<any[]>({
+    queryKey: ['warehouse-detail-stock', warehouse.id],
+    queryFn: () => api.get(`/warehouses/${warehouse.id}/stock`).then(r => r.data.data ?? []),
+  })
+  const { data: movements = [], isLoading: loadingMov } = useQuery<any[]>({
+    queryKey: ['warehouse-detail-movements', warehouse.id],
+    queryFn: () => api.get(`/warehouses/${warehouse.id}/movements`).then(r => r.data.data ?? []),
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+        className="w-full max-w-2xl bg-brand-card border border-brand-border rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-brand-border flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Warehouse className="w-5 h-5 text-brand-orange" />
+            <h2 className="font-bold text-lg">{warehouse.name}</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="flex gap-1 px-5 pt-4 flex-shrink-0">
+          {([['stock', 'Articles en stock'], ['history', 'Historique des mouvements']] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setView(k)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${view === k ? 'bg-brand-orange text-white' : 'text-brand-muted hover:text-white'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <div className="p-5 overflow-y-auto flex-1">
+          {view === 'stock' && (
+            loadingStock ? <p className="text-brand-muted text-sm text-center py-6">Chargement…</p>
+            : stock.length === 0 ? <p className="text-brand-muted text-sm text-center py-6">Aucun article en stock dans cet entrepôt.</p>
+            : (
+              <div className="space-y-1">
+                {stock.map((s: any) => (
+                  <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-white/3">
+                    <span className="text-sm font-medium">{s.name}</span>
+                    <span className={`text-sm font-semibold ${s.quantity <= 0 ? 'text-red-400' : 'text-white'}`}>{s.quantity} {s.unit}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+          {view === 'history' && (
+            loadingMov ? <p className="text-brand-muted text-sm text-center py-6">Chargement…</p>
+            : movements.length === 0 ? <p className="text-brand-muted text-sm text-center py-6">Aucun mouvement enregistré dans cet entrepôt.</p>
+            : (
+              <div className="space-y-1.5">
+                {movements.map((m: any) => {
+                  const meta = MOVEMENT_META[m.type] ?? { label: m.type, cls: 'text-brand-muted bg-white/5' }
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 text-sm px-3 py-2 rounded-xl hover:bg-white/3">
+                      <span className={`text-xs px-2 py-0.5 rounded-lg font-medium flex-shrink-0 ${meta.cls}`}>{meta.label}</span>
+                      <span className="font-medium truncate">{m.stockItem?.name ?? '—'}</span>
+                      <span className={`flex items-center gap-0.5 flex-shrink-0 ${m.quantity < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {m.quantity < 0 ? <TrendingDown className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
+                        {Math.abs(m.quantity)} {m.stockItem?.unit}
+                      </span>
+                      <span className="ml-auto text-xs text-brand-muted flex-shrink-0">
+                        {new Date(m.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          )}
+        </div>
+      </motion.div>
     </div>
   )
 }
