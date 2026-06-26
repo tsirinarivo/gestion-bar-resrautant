@@ -686,7 +686,7 @@ function OrderCard({ order, onStatusChange, onCancel, onPay }: { order: any; onS
       orderNumber: order.orderNumber,
       tableLabel: order.table?.number ? `Table ${order.table.number}` : order.type === 'TAKEAWAY' ? 'À emporter' : order.type === 'DELIVERY' ? 'Livraison' : 'En ligne',
       items: (order.items ?? []).map((i: any) => ({
-        name: i.product?.name ?? '?',
+        name: i.product?.name ?? i.productName ?? '?',
         qty: i.quantity,
         unitPrice: i.unitPrice,
         total: i.totalPrice,
@@ -748,7 +748,7 @@ function OrderCard({ order, onStatusChange, onCancel, onPay }: { order: any; onS
             expanded ? (
               <div key={item.id} className="text-xs px-2.5 py-1.5 bg-white/7 rounded-lg flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium">{item.product?.name || '?'}</p>
+                  <p className="font-medium">{(item.product?.name ?? item.productName) || '?'}</p>
                   {item.modifiers?.length > 0 && (
                     <p className="text-[10px] text-brand-muted mt-0.5">
                       + {item.modifiers.map((m: any) => m.name).join(', ')}
@@ -758,7 +758,7 @@ function OrderCard({ order, onStatusChange, onCancel, onPay }: { order: any; onS
                 </div>
                 {order.status === 'PENDING' ? (
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={() => item.quantity > 1 ? changeQty.mutate({ itemId: item.id, quantity: item.quantity - 1 }) : (order.items.length > 1 && confirm(`Supprimer "${item.product?.name}" ?`) && deleteItem.mutate(item.id))}
+                    <button onClick={() => item.quantity > 1 ? changeQty.mutate({ itemId: item.id, quantity: item.quantity - 1 }) : (order.items.length > 1 && confirm(`Supprimer "${(item.product?.name ?? item.productName)}" ?`) && deleteItem.mutate(item.id))}
                       className="w-5 h-5 rounded flex items-center justify-center bg-white/10 hover:bg-white/20 text-brand-muted hover:text-white transition-colors font-bold">
                       −
                     </button>
@@ -767,7 +767,7 @@ function OrderCard({ order, onStatusChange, onCancel, onPay }: { order: any; onS
                       className="w-5 h-5 rounded flex items-center justify-center bg-white/10 hover:bg-white/20 text-brand-muted hover:text-white transition-colors font-bold">
                       +
                     </button>
-                    <button onClick={() => { if (confirm(`Supprimer "${item.product?.name}" ?`)) deleteItem.mutate(item.id) }}
+                    <button onClick={() => { if (confirm(`Supprimer "${(item.product?.name ?? item.productName)}" ?`)) deleteItem.mutate(item.id) }}
                       className="ml-1 text-red-400/60 hover:text-red-400 transition-colors"
                       title="Supprimer">
                       <Trash2 className="w-3.5 h-3.5" />
@@ -779,7 +779,7 @@ function OrderCard({ order, onStatusChange, onCancel, onPay }: { order: any; onS
               </div>
             ) : (
               <span key={item.id} className="text-xs px-2.5 py-1 bg-white/7 rounded-lg font-medium">
-                {item.quantity}× {item.product?.name || '?'}
+                {item.quantity}× {(item.product?.name ?? item.productName) || '?'}
                 {item.modifiers?.length > 0 && <span className="text-brand-muted"> +{item.modifiers.length}</span>}
               </span>
             )

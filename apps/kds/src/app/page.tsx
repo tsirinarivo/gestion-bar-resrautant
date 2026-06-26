@@ -13,7 +13,8 @@ interface OrderItem {
   quantity: number;
   notes?: string;
   kdsStation?: string;
-  product: { name: string };
+  product: { name: string } | null;
+  productName?: string | null;
   modifiers: Array<{ name: string; price: number }>;
 }
 
@@ -238,7 +239,7 @@ function KDSPageInner() {
     return orders
       .map(order => ({
         ...order,
-        items: order.items.filter(item => (item.kdsStation ?? 'hot') === station),
+        items: order.items.filter(item => item.product && (item.kdsStation ?? 'hot') === station),
       }))
       .filter(order => order.items.length > 0);
   }, [orders, station]);
@@ -341,7 +342,7 @@ function KDSPageInner() {
                         <div key={item.id} className={`flex gap-2 ${itemReady ? 'opacity-50' : ''}`}>
                           <span className="font-bold text-amber-400 min-w-[24px]">{item.quantity}×</span>
                           <div className="flex-1">
-                            <p className={`font-medium text-sm ${itemReady ? 'line-through' : ''}`}>{item.product.name}</p>
+                            <p className={`font-medium text-sm ${itemReady ? 'line-through' : ''}`}>{item.product?.name ?? item.productName ?? '?'}</p>
                             {item.modifiers.length > 0 && (
                               <p className="text-xs text-gray-400">{item.modifiers.map(m => m.name).join(', ')}</p>
                             )}

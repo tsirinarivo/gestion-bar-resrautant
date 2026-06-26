@@ -851,8 +851,13 @@ model OrderItem {
   orderId String
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
+  // productId nullable : articles "externes" hors menu/hors stock, achetés à la
+  // demande chez un confrère et revendus. Identifiés par productName + costPrice.
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  // Coût d'achat d'un article externe (ce qu'on a payé) → marge = unitPrice - costPrice.
+  costPrice Float?
 
   modifiers OrderItemModifier[]
 

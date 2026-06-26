@@ -15,7 +15,7 @@ import {
 
 interface Category  { id: string; name: string; icon?: string }
 interface Product   { id: string; name: string; price: number; categoryId: string; image?: string | null; stockAvailable?: number | null; barcode?: string | null; sku?: string | null }
-interface CartItem  { product: Product; quantity: number }
+interface CartItem  { product: Product; quantity: number; costPrice?: number }
 interface Table     { id: string; number: number; status: string; capacity: number }
 interface OrderItem { id: string; quantity: number; totalPrice: number; product: { name: string } }
 interface OrderPayment { id: string; amount: number; status: string }
@@ -479,7 +479,9 @@ function PaymentModal({
             tableId: activeTable?.id,
             notes: orderNote || undefined,
             tipAmount: tip > 0 ? tip : undefined,
-            items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price })),
+            items: cart.map(i => i.product.id.startsWith('ext-')
+              ? { productName: i.product.name, quantity: i.quantity, unitPrice: i.product.price, costPrice: i.costPrice }
+              : { productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price }),
           });
           createdCartOrderId.current = newOrder.id;
           queue.push({ id: newOrder.id, remaining: newOrder.totalAmount + (tip > 0 ? tip : 0) });
@@ -1042,6 +1044,71 @@ function TerminalSelector({ terminals, onSelect }: {
 
 // ─── Main POS ─────────────────────────────────────────────────────────────────
 
+function ExternalItemModal({ onClose, onAdd }: {
+  onClose: () => void
+  onAdd: (name: string, price: number, cost: number, qty: number) => void
+}) {
+  const [name, setName] = useState('')
+  const [price, setPrice] = useState('')
+  const [cost, setCost] = useState('')
+  const [qty, setQty] = useState('1')
+
+  const p = parseFloat(price) || 0
+  const c = parseFloat(cost) || 0
+  const margin = p - c
+
+  function submit() {
+    if (!name.trim()) return
+    if (p <= 0) return
+    onAdd(name.trim(), p, c, Math.max(1, parseInt(qty) || 1))
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl p-5" onClick={e => e.stopPropagation()}>
+        <h2 className="font-bold text-lg text-white mb-1">Article externe</h2>
+        <p className="text-xs text-gray-400 mb-4">Article hors menu acheté à la demande (ex. chez un confrère) et revendu.</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Désignation *</label>
+            <input value={name} onChange={e => setName(e.target.value)} autoFocus
+              placeholder="Ex : Pomme frites" className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-orange-500" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Prix de vente (Ar) *</label>
+              <input type="number" value={price} onChange={e => setPrice(e.target.value)} min="0"
+                placeholder="0" className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-orange-500" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Coût d&apos;achat (Ar)</label>
+              <input type="number" value={cost} onChange={e => setCost(e.target.value)} min="0"
+                placeholder="0" className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-orange-500" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Quantité</label>
+            <input type="number" value={qty} onChange={e => setQty(e.target.value)} min="1"
+              className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-orange-500" />
+          </div>
+          {p > 0 && (
+            <p className={`text-xs ${margin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              Marge unitaire : {margin.toLocaleString('fr-FR')} Ar {c > 0 ? `(achat ${c.toLocaleString('fr-FR')} → vente ${p.toLocaleString('fr-FR')})` : '(sans marge renseignée)'}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2 mt-5">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-300 text-sm font-medium">Annuler</button>
+          <button onClick={submit} disabled={!name.trim() || p <= 0}
+            className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold disabled:opacity-40">
+            Ajouter
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function POSPage() {
   const [token,            setToken]           = useState<string | null>(null);
   const [initialized,      setInitialized]     = useState(false);
@@ -1154,6 +1221,7 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [search,           setSearch]           = useState('');
   const [cart,             setCart]             = useState<CartItem[]>([]);
+  const [showExternal,     setShowExternal]     = useState(false);
   const [orderNote,        setOrderNote]        = useState('');
   const [activeTable,      setActiveTable]      = useState<Table | null>(null);
   const [orderType,        setOrderType]        = useState<'DINE_IN' | 'TAKEAWAY'>('DINE_IN');
@@ -1296,6 +1364,15 @@ export default function POSPage() {
     });
   }, [cart, allowNegativeStock]);
 
+  // Article externe (hors menu / hors stock) : nom libre, prix de vente, coût d'achat.
+  function addExternalItem(name: string, price: number, cost: number, qty: number) {
+    const product: Product = {
+      id: `ext-${Date.now()}`, name, price, categoryId: '', stockAvailable: null,
+    };
+    setCart(prev => [...prev, { product, quantity: qty, costPrice: cost }]);
+    setShowExternal(false);
+  }
+
   const removeFromCart = useCallback((productId: string) => {
     setCart(prev =>
       prev.map(i => i.product.id === productId ? { ...i, quantity: i.quantity - 1 } : i)
@@ -1320,7 +1397,9 @@ export default function POSPage() {
         status: 'CONFIRMED',
         tableId: activeTable?.id,
         notes: orderNote || undefined,
-        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price })),
+        items: cart.map(i => i.product.id.startsWith('ext-')
+              ? { productName: i.product.name, quantity: i.quantity, unitPrice: i.product.price, costPrice: i.costPrice }
+              : { productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price }),
       });
       setCart([]);
       setOrderNote('');
@@ -1614,6 +1693,10 @@ export default function POSPage() {
               className="w-full bg-gray-800 rounded-xl px-4 py-2 text-sm placeholder-gray-500 outline-none focus:ring-1 focus:ring-orange-500"
             />
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              <button onClick={() => setShowExternal(true)}
+                className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border border-dashed border-orange-500/60 text-orange-300 bg-orange-500/10 whitespace-nowrap">
+                + Article externe
+              </button>
               <button onClick={() => setSelectedCategory(undefined)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${!selectedCategory ? 'bg-orange-500 text-white border-orange-500' : 'border-gray-700 text-gray-400'}`}>
                 Tous
@@ -1693,6 +1776,10 @@ export default function POSPage() {
           <CartPanel {...cartPanelProps} />
         </div>
       </div>
+
+      {showExternal && (
+        <ExternalItemModal onClose={() => setShowExternal(false)} onAdd={addExternalItem} />
+      )}
 
       {/* Mobile: floating cart button */}
       {!cartOpen && (cartCount > 0 || openOrders.length > 0) && (

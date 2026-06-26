@@ -42,7 +42,7 @@ function buildReceiptPayload(updatedOrder: any, originalOrder: any, cashierName?
     cashierName: cashierName ?? null,
     table:       tableLabel,
     items:         (updatedOrder.items ?? []).map((i: any) => ({
-      name:      i.product?.name ?? 'Article',
+      name:      i.product?.name ?? i.productName ?? 'Article',
       qty:       i.quantity,
       unitPrice: i.unitPrice,
       total:     i.totalPrice,
@@ -302,7 +302,10 @@ export const orderRouter = Router()
 orderRouter.use(authenticate)
 
 const orderItemSchema = z.object({
-  productId: z.string(),
+  // productId optionnel : article externe (hors menu) → fournir productName.
+  productId: z.string().optional(),
+  productName: z.string().optional(),
+  costPrice: z.number().nonnegative().optional(),
   quantity: z.number().int().positive(),
   unitPrice: z.number().positive(),
   notes: z.string().optional(),
@@ -314,6 +317,8 @@ const orderItemSchema = z.object({
     modifierId: z.string().optional(),
     variantId: z.string().optional(),
   })).optional(),
+}).refine(i => i.productId || (i.productName && i.productName.trim()), {
+  message: 'productId ou productName requis',
 })
 
 const createOrderSchema = z.object({
@@ -404,6 +409,7 @@ orderRouter.get('/', async (req: AuthRequest, res, next) => {
               notes: true,
               status: true,
               kdsStation: true,
+              productName: true,
               product: { select: { id: true, name: true, image: true, requiresPreparation: true } },
               modifiers: { select: { id: true, name: true, price: true } },
             },
@@ -530,7 +536,8 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
     }
 
     // Fetch products to inherit kdsStation when not set by client
-    const productIds = [...new Set(data.items.map(i => i.productId))]
+    // (articles externes sans productId exclus)
+    const productIds = [...new Set(data.items.map(i => i.productId).filter((id): id is string => !!id))]
     const products = await prisma.product.findMany({
       where: { id: { in: productIds } },
       select: { id: true, kdsStation: true, name: true },
@@ -557,8 +564,10 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
     // ni de double-utilisation de coupon.
     const order = await prisma.$transaction(async (tx) => {
       // Aggréger les quantités par produit (un même produit peut apparaître plusieurs fois)
+      // Les articles externes (sans productId) ne sont pas contrôlés en stock.
       const qtyByProduct = new Map<string, number>()
       for (const item of data.items) {
+        if (!item.productId) continue
         qtyByProduct.set(item.productId, (qtyByProduct.get(item.productId) ?? 0) + item.quantity)
       }
 
@@ -642,13 +651,19 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
           totalAmount,
           items: {
             create: data.items.map(item => ({
-              productId: item.productId,
-              productName: productNameMap.get(item.productId) ?? null,
+              productId: item.productId ?? null,
+              // Article externe (hors menu) : nom libre fourni par le client.
+              productName: item.productId
+                ? (productNameMap.get(item.productId) ?? item.productName ?? null)
+                : (item.productName ?? null),
+              costPrice: item.costPrice ?? null,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               totalPrice: item.unitPrice * item.quantity,
               notes: item.notes,
-              kdsStation: item.kdsStation ?? productKdsMap.get(item.productId) ?? null,
+              // Externe : pas de passage en cuisine → directement READY.
+              status: item.productId ? undefined : 'READY',
+              kdsStation: item.productId ? (item.kdsStation ?? productKdsMap.get(item.productId) ?? null) : null,
               modifiers: item.modifiers ? {
                 create: item.modifiers.map(m => ({
                   name: m.name,
@@ -763,7 +778,7 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
           data: { status: 'READY' },
         })
         // If ALL items need no preparation → order is ready immediately
-        const kitchenItemsCount = updatedOrder.items.filter((i: any) => i.product?.requiresPreparation !== false).length
+        const kitchenItemsCount = updatedOrder.items.filter((i: any) => i.product && i.product.requiresPreparation !== false).length
         if (kitchenItemsCount === 0) {
           await prisma.order.update({
             where: { id: order.id },
