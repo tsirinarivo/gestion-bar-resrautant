@@ -6,9 +6,11 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
   console.error('Error:', err)
 
   if (err instanceof ZodError) {
+    const first = err.errors[0]
+    const where = first?.path?.length ? ` (${first.path.join('.')}: ${first.message})` : ''
     return res.status(400).json({
       success: false,
-      error: 'Données invalides',
+      error: `Données invalides${where}`,
       details: err.errors.reduce((acc, e) => {
         const key = e.path.join('.')
         acc[key] = [e.message]
