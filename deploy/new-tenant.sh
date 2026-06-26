@@ -121,15 +121,19 @@ chmod 777 "$TENANT_DIR/uploads"
 log "Dossier $TENANT_DIR créé"
 
 # ── 3. Render des templates ────────────────────────────────────────────────
+# Clé de chiffrement imprimante cloud : héritée de l'environnement, sinon lue
+# dans le .env.prod du master. Partagée par tous les tenants (doit rester constante).
+: "${APP_ENCRYPTION_KEY:=$(sed -n 's/^APP_ENCRYPTION_KEY=//p' "$ROOT_DIR/.env.prod" 2>/dev/null | head -1 | tr -d '"')}"
+
 export TENANT_SLUG TENANT_NAME TENANT_DB_NAME TENANT_API_PORT TENANT_WEB_PORT \
        TENANT_POS_PORT TENANT_KDS_PORT TENANT_CLIENT_PORT TENANT_SUBDOMAIN \
        TENANT_JWT_SECRET TENANT_JWT_REFRESH_SECRET TENANT_CROSS_SECRET \
-       TENANT_REDIS_DB MASTER_POSTGRES_PASSWORD MASTER_REDIS_PASSWORD
+       TENANT_REDIS_DB MASTER_POSTGRES_PASSWORD MASTER_REDIS_PASSWORD APP_ENCRYPTION_KEY
 
 # Liste explicite des vars : sinon envsubst écrase aussi des vars du compose
 # (ex: ${MASTER_POSTGRES_PASSWORD} sera lu par docker-compose depuis .env du tenant).
 TENANT_VARS='${TENANT_SLUG} ${TENANT_NAME} ${TENANT_DB_NAME} ${TENANT_REDIS_DB} ${TENANT_API_PORT} ${TENANT_WEB_PORT} ${TENANT_POS_PORT} ${TENANT_KDS_PORT} ${TENANT_CLIENT_PORT} ${TENANT_SUBDOMAIN} ${TENANT_JWT_SECRET} ${TENANT_JWT_REFRESH_SECRET} ${TENANT_CROSS_SECRET}'
-ENV_VARS="$TENANT_VARS"' ${MASTER_POSTGRES_PASSWORD} ${MASTER_REDIS_PASSWORD}'
+ENV_VARS="$TENANT_VARS"' ${MASTER_POSTGRES_PASSWORD} ${MASTER_REDIS_PASSWORD} ${APP_ENCRYPTION_KEY}'
 
 envsubst "$TENANT_VARS" < "$TEMPLATES_DIR/docker-compose.tenant.yml.tmpl" > "$TENANT_DIR/docker-compose.yml"
 envsubst "$ENV_VARS" < "$TEMPLATES_DIR/tenant.env.tmpl" > "$TENANT_DIR/.env"
