@@ -30,14 +30,16 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
     // sauvegarde des réglages dessus.
     const openingHoursSchema = z.any()
     const parsed = z.object({
-      name: z.string().optional(),
-      description: z.string().optional(),
-      logo: z.string().optional(),
-      address: z.string().optional(),
-      city: z.string().optional(),
-      phone: z.string().optional(),
-      // email souple : on ne bloque jamais la sauvegarde des réglages dessus
-      email: z.string().optional(),
+      // .nullable() : le formulaire renvoie les valeurs de la base telles
+      // quelles, et les colonnes optionnelles (description, logo…) peuvent être
+      // null → ne jamais bloquer la sauvegarde dessus.
+      name: z.string().nullable().optional(),
+      description: z.string().nullable().optional(),
+      logo: z.string().nullable().optional(),
+      address: z.string().nullable().optional(),
+      city: z.string().nullable().optional(),
+      phone: z.string().nullable().optional(),
+      email: z.string().nullable().optional(),
       openingHours: openingHoursSchema.optional(),
       defaultTaxRate: z.coerce.number().optional(),
       deliveryEnabled: z.boolean().optional(),
