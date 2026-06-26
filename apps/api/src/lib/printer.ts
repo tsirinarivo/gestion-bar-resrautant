@@ -35,6 +35,7 @@ import {
   sendPrintAndLog,
   escapeXprint,
 } from 'imprimantcloud'
+import { prisma } from './prisma'
 
 export type ReceiptData = {
   id: string
@@ -64,6 +65,13 @@ export async function autoPrintReceiptWithTable(
   const cfg = await loadPrinterCfg(restaurantId)
   if (!cfg?.autoOnSaleConfirm) return
 
+  // En-tête/pied de page : on privilégie les champs personnalisés du restaurant
+  // (Paramètres → En-tête facture & ticket), avec repli sur ceux du printer config.
+  const r = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { invoiceHeader: true, invoiceFooter: true },
+  }).catch(() => null)
+
   let content = formatSaleReceipt({
     shopName:     sale.shopName,
     shopAddr:     sale.shopAddr ?? null,
@@ -77,8 +85,8 @@ export async function autoPrintReceiptWithTable(
     total:        sale.total,
     paymentLabel: sale.paymentMethod ?? '',
     currency:     sale.currency,
-    header:       (cfg as any).header,
-    footer:       (cfg as any).footer,
+    header:       r?.invoiceHeader || (cfg as any).header,
+    footer:       r?.invoiceFooter || (cfg as any).footer,
   })
 
   // Injecte "Table   : X" juste après la ligne "Ticket  : ..."

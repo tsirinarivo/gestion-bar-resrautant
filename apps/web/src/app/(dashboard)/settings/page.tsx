@@ -213,11 +213,11 @@ export default function SettingsPage() {
             <div className="w-8 h-8 rounded-lg bg-brand-orange/20 flex items-center justify-center">
               <Building2 className="w-4 h-4 text-brand-orange" />
             </div>
-            <h2 className="font-semibold">En-tête de facture</h2>
+            <h2 className="font-semibold">En-tête facture &amp; ticket</h2>
           </div>
           <p className="text-xs text-brand-muted mb-4">
-            Apparaît en haut/bas des factures imprimées, sous les coordonnées du restaurant
-            (nom, adresse, contact issus des Informations générales).
+            Apparaît en haut/bas des <strong>factures imprimées</strong> ET des <strong>tickets de caisse</strong>,
+            sous les coordonnées du restaurant (nom, adresse, contact issus des Informations générales).
           </p>
           <div className="space-y-4">
             <div>

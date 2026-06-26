@@ -46,8 +46,10 @@ function buildPOSReceipt(params: {
   tableLabel: string
   items: Array<{ name: string; qty: number; total: number }>
   grandTotal: number
+  header?: string | null
+  footer?: string | null
 }): string {
-  const { shopName, shopAddr, shopPhone, tableLabel, items, grandTotal } = params
+  const { shopName, shopAddr, shopPhone, tableLabel, items, grandTotal, header, footer } = params
   const now = new Date()
   const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
@@ -61,6 +63,7 @@ function buildPOSReceipt(params: {
   lines.push(`<C><B>${esc(shopName).toUpperCase()}</B></C>`)
   if (shopAddr)  lines.push(`<C>${esc(shopAddr)}</C>`)
   if (shopPhone) lines.push(`<C>Tel: ${esc(shopPhone)}</C>`)
+  if (header) for (const l of String(header).split('\n')) lines.push(`<C>${esc(l)}</C>`)
   lines.push(dDiv)
   if (tableLabel) lines.push(`<C><B>${esc(tableLabel).toUpperCase()}</B></C>`)
   lines.push(`<C>${dateStr}  ${timeStr}</C>`)
@@ -79,7 +82,11 @@ function buildPOSReceipt(params: {
   lines.push(`<C><B>${rowLine('TOTAL', fmtAr(grandTotal))}</B></C>`)
   lines.push(dDiv)
   lines.push('')
-  lines.push(`<C>Merci de votre visite !</C>`)
+  if (footer) {
+    for (const l of String(footer).split('\n')) lines.push(`<C>${esc(l)}</C>`)
+  } else {
+    lines.push(`<C>Merci de votre visite !</C>`)
+  }
   lines.push('')
 
   return lines.join('<BR>')
@@ -109,7 +116,7 @@ printerRouter.post('/receipt', async (req: AuthRequest, res, next) => {
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: req.user!.restaurantId },
-      select: { name: true, address: true, phone: true },
+      select: { name: true, address: true, phone: true, invoiceHeader: true, invoiceFooter: true },
     })
 
     const tableLabel = body.tableNumber
@@ -123,6 +130,8 @@ printerRouter.post('/receipt', async (req: AuthRequest, res, next) => {
       tableLabel,
       items:      body.items,
       grandTotal: body.grandTotal,
+      header:     (restaurant as any)?.invoiceHeader ?? null,
+      footer:     (restaurant as any)?.invoiceFooter ?? null,
     })
 
     await sendPrintAndLog(req.user!.restaurantId, content, {
