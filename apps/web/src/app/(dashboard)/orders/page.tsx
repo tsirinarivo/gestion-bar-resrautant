@@ -652,7 +652,7 @@ function TableTransferModal({ order, onClose }: { order: any; onClose: () => voi
   )
 }
 
-function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChange: (id: string, status: string) => void; onPay: (id: string) => void }) {
+function OrderCard({ order, onStatusChange, onCancel, onPay }: { order: any; onStatusChange: (id: string, status: string) => void; onCancel: (order: any) => void; onPay: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notesValue, setNotesValue] = useState(order.notes ?? '')
@@ -809,6 +809,11 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
                 <span className="text-brand-muted/60">{new Date(s.time!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             ))}
+            {order.status === 'CANCELLED' && (order as any).cancellationReason && (
+              <span className="text-[10px] text-red-400/90 bg-red-500/10 rounded-md px-1.5 py-0.5">
+                Motif : {(order as any).cancellationReason}
+              </span>
+            )}
             {(order as any).tipAmount > 0 && (
               <span className="ml-auto text-[10px] text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">🫶 Pourboire {(order as any).tipAmount} Ar</span>
             )}
@@ -853,9 +858,9 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
               <Banknote className="w-4 h-4" /> Payer
             </button>
           )}
-          {order.status === 'PENDING' && (
+          {!['COMPLETED', 'CANCELLED'].includes(order.status) && (
             <button
-              onClick={() => { if (confirm(`Annuler la commande ${order.orderNumber} ?`)) onStatusChange(order.id, 'CANCELLED') }}
+              onClick={() => onCancel(order)}
               className="w-12 flex items-center justify-center rounded-xl bg-red-500/15 text-red-400 active:bg-red-500/30"
               title="Annuler la commande">
               <XCircle className="w-5 h-5" />
@@ -893,6 +898,59 @@ function OrderCard({ order, onStatusChange, onPay }: { order: any; onStatusChang
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+const CANCEL_REASONS = [
+  'Client a changé d\'avis',
+  'Trop d\'attente',
+  'Erreur de saisie',
+  'Article indisponible',
+  'Doublon',
+]
+
+function CancelOrderModal({ order, isPending, onClose, onConfirm }: {
+  order: any
+  isPending: boolean
+  onClose: () => void
+  onConfirm: (notes: string) => void
+}) {
+  const [reason, setReason] = useState('')
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+        className="glass-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2 mb-1">
+          <XCircle className="w-5 h-5 text-red-400" />
+          <h2 className="font-bold text-lg">Annuler la commande</h2>
+        </div>
+        <p className="text-brand-muted text-sm mb-4">
+          {order.orderNumber} — le stock déjà déduit sera réintégré.
+        </p>
+        <label className="block text-sm font-medium mb-2">Motif d&apos;annulation</label>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {CANCEL_REASONS.map(r => (
+            <button key={r} type="button" onClick={() => setReason(r)}
+              className={`px-3 py-1.5 rounded-xl text-xs border transition-all ${
+                reason === r ? 'bg-red-500/20 border-red-500/60 text-red-300' : 'border-brand-border text-brand-muted'
+              }`}>
+              {r}
+            </button>
+          ))}
+        </div>
+        <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
+          placeholder="Précisez le motif (optionnel)…" className="input-field mb-4" />
+        <div className="flex gap-2">
+          <button onClick={onClose} className="btn-secondary flex-1">Retour</button>
+          <button onClick={() => onConfirm(reason.trim())} disabled={isPending}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-red-500/90 hover:bg-red-500 text-white font-semibold disabled:opacity-50">
+            {isPending ? 'Annulation…' : 'Confirmer l\'annulation'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [dateFilter, setDateFilter] = useState<string>('')
@@ -910,6 +968,7 @@ export default function OrdersPage() {
   useEffect(() => { if (filtersHydrated) localStorage.setItem('orders-filter-date', dateFilter) }, [dateFilter, filtersHydrated])
   const [showNew, setShowNew] = useState(false)
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<any>(null)
   const [sourceFilter, setSourceFilter] = useState<string>('')
   const qc = useQueryClient()
 
@@ -928,8 +987,8 @@ export default function OrdersPage() {
   })
 
   const updateStatus = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch(`/orders/${id}/status`, { status }),
+    mutationFn: ({ id, status, notes }: { id: string; status: string; notes?: string }) =>
+      api.patch(`/orders/${id}/status`, { status, notes }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['orders'] })
       toast.success('Statut mis à jour')
@@ -976,6 +1035,17 @@ export default function OrdersPage() {
             orderId={payingOrderId}
             onClose={() => setPayingOrderId(null)}
             onDone={() => { setPayingOrderId(null); qc.invalidateQueries({ queryKey: ['orders'] }) }}
+          />
+        )}
+        {cancelTarget && (
+          <CancelOrderModal
+            order={cancelTarget}
+            isPending={updateStatus.isPending}
+            onClose={() => setCancelTarget(null)}
+            onConfirm={(notes) => updateStatus.mutate(
+              { id: cancelTarget.id, status: 'CANCELLED', notes },
+              { onSuccess: () => setCancelTarget(null) },
+            )}
           />
         )}
       </AnimatePresence>
@@ -1098,6 +1168,7 @@ export default function OrdersPage() {
             orders.map((order: any) => (
               <OrderCard key={order.id} order={order}
                 onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
+                onCancel={(o) => setCancelTarget(o)}
                 onPay={(id) => setPayingOrderId(id)} />
             ))
           )}

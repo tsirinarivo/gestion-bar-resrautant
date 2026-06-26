@@ -259,6 +259,45 @@ export async function deductStockForOrder(
   }
 }
 
+// ─── Restauration du stock à l'annulation d'une commande ─────────────────────
+// Réintègre ce qui avait été déduit (mouvements 'Vente commande #X') dans le
+// même entrepôt. Idempotent : ne restaure pas deux fois.
+export async function restoreStockForOrder(orderNumber: string, createdBy: string) {
+  const alreadyRestored = await prisma.stockMovement.count({
+    where: { reason: `Annulation commande #${orderNumber}` },
+  })
+  if (alreadyRestored > 0) return
+
+  const deductions = await prisma.stockMovement.findMany({
+    where: { reason: `Vente commande #${orderNumber}`, type: 'OUT' },
+    select: { stockItemId: true, warehouseId: true, quantity: true },
+  })
+  if (deductions.length === 0) return
+
+  for (const d of deductions) {
+    if (d.quantity <= 0) continue
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.stockMovement.create({
+          data: {
+            type: 'IN',
+            quantity: d.quantity,
+            stockItemId: d.stockItemId,
+            warehouseId: d.warehouseId ?? undefined,
+            reason: `Annulation commande #${orderNumber}`,
+            createdBy,
+          },
+        })
+        if (d.warehouseId) {
+          await applyStockDelta(tx, { stockItemId: d.stockItemId, warehouseId: d.warehouseId, delta: d.quantity })
+        } else {
+          await tx.stockItem.update({ where: { id: d.stockItemId }, data: { currentQuantity: { increment: d.quantity } } })
+        }
+      })
+    } catch { /* non-bloquant */ }
+  }
+}
+
 export const orderRouter = Router()
 orderRouter.use(authenticate)
 
@@ -350,6 +389,7 @@ orderRouter.get('/', async (req: AuthRequest, res, next) => {
           deliveredAt: true,
           completedAt: true,
           cancelledAt: true,
+          cancellationReason: true,
           tipAmount: true,
           estimatedTime: true,
           table: { select: { id: true, number: true, name: true, section: true } },
@@ -747,6 +787,12 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
           data: { status: 'AVAILABLE' },
         })
       }
+    }
+
+    // ── Restauration du stock quand commande ANNULÉE (si déjà déduit) ────
+    if (status === 'CANCELLED') {
+      await restoreStockForOrder(updatedOrder.orderNumber, req.user!.id)
+        .catch(err => console.error(`[order ${updatedOrder.orderNumber}] Stock restore failed:`, err))
     }
 
     // ── Déduction automatique du stock quand commande COMPLETED ──────────
