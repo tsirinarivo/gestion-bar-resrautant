@@ -41,7 +41,7 @@ export default function SettingsPage() {
   const updateMutation = useMutation({
     mutationFn: (data: any) => api.put('/restaurants/me', data),
     onSuccess: () => toast.success('Paramètres sauvegardés'),
-    onError: () => toast.error('Erreur lors de la sauvegarde'),
+    onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur lors de la sauvegarde'),
   })
 
   return (

@@ -42,16 +42,17 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       address: z.string().optional(),
       city: z.string().optional(),
       phone: z.string().optional(),
-      email: z.string().email().optional(),
+      // email souple : on ne bloque jamais la sauvegarde des réglages dessus
+      email: z.string().optional(),
       openingHours: openingHoursSchema.optional(),
-      defaultTaxRate: z.number().optional(),
+      defaultTaxRate: z.coerce.number().optional(),
       deliveryEnabled: z.boolean().optional(),
       pickupEnabled: z.boolean().optional(),
       dineInEnabled: z.boolean().optional(),
-      minOrderAmount: z.number().optional(),
-      deliveryFee: z.number().optional(),
-      estimatedPrepTime: z.number().optional(),
-      monthlyRevenueTarget: z.number().nullable().optional(),
+      minOrderAmount: z.coerce.number().optional(),
+      deliveryFee: z.coerce.number().optional(),
+      estimatedPrepTime: z.coerce.number().optional(),
+      monthlyRevenueTarget: z.coerce.number().nullable().optional(),
       allowNegativeStock: z.boolean().optional(),
     }).parse(req.body)
 
