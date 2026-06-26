@@ -59,6 +59,20 @@ model PrintLog {
 - `XPYUN_DEBUG=0`
 - `DATABASE_URL` (le package a son propre client Prisma).
 
+### 4-bis. MULTI-TENANT (crucial — sinon « Chiffrement impossible »)
+Si chaque client a SON propre conteneur API (1 stack par tenant) :
+- `APP_ENCRYPTION_KEY` doit être **la même pour tous** (master + tous les tenants)
+  et présente DANS CHAQUE conteneur API tenant — pas seulement le global. Sinon
+  l'enregistrement imprimante échoue côté tenant alors que le global marche.
+- L'ajouter au **template de provisioning tenant** (le `.env` / `docker-compose`
+  généré par tenant) pour que les NOUVEAUX tenants l'aient automatiquement, en
+  héritant de la clé du master.
+- Pour les tenants **déjà créés** : ajouter la clé à leur `.env` puis
+  `docker compose up -d --force-recreate <service_api_tenant>` (un `restart` ne
+  suffit pas).
+- `ownerId` = l'ID du commerce DANS la base du tenant (souvent l'unique
+  restaurant/shop de cette base).
+
 ### 5. Backend (Express)
 Fonctions du package : `getConfig, updateConfig, printTest, printerStatus,
 getLogs, refreshLogs, sendPrintAndLog, formatSaleReceipt, loadPrinterCfg`.
