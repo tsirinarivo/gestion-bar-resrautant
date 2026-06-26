@@ -207,6 +207,32 @@ export default function SettingsPage() {
           </label>
         </div>
 
+        {/* Facture */}
+        <div className="glass-card p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-brand-orange/20 flex items-center justify-center">
+              <Building2 className="w-4 h-4 text-brand-orange" />
+            </div>
+            <h2 className="font-semibold">En-tête de facture</h2>
+          </div>
+          <p className="text-xs text-brand-muted mb-4">
+            Apparaît en haut/bas des factures imprimées, sous les coordonnées du restaurant
+            (nom, adresse, contact issus des Informations générales).
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">En-tête (mentions légales, NIF/STAT…)</label>
+              <textarea {...register('invoiceHeader')} rows={2}
+                placeholder="Ex : NIF 1234567890 — STAT 11 2024 0 12345" className="input-field" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Pied de page</label>
+              <textarea {...register('invoiceFooter')} rows={2}
+                placeholder="Ex : Merci de votre visite ! — Arrêté à la somme de…" className="input-field" />
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-end">
           <button type="submit" disabled={updateMutation.isPending}
             className="btn-primary flex items-center gap-2 px-6 py-3">

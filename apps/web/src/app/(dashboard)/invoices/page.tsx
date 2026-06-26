@@ -5,8 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, Plus, X, Check, Send, Download, Search,
-  ChevronDown, ChevronRight, Trash2,
+  ChevronDown, ChevronRight, Trash2, Printer,
 } from 'lucide-react'
+import { printInvoice } from './print-invoice'
 import { api } from '@/lib/api'
 import { exportToXLSX } from '@/lib/xlsx'
 import { formatCurrency, formatDate } from '@restaurant/utils'
@@ -196,10 +197,11 @@ function GenerateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
 
 // ─── Invoice Detail Row ───────────────────────────────────────────────────────
 
-function InvoiceRow({ invoice, onStatusChange, onDelete }: {
+function InvoiceRow({ invoice, onStatusChange, onDelete, onPrint }: {
   invoice: Invoice
   onStatusChange: (id: string, status: InvoiceStatus) => void
   onDelete: (id: string) => void
+  onPrint: (invoice: Invoice) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -231,6 +233,13 @@ function InvoiceRow({ invoice, onStatusChange, onDelete }: {
         </td>
         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => onPrint(invoice)}
+              className="p-1.5 text-brand-muted hover:text-brand-orange hover:bg-brand-orange/10 rounded-lg transition-colors"
+              title="Imprimer la facture"
+            >
+              <Printer className="w-3.5 h-3.5" />
+            </button>
             {invoice.status === 'DRAFT' && (
               <>
                 <button
@@ -325,6 +334,12 @@ export default function InvoicesPage() {
     queryKey: ['invoice-stats'],
     queryFn: () => api.get('/invoices/stats').then(r => r.data.data),
     refetchInterval: 60_000,
+  })
+
+  const { data: restaurant } = useQuery({
+    queryKey: ['restaurant'],
+    queryFn: () => api.get('/restaurants/me').then(r => r.data.data),
+    staleTime: 300_000,
   })
 
   const { data, isLoading } = useQuery<Invoice[]>({
@@ -547,6 +562,7 @@ export default function InvoicesPage() {
                     invoice={invoice}
                     onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
                     onDelete={id => deleteInvoice.mutate(id)}
+                    onPrint={inv => printInvoice(inv, restaurant)}
                   />
                 ))
               )}

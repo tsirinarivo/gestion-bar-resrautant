@@ -45,6 +45,11 @@ model Restaurant {
   // négatif et se régularise au prochain réapprovisionnement).
   allowNegativeStock Boolean @default(false)
 
+  // En-tête / pied de page personnalisés pour les factures imprimées
+  // (mentions légales NIF/STAT, slogan, message de remerciement…).
+  invoiceHeader String?
+  invoiceFooter String?
+
   // Monthly revenue target
   monthlyRevenueTarget Float?
 
