@@ -17,7 +17,7 @@ interface Category  { id: string; name: string; icon?: string }
 interface Product   { id: string; name: string; price: number; categoryId: string; image?: string | null; stockAvailable?: number | null; barcode?: string | null; sku?: string | null }
 interface CartItem  { product: Product; quantity: number; costPrice?: number }
 interface Table     { id: string; number: number; status: string; capacity: number }
-interface OrderItem { id: string; quantity: number; totalPrice: number; product: { name: string } }
+interface OrderItem { id: string; quantity: number; totalPrice: number; product: { name: string } | null; productName?: string | null }
 interface OrderPayment { id: string; amount: number; status: string }
 interface Order     { id: string; orderNumber: string; status: string; totalAmount: number; items: OrderItem[]; payments?: OrderPayment[] }
 interface CustomerLite { id: string; firstName: string; lastName: string; phone?: string; loyaltyAccount?: { points: number; tier: string } }
@@ -123,7 +123,7 @@ function ReceiptModal({
 
   const allItems = [
     ...openOrders.flatMap(o => o.items.map(i => ({
-      name: i.product.name, qty: i.quantity,
+      name: i.product?.name ?? i.productName ?? 'Article', qty: i.quantity,
       unitPrice: i.totalPrice / i.quantity, total: i.totalPrice,
     }))),
     ...cart.map(i => ({
@@ -195,7 +195,7 @@ function ReceiptModal({
               <p className="text-[10px] text-gray-400 mb-1">Commande {order.orderNumber}</p>
               {order.items.map(item => (
                 <div key={item.id} className="flex justify-between py-0.5">
-                  <span>{item.quantity}× {item.product.name}</span>
+                  <span>{item.quantity}× {item.product?.name ?? item.productName ?? 'Article'}</span>
                   <span className="font-semibold">{formatCurrency(item.totalPrice)}</span>
                 </div>
               ))}
@@ -796,7 +796,7 @@ function CartPanel({
                 </div>
                 {order.items.map(item => (
                   <div key={item.id} className="flex justify-between text-xs text-gray-400 py-0.5">
-                    <span>{item.quantity}× {item.product.name}</span>
+                    <span>{item.quantity}× {item.product?.name ?? item.productName ?? 'Article'}</span>
                     <span>{formatCurrency(item.totalPrice)}</span>
                   </div>
                 ))}
