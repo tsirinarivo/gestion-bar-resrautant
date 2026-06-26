@@ -24,13 +24,16 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
     // Schéma typé strict (pas de z.any()) + objet 'data' construit avec
     // whitelist explicite → impossible d'injecter un champ Prisma non listé
     // ici (ex: id, status, slug, abonnement) via le body.
+    // openingHours est stocké tel quel en JSON. Le front utilise le format
+    // { [jour]: { open: boolean, start: string, end: string } } → schéma
+    // permissif (passthrough) pour ne jamais rejeter la sauvegarde sur ce champ.
     const openingHoursSchema = z.record(
       z.string(),
       z.object({
-        open: z.string().optional(),
-        close: z.string().optional(),
-        closed: z.boolean().optional(),
-      }).strict(),
+        open: z.boolean().optional(),
+        start: z.string().optional(),
+        end: z.string().optional(),
+      }).passthrough(),
     )
     const parsed = z.object({
       name: z.string().optional(),
