@@ -5,19 +5,27 @@ import { generateOrderNumber } from '@restaurant/utils'
 
 export const publicRouter = Router()
 
+// En contexte multi-tenant, chaque base ne contient QU'UN restaurant. Le slug
+// envoyé par l'app cliente peut ne pas correspondre (image client globale =
+// slug par défaut "restaurant-demo"). On tente par slug, puis on retombe sur
+// l'unique restaurant de la base.
+async function resolveRestaurant(slug: string) {
+  return (await prisma.restaurant.findUnique({ where: { slug } }))
+    ?? (await prisma.restaurant.findFirst())
+}
+
 // GET /api/public/:slug/info
 publicRouter.get('/:slug/info', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: req.params.slug },
-      select: {
-        id: true, name: true, description: true, phone: true,
-        address: true, city: true, openingHours: true, currency: true,
-        logo: true, website: true,
-        deliveryEnabled: true, pickupEnabled: true, dineInEnabled: true,
-        deliveryFee: true, minOrderAmount: true, estimatedPrepTime: true,
-      },
-    })
+    const select = {
+      id: true, name: true, description: true, phone: true,
+      address: true, city: true, openingHours: true, currency: true,
+      logo: true, website: true,
+      deliveryEnabled: true, pickupEnabled: true, dineInEnabled: true,
+      deliveryFee: true, minOrderAmount: true, estimatedPrepTime: true,
+    }
+    const restaurant = (await prisma.restaurant.findUnique({ where: { slug: req.params.slug }, select }))
+      ?? (await prisma.restaurant.findFirst({ select }))
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
     res.json({ success: true, data: restaurant })
   } catch (error) { next(error) }
@@ -26,7 +34,7 @@ publicRouter.get('/:slug/info', async (req, res, next) => {
 // GET /api/public/:slug/menu
 publicRouter.get('/:slug/menu', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
 
     const categories = await prisma.category.findMany({
@@ -46,7 +54,7 @@ publicRouter.get('/:slug/menu', async (req, res, next) => {
 // POST /api/public/:slug/coupons/validate — public coupon validation
 publicRouter.post('/:slug/coupons/validate', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
     const { code, orderAmount } = z.object({
       code: z.string().min(1).max(64),
@@ -77,7 +85,7 @@ publicRouter.post('/:slug/coupons/validate', async (req, res, next) => {
 // POST /api/public/:slug/orders — guest order
 publicRouter.post('/:slug/orders', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
 
     const orderBodySchema = z.object({
@@ -221,7 +229,7 @@ publicRouter.post('/:slug/orders', async (req, res, next) => {
 // GET /api/public/:slug/orders/:orderNumber — guest order tracking
 publicRouter.get('/:slug/orders/:orderNumber', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
 
     const order = await prisma.order.findFirst({
@@ -246,7 +254,7 @@ publicRouter.get('/:slug/orders/:orderNumber', async (req, res, next) => {
 // POST /api/public/:slug/orders/:orderNumber/cancel — customer self-cancel (PENDING only)
 publicRouter.post('/:slug/orders/:orderNumber/cancel', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
 
     const order = await prisma.order.findFirst({
@@ -275,7 +283,7 @@ publicRouter.post('/:slug/orders/:orderNumber/cancel', async (req, res, next) =>
 // GET /api/public/:slug/tables/:tableId
 publicRouter.get('/:slug/tables/:tableId', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
     const table = await prisma.diningTable.findFirst({
       where: { id: req.params.tableId, restaurantId: restaurant.id },
@@ -289,7 +297,7 @@ publicRouter.get('/:slug/tables/:tableId', async (req, res, next) => {
 // POST /api/public/:slug/tables/:tableId/call-waiter
 publicRouter.post('/:slug/tables/:tableId/call-waiter', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
 
     const table = await prisma.diningTable.findFirst({
@@ -316,7 +324,7 @@ publicRouter.post('/:slug/tables/:tableId/call-waiter', async (req, res, next) =
 // GET /api/public/:slug/reviews — public reviews list
 publicRouter.get('/:slug/reviews', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
     const reviews = await prisma.review.findMany({
       where: { restaurantId: restaurant.id, isPublic: true },
@@ -332,7 +340,7 @@ publicRouter.get('/:slug/reviews', async (req, res, next) => {
 // POST /api/public/:slug/reviews — submit a review
 publicRouter.post('/:slug/reviews', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
     const { rating, title, content, orderNumber } = z.object({
       rating: z.number().int().min(1).max(5),
@@ -380,7 +388,7 @@ publicRouter.post('/:slug/reviews', async (req, res, next) => {
 // GET /api/public/:slug/promotions — currently active public promotions
 publicRouter.get('/:slug/promotions', async (req, res, next) => {
   try {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: req.params.slug } })
+    const restaurant = await resolveRestaurant(req.params.slug)
     if (!restaurant) return res.status(404).json({ success: false, error: 'Restaurant introuvable' })
     const now = new Date()
     const promos = await prisma.promotion.findMany({
