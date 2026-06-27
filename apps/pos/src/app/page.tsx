@@ -434,13 +434,14 @@ function OpenCaisseModal({ token, onOpened, onLogout }: { token: string; onOpene
 
 function PaymentModal({
   token, grandTotal, tableLabel, openOrders, cart, orderType, activeTable, orderNote,
-  allowedMethods, customer, onComplete, onClose,
+  allowedMethods, customer, onSelectCustomer, onComplete, onClose,
 }: {
   token: string; grandTotal: number; tableLabel: string;
   openOrders: Order[]; cart: CartItem[]; orderType: 'DINE_IN' | 'TAKEAWAY';
   activeTable: Table | null; orderNote: string;
   allowedMethods: typeof POS_PAYMENT_METHODS;
   customer: CustomerLite | null;
+  onSelectCustomer: (c: CustomerLite | null) => void;
   onComplete: () => void; onClose: () => void;
 }) {
   // Queue of orders to pay: {id, remaining}
@@ -756,10 +757,14 @@ function PaymentModal({
 
               {/* Crédit / ardoise — solder sans encaisser, sur le compte du client */}
               {payments.length === 0 && (
-                <button onClick={handleCredit} disabled={busy || remaining <= 0}
-                  className="w-full mt-2 border border-amber-500/60 text-amber-300 hover:bg-amber-500/10 disabled:opacity-50 py-2.5 rounded-xl font-semibold text-sm transition-colors">
-                  📒 Mettre à crédit{customer ? ` — ${customer.firstName}` : ' (sélectionnez un client)'}
-                </button>
+                <div className="mt-3 pt-3 border-t border-gray-700">
+                  <p className="text-[10px] text-gray-400 mb-1">Client (pour fidélité / crédit)</p>
+                  <CustomerSearch token={token} selected={customer} onSelect={onSelectCustomer} />
+                  <button onClick={handleCredit} disabled={busy || remaining <= 0 || !customer}
+                    className="w-full border border-amber-500/60 text-amber-300 hover:bg-amber-500/10 disabled:opacity-40 py-2.5 rounded-xl font-semibold text-sm transition-colors">
+                    📒 Mettre à crédit{customer ? ` — ${customer.firstName}` : ' (sélectionnez un client)'}
+                  </button>
+                </div>
               )}
             </>
           )}
@@ -1644,6 +1649,7 @@ export default function POSPage() {
           orderNote={orderNote}
           allowedMethods={allowedMethods}
           customer={selectedCustomer}
+          onSelectCustomer={setSelectedCustomer}
           onComplete={handlePaymentComplete}
           onClose={() => setShowPayModal(false)}
         />
