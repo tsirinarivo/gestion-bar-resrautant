@@ -48,7 +48,11 @@ const csvUpload = multer({
 // POST /api/products/upload-image
 productRouter.post('/upload-image', authorize('manager', 'superadmin'), upload.single('image'), (req: AuthRequest, res) => {
   if (!req.file) { res.status(400).json({ success: false, error: 'Aucune image fournie' }); return }
-  const baseUrl = process.env.API_BASE_URL || `http://localhost:4000`
+  // URL publique dérivée de la requête (en-têtes posés par nginx) → correcte par
+  // tenant sans config (ex. https://api-bar.sakafio.mg). Repli env puis localhost.
+  const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0] || req.protocol
+  const host = req.headers['x-forwarded-host'] as string || req.get('host')
+  const baseUrl = process.env.API_BASE_URL || (host ? `${proto}://${host}` : 'http://localhost:4000')
   const url = `${baseUrl}/uploads/products/${req.file.filename}`
   res.json({ success: true, data: { url } })
 })
