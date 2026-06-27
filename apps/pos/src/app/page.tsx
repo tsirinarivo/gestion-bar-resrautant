@@ -875,7 +875,7 @@ function CartPanel({
         {cart.length > 0 && orderType === 'DINE_IN' && (
           <button onClick={onSendToKitchen} disabled={sending}
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-3.5 rounded-xl font-bold transition-colors">
-            {sending ? '⏳ Envoi...' : '🛒 Commander'}
+            {sending ? '⏳ Envoi...' : openOrders.length > 0 ? '➕ Ajouter à la commande' : '🛒 Commander'}
           </button>
         )}
         {(openOrders.length > 0 || cart.length > 0) && (
@@ -1394,20 +1394,29 @@ export default function POSPage() {
     if (orderType === 'DINE_IN' && !activeTable) { showToast('Sélectionnez une table', false); return; }
     setSending(true);
     try {
-      const order = await apiPost<{ orderNumber: string }>(token!, '/orders', {
-        type: orderType,
-        status: 'CONFIRMED',
-        tableId: activeTable?.id,
-        notes: orderNote || undefined,
-        items: cart.map(i => i.product.id.startsWith('ext-')
-              ? { productName: i.product.name, quantity: i.quantity, unitPrice: i.product.price, costPrice: i.costPrice }
-              : { productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price }),
-      });
+      const itemsPayload = cart.map(i => i.product.id.startsWith('ext-')
+        ? { productName: i.product.name, quantity: i.quantity, unitPrice: i.product.price, costPrice: i.costPrice }
+        : { productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price });
+
+      // Table avec une commande en cours → on AJOUTE à la note existante (sans payer).
+      const existing = orderType === 'DINE_IN' && activeTable ? openOrders[0] : undefined;
+      if (existing) {
+        await apiPost(token!, `/orders/${existing.id}/items`, { items: itemsPayload });
+        showToast(`Articles ajoutés à la commande ${existing.orderNumber}`);
+      } else {
+        const order = await apiPost<{ orderNumber: string }>(token!, '/orders', {
+          type: orderType,
+          status: 'CONFIRMED',
+          tableId: activeTable?.id,
+          notes: orderNote || undefined,
+          items: itemsPayload,
+        });
+        showToast(`Commande ${order.orderNumber} enregistrée`);
+      }
       setCart([]);
       setOrderNote('');
       await refetchOrders();
       qc.invalidateQueries({ queryKey: ['pos-tables'] });
-      showToast(`Commande ${order.orderNumber} enregistrée`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Erreur envoi', false);
     } finally {

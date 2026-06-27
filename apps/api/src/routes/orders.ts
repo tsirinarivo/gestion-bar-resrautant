@@ -527,7 +527,10 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
         where: { id: data.tableId, restaurantId },
         select: { status: true, number: true },
       })
-      if (table && ['OCCUPIED', 'RESERVED', 'BLOCKED'].includes(table.status)) {
+      // OCCUPIED = table avec une note en cours → on autorise les commandes
+      // supplémentaires (ajout à la même tablée). Seule une table hors service
+      // (BLOCKED) est refusée.
+      if (table && table.status === 'BLOCKED') {
         throw new AppError(
           `Table ${table.number} n'est pas disponible (statut: ${table.status})`,
           400,
@@ -867,6 +870,84 @@ orderRouter.patch('/:id/status', async (req: AuthRequest, res, next) => {
   } catch (error) {
     next(error)
   }
+})
+
+// POST /api/orders/:id/items — ajouter des articles à une commande EN COURS
+// (note/tab d'un client de bar) sans repasser par le paiement.
+orderRouter.post('/:id/items', async (req: AuthRequest, res, next) => {
+  try {
+    const { items } = z.object({ items: z.array(orderItemSchema).min(1) }).parse(req.body)
+    const restaurantId = req.user!.restaurantId
+
+    const order = await prisma.order.findFirst({ where: { id: req.params.id, restaurantId } })
+    if (!order) throw new AppError('Commande introuvable', 404)
+    if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+      throw new AppError('Cette commande est clôturée — impossible d\'y ajouter des articles', 400)
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId }, select: { allowNegativeStock: true },
+    })
+
+    const productIds = [...new Set(items.map(i => i.productId).filter((x): x is string => !!x))]
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, restaurantId },
+      select: { id: true, name: true, kdsStation: true, stockItemId: true, stockItem: { select: { currentQuantity: true, unit: true } } },
+    })
+    const pMap = new Map(products.map(p => [p.id, p]))
+
+    if (!restaurant?.allowNegativeStock) {
+      const qtyByProduct = new Map<string, number>()
+      for (const it of items) if (it.productId) qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) ?? 0) + it.quantity)
+      for (const [pid, qty] of qtyByProduct) {
+        const p = pMap.get(pid)
+        if (p?.stockItemId && p.stockItem && p.stockItem.currentQuantity < qty) {
+          throw new AppError(`Stock insuffisant pour "${p.name}" : ${p.stockItem.currentQuantity} ${p.stockItem.unit} disponible(s)`, 400)
+        }
+      }
+    }
+
+    const addedTotal = items.reduce((s, it) => {
+      const modTotal = (it.modifiers ?? []).reduce((m, mod) => m + mod.price, 0)
+      return s + (it.unitPrice + modTotal) * it.quantity
+    }, 0)
+
+    await prisma.$transaction(async (tx) => {
+      for (const it of items) {
+        await tx.orderItem.create({
+          data: {
+            orderId: order.id,
+            productId: it.productId ?? null,
+            productName: it.productId ? (pMap.get(it.productId)?.name ?? it.productName ?? null) : (it.productName ?? null),
+            costPrice: it.costPrice ?? null,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            totalPrice: it.unitPrice * it.quantity,
+            notes: it.notes,
+            status: it.productId ? 'PENDING' : 'READY',
+            kdsStation: it.productId ? (it.kdsStation ?? pMap.get(it.productId)?.kdsStation ?? null) : null,
+            modifiers: it.modifiers ? { create: it.modifiers.map(m => ({ name: m.name, price: m.price, type: m.type, modifierId: m.modifierId, variantId: m.variantId })) } : undefined,
+          },
+        })
+      }
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          subtotal: order.subtotal + addedTotal,
+          totalAmount: order.totalAmount + addedTotal,
+          // si la commande était déjà prête/servie, elle repasse en préparation
+          status: ['READY', 'DELIVERED'].includes(order.status) ? 'PREPARING' : order.status,
+        },
+      })
+    })
+
+    const io = req.app.get('io')
+    io?.to(restaurantId).emit('order:updated', { orderId: order.id })
+    io?.to(`kds-${restaurantId}`).emit('kds:new_order', { orderId: order.id })
+
+    const updated = await prisma.order.findUnique({ where: { id: order.id }, include: { items: true } })
+    res.json({ success: true, data: updated })
+  } catch (error) { next(error) }
 })
 
 // PATCH /api/orders/:id/items/:itemId — change quantity of item in PENDING order
