@@ -8,6 +8,7 @@ import compression from 'compression'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import rateLimit from 'express-rate-limit'
+import path from 'path'
 
 import { authRouter } from './routes/auth'
 import { restaurantRouter } from './routes/restaurants'
@@ -83,10 +84,9 @@ app.use(cookieParser())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
-// Serve uploaded files
-import('path').then(({ default: path }) => {
-  app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')))
-}).catch(() => {})
+// Serve uploaded files — DOIT être enregistré de façon synchrone, AVANT les
+// routes et le handler 404 (sinon /uploads tombe sur le 404).
+app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')))
 
 app.use(cors({
   origin: allowedOrigins,
