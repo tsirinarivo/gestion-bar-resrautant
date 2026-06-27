@@ -35,7 +35,7 @@ function addToCart(item: CartItem) {
 
 interface Category { id: string; name: string; icon?: string; slug: string }
 interface Product {
-  id: string; name: string; slug: string; description?: string;
+  id: string; name: string; slug: string; description?: string; image?: string;
   price: number; allergens: string[]; prepTime?: number; isAvailable: boolean;
 }
 
@@ -278,8 +278,10 @@ function MenuPageInner() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {products.map(product => (
               <div key={product.id} className="product-card cursor-pointer" onClick={() => setSelectedProduct(product)}>
-                <div className="h-48 bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center">
-                  <span className="text-5xl">🍽️</span>
+                <div className="h-48 bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center overflow-hidden">
+                  {product.image
+                    ? <img src={product.image} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+                    : <span className="text-5xl">🍽️</span>}
                 </div>
                 <div className="p-4">
                   <h3 className="font-semibold text-lg mb-1 leading-tight">{product.name}</h3>
@@ -330,8 +332,10 @@ function MenuPageInner() {
             className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
-            <div className="h-48 bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center rounded-t-2xl">
-              <span className="text-6xl">🍽️</span>
+            <div className="h-48 bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center rounded-t-2xl overflow-hidden">
+              {selectedProduct.image
+                ? <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                : <span className="text-6xl">🍽️</span>}
             </div>
             <div className="p-6">
               <h2 className="text-2xl font-serif font-bold mb-2">{selectedProduct.name}</h2>
