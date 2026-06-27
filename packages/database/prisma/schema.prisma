@@ -50,6 +50,12 @@ model Restaurant {
   invoiceHeader String?
   invoiceFooter String?
 
+  // ── Personnalisation du site vitrine client (<slug>.sakafio.mg) ──
+  siteTemplate    String  @default("classic") // classic | modern | compact
+  sitePrimaryColor String? // couleur d'accent hex (ex. #F97316)
+  siteTagline     String?  // slogan affiché sous le titre
+  siteHeroImage   String?  // image d'accueil (URL)
+
   // Monthly revenue target
   monthlyRevenueTarget Float?
 

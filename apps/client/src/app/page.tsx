@@ -7,6 +7,7 @@ const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000';
 const RESTAURANT_SLUG = process.env['NEXT_PUBLIC_RESTAURANT_SLUG'] ?? 'restaurant-demo';
 
 const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const DEFAULT_PRIMARY = '#F59E0B';
 
 interface RestaurantInfo {
   name: string;
@@ -19,6 +20,10 @@ interface RestaurantInfo {
   openingHours?: Record<string, { open: boolean; start: string; end: string }>;
   deliveryEnabled?: boolean;
   pickupEnabled?: boolean;
+  siteTemplate?: 'classic' | 'modern' | 'compact';
+  sitePrimaryColor?: string | null;
+  siteTagline?: string | null;
+  siteHeroImage?: string | null;
 }
 
 function isOpen(hours: RestaurantInfo['openingHours']): boolean | null {
@@ -33,21 +38,6 @@ function isOpen(hours: RestaurantInfo['openingHours']): boolean | null {
   return current >= (sh ?? 0) * 60 + (sm ?? 0) && current < (eh ?? 22) * 60 + (em ?? 0);
 }
 
-function nextOpenDay(hours: RestaurantInfo['openingHours']): string | null {
-  if (!hours) return null;
-  const now = new Date();
-  for (let i = 1; i <= 7; i++) {
-    const dayIdx = (now.getDay() + i) % 7;
-    const dayKey = DAY_KEYS[dayIdx];
-    const day = dayKey ? hours[dayKey] : undefined;
-    if (day?.open) {
-      const labels = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
-      return `${labels[dayIdx] ?? ''} à ${day.start}`;
-    }
-  }
-  return null;
-}
-
 type Review = { id: string; rating: number; content?: string; reply?: string; createdAt: string; customer?: { firstName?: string } };
 
 export default function HomePage() {
@@ -57,9 +47,8 @@ export default function HomePage() {
   useEffect(() => {
     fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/info`)
       .then(r => r.json())
-      .then((d: { success?: boolean; data?: RestaurantInfo }) => { if (d.data) setInfo(d.data) })
+      .then((d: { data?: RestaurantInfo }) => { if (d.data) setInfo(d.data) })
       .catch(() => null);
-
     fetch(`${API_URL}/api/public/${RESTAURANT_SLUG}/reviews`)
       .then(r => r.json())
       .then((d: { data?: Review[] }) => { if (d.data?.length) setReviews(d.data.slice(0, 6)) })
@@ -71,61 +60,29 @@ export default function HomePage() {
     : null;
 
   const name = info?.name ?? 'Restaurant';
-  const description = info?.description ?? 'Cuisine locale et internationale — Ambiance chaleureuse';
+  const tagline = info?.siteTagline || info?.description || 'Cuisine locale et internationale — Ambiance chaleureuse';
   const address = info?.city ? `${info.city} · Madagascar` : 'Madagascar';
   const openStatus = isOpen(info?.openingHours);
-  const next = openStatus === false ? nextOpenDay(info?.openingHours) : null;
+  const primary = info?.sitePrimaryColor || DEFAULT_PRIMARY;
+  const template = info?.siteTemplate || 'classic';
+  const hero = info?.siteHeroImage;
+
+  const heroProps = { name, tagline, address, openStatus, primary, hero, logo: info?.logo, phone: info?.phone };
 
   return (
-    <div className="min-h-screen">
-      {/* Hero */}
-      <section className="relative h-screen flex items-center justify-center bg-gradient-to-br from-amber-900 via-stone-800 to-stone-900 text-white overflow-hidden">
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="relative z-10 text-center px-4">
-          {info?.logo && (
-            <img src={info.logo} alt={name} className="w-24 h-24 rounded-full object-cover mx-auto mb-6 border-4 border-amber-400/50" />
-          )}
-          <p className="text-amber-400 font-medium tracking-widest text-sm uppercase mb-4">Bienvenue au</p>
-          <h1 className="text-6xl md:text-8xl font-serif font-bold mb-6">{name}</h1>
-          <p className="text-xl md:text-2xl text-gray-300 mb-4 max-w-2xl mx-auto">{description}</p>
-          <div className="flex items-center justify-center gap-3 mb-10">
-            <p className="text-gray-400">{address}</p>
-            {openStatus !== null && (
-              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${openStatus ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}`}>
-                {openStatus ? '● Ouvert' : '● Fermé'}
-              </span>
-            )}
-          </div>
-          {openStatus === false && next && (
-            <p className="text-amber-400 text-sm mb-6">Prochain ouverture : {next}</p>
-          )}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/menu" className="btn-primary text-lg px-8 py-4 rounded-2xl">
-              Commander en ligne
-            </Link>
-            {info?.phone && (
-              <a href={`tel:${info.phone}`}
-                className="text-lg px-8 py-4 rounded-2xl border-2 border-white/30 hover:border-white/60 transition-colors">
-                📞 Appeler
-              </a>
-            )}
-          </div>
-        </div>
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 border-2 border-white/40 rounded-full flex items-start justify-center p-1">
-            <div className="w-1.5 h-3 bg-white/60 rounded-full" />
-          </div>
-        </div>
-      </section>
+    <div className="min-h-screen" style={{ ['--primary' as any]: primary }}>
+      {template === 'modern' && <HeroModern {...heroProps} />}
+      {template === 'compact' && <HeroCompact {...heroProps} />}
+      {(template === 'classic' || !['modern', 'compact'].includes(template)) && <HeroClassic {...heroProps} />}
 
       {/* Features */}
       <section className="py-20 bg-white">
         <div className="container-narrow">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
             {[
-              { icon: '🌿', title: 'Produits Locaux', desc: 'Viande de zébu, crevettes, vanille et épices directement de Madagascar' },
-              { icon: '👨‍🍳', title: 'Cuisine Maison', desc: 'Romazava, brochettes, burgers et pizzas préparés sur place avec soin' },
-              { icon: '🛵', title: 'Livraison Rapide', desc: 'Commandez en ligne et recevez votre repas directement chez vous' },
+              { icon: '🌿', title: 'Produits Locaux', desc: 'Des produits frais et locaux, sélectionnés avec soin' },
+              { icon: '👨‍🍳', title: 'Cuisine Maison', desc: 'Des plats préparés sur place avec passion' },
+              { icon: '🛵', title: 'Livraison Rapide', desc: 'Commandez en ligne et recevez chez vous' },
             ].map(f => (
               <div key={f.title} className="space-y-4">
                 <div className="text-5xl">{f.icon}</div>
@@ -138,13 +95,14 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 bg-amber-50">
+      <section className="py-20" style={{ background: `${primary}12` }}>
         <div className="container-narrow text-center">
           <h2 className="text-4xl font-serif font-bold mb-4">Notre Carte</h2>
           <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-            Entrées, plats malgaches, burgers, pizzas, boissons et desserts. Commandez à emporter ou faites-vous livrer.
+            Découvrez nos plats et boissons. Commandez à emporter ou faites-vous livrer.
           </p>
-          <Link href="/menu" className="btn-primary text-lg">Voir le menu complet →</Link>
+          <Link href="/menu" className="inline-block text-lg text-white font-bold px-8 py-4 rounded-2xl transition-opacity hover:opacity-90"
+            style={{ background: primary }}>Voir le menu complet →</Link>
         </div>
       </section>
 
@@ -155,25 +113,23 @@ export default function HomePage() {
             <div className="text-center mb-12">
               <h2 className="text-4xl font-serif font-bold mb-3">Ce qu'en disent nos clients</h2>
               {avgRating && (
-                <p className="text-xl text-amber-500 font-bold">
+                <p className="text-xl font-bold" style={{ color: primary }}>
                   ⭐ {avgRating} / 5 <span className="text-sm text-gray-500 font-normal">({reviews.length} avis)</span>
                 </p>
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {reviews.map(r => (
-                <div key={r.id} className="bg-amber-50 rounded-2xl p-6 shadow-sm">
-                  <div className="text-amber-500 text-xl mb-3">
+                <div key={r.id} className="rounded-2xl p-6 shadow-sm" style={{ background: `${primary}10` }}>
+                  <div className="text-xl mb-3" style={{ color: primary }}>
                     {'⭐'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
                   </div>
                   {r.content && <p className="text-gray-700 mb-3 italic">« {r.content} »</p>}
-                  <p className="text-sm font-bold text-gray-900">
-                    {r.customer?.firstName ?? 'Anonyme'}
-                  </p>
+                  <p className="text-sm font-bold text-gray-900">{r.customer?.firstName ?? 'Anonyme'}</p>
                   <p className="text-xs text-gray-400">{new Date(r.createdAt).toLocaleDateString('fr-FR')}</p>
                   {r.reply && (
-                    <div className="mt-3 pt-3 border-t border-amber-200">
-                      <p className="text-xs font-bold text-amber-700 mb-1">Réponse du restaurant :</p>
+                    <div className="mt-3 pt-3 border-t" style={{ borderColor: `${primary}30` }}>
+                      <p className="text-xs font-bold mb-1" style={{ color: primary }}>Réponse du restaurant :</p>
                       <p className="text-xs text-gray-600">{r.reply}</p>
                     </div>
                   )}
@@ -190,11 +146,103 @@ export default function HomePage() {
           {info?.address && <p>{info.address}{info.city ? `, ${info.city}` : ''}</p>}
           {info?.phone && <p className="mt-1">{info.phone}</p>}
           {info?.website && (
-            <a href={info.website} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline mt-1 block">{info.website}</a>
+            <a href={info.website} target="_blank" rel="noopener noreferrer" className="hover:underline mt-1 block" style={{ color: primary }}>{info.website}</a>
           )}
           <p className="mt-4">&copy; {new Date().getFullYear()} {name}. Tous droits réservés.</p>
         </div>
       </footer>
     </div>
+  );
+}
+
+type HeroProps = {
+  name: string; tagline: string; address: string; openStatus: boolean | null;
+  primary: string; hero?: string | null; logo?: string; phone?: string;
+};
+
+function OpenBadge({ openStatus }: { openStatus: boolean | null }) {
+  if (openStatus === null) return null;
+  return (
+    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${openStatus ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}`}>
+      {openStatus ? '● Ouvert' : '● Fermé'}
+    </span>
+  );
+}
+
+function OrderBtn({ primary, label = 'Commander en ligne' }: { primary: string; label?: string }) {
+  return (
+    <Link href="/menu" className="inline-block text-lg text-white font-bold px-8 py-4 rounded-2xl transition-opacity hover:opacity-90"
+      style={{ background: primary }}>{label}</Link>
+  );
+}
+
+// ── CLASSIQUE : hero plein écran, dégradé sombre, centré ──────────────────────
+function HeroClassic({ name, tagline, address, openStatus, primary, logo, phone }: HeroProps) {
+  return (
+    <section className="relative h-screen flex items-center justify-center bg-gradient-to-br from-stone-800 via-stone-900 to-black text-white overflow-hidden">
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative z-10 text-center px-4">
+        {logo && <img src={logo} alt={name} className="w-24 h-24 rounded-full object-cover mx-auto mb-6 border-4" style={{ borderColor: `${primary}80` }} />}
+        <p className="font-medium tracking-widest text-sm uppercase mb-4" style={{ color: primary }}>Bienvenue au</p>
+        <h1 className="text-6xl md:text-8xl font-serif font-bold mb-6">{name}</h1>
+        <p className="text-xl md:text-2xl text-gray-300 mb-4 max-w-2xl mx-auto">{tagline}</p>
+        <div className="flex items-center justify-center gap-3 mb-10">
+          <p className="text-gray-400">{address}</p>
+          <OpenBadge openStatus={openStatus} />
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <OrderBtn primary={primary} />
+          {phone && <a href={`tel:${phone}`} className="text-lg px-8 py-4 rounded-2xl border-2 border-white/30 hover:border-white/60 transition-colors">📞 Appeler</a>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── MODERNE : grande image plein cadre, titre aligné à gauche ─────────────────
+function HeroModern({ name, tagline, address, openStatus, primary, hero, logo, phone }: HeroProps) {
+  return (
+    <section className="relative h-screen flex items-end overflow-hidden text-white"
+      style={hero ? { backgroundImage: `url(${hero})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                   : { background: `linear-gradient(135deg, ${primary}, #111)` }}>
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
+      <div className="relative z-10 w-full max-w-5xl mx-auto px-6 pb-20">
+        {logo && <img src={logo} alt={name} className="w-20 h-20 rounded-2xl object-cover mb-5 border-2 border-white/40" />}
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-xs uppercase tracking-widest font-semibold px-2 py-1 rounded" style={{ background: primary }}>Restaurant</span>
+          <OpenBadge openStatus={openStatus} />
+        </div>
+        <h1 className="text-5xl md:text-7xl font-serif font-bold mb-4 leading-tight">{name}</h1>
+        <p className="text-lg md:text-2xl text-gray-200 max-w-2xl mb-2">{tagline}</p>
+        <p className="text-gray-400 mb-8">{address}</p>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <OrderBtn primary={primary} />
+          {phone && <a href={`tel:${phone}`} className="text-lg px-8 py-4 rounded-2xl border-2 border-white/40 hover:bg-white/10 transition-colors text-center">📞 Appeler</a>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── COMPACT : bandeau court coloré, accès menu immédiat ───────────────────────
+function HeroCompact({ name, tagline, openStatus, primary, logo, phone }: HeroProps) {
+  return (
+    <section className="text-white" style={{ background: `linear-gradient(135deg, ${primary}, ${primary}cc)` }}>
+      <div className="max-w-4xl mx-auto px-6 py-12 sm:py-16">
+        <div className="flex items-center gap-4 mb-5">
+          {logo && <img src={logo} alt={name} className="w-16 h-16 rounded-xl object-cover border-2 border-white/50" />}
+          <div>
+            <h1 className="text-3xl sm:text-5xl font-serif font-bold leading-tight">{name}</h1>
+            <div className="mt-1"><OpenBadge openStatus={openStatus} /></div>
+          </div>
+        </div>
+        <p className="text-base sm:text-xl text-white/90 mb-6 max-w-2xl">{tagline}</p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Link href="/menu" className="inline-block text-lg font-bold px-8 py-3.5 rounded-2xl bg-white text-center transition-opacity hover:opacity-90"
+            style={{ color: primary }}>🍽️ Voir le menu</Link>
+          {phone && <a href={`tel:${phone}`} className="text-lg px-8 py-3.5 rounded-2xl border-2 border-white/60 hover:bg-white/10 transition-colors text-center">📞 Appeler</a>}
+        </div>
+      </div>
+    </section>
   );
 }

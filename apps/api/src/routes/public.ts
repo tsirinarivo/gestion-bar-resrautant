@@ -23,6 +23,7 @@ publicRouter.get('/:slug/info', async (req, res, next) => {
       logo: true, website: true,
       deliveryEnabled: true, pickupEnabled: true, dineInEnabled: true,
       deliveryFee: true, minOrderAmount: true, estimatedPrepTime: true,
+      siteTemplate: true, sitePrimaryColor: true, siteTagline: true, siteHeroImage: true,
     }
     const restaurant = (await prisma.restaurant.findUnique({ where: { slug: req.params.slug }, select }))
       ?? (await prisma.restaurant.findFirst({ select }))
