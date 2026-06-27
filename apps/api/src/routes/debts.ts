@@ -3,9 +3,69 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
+import { deductStockForOrder } from './orders'
 
 export const debtRouter = Router()
 debtRouter.use(authenticate)
+
+// POST /api/debts/from-order — solder une commande À CRÉDIT (sur le compte du
+// client). Crée la dette du montant restant et clôture la commande (stock,
+// table) sans encaissement. Le client paiera plus tard via la page Dettes.
+debtRouter.post('/from-order', async (req: AuthRequest, res, next) => {
+  try {
+    const { orderId, customerId, dueDate, notes } = z.object({
+      orderId: z.string(),
+      customerId: z.string(),
+      dueDate: z.string().optional(),
+      notes: z.string().optional(),
+    }).parse(req.body)
+    const restaurantId = req.user!.restaurantId
+
+    const customer = await prisma.customer.findFirst({ where: { id: customerId, restaurantId } })
+    if (!customer) throw new AppError('Client introuvable', 404)
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { payments: { where: { status: 'COMPLETED' } } },
+    })
+    if (!order) throw new AppError('Commande introuvable', 404)
+    if (order.status === 'CANCELLED') throw new AppError('Commande annulée', 400)
+
+    const paid = order.payments.reduce((s, p) => s + p.amount, 0)
+    const outstanding = Math.max(0, order.totalAmount - paid)
+    if (outstanding <= 0) throw new AppError('Cette commande est déjà soldée', 400)
+
+    const debt = await prisma.customerDebt.create({
+      data: {
+        customerId, restaurantId,
+        amount: outstanding,
+        orderRef: order.orderNumber,
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+        notes: notes ?? `Commande ${order.orderNumber} à crédit`,
+      },
+      include: { customer: { select: { id: true, firstName: true, lastName: true, phone: true } }, payments: true },
+    })
+
+    if (order.status !== 'COMPLETED') {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          customerId,
+          statusHistory: { create: { status: 'COMPLETED', notes: 'Soldé à crédit', changedBy: req.user!.id } },
+        },
+      })
+      await deductStockForOrder(order.id, order.orderNumber, req.user!.id).catch(() => {})
+      if (order.tableId) {
+        const active = await prisma.order.count({ where: { tableId: order.tableId, status: { notIn: ['COMPLETED', 'CANCELLED'] } } })
+        if (active === 0) await prisma.diningTable.update({ where: { id: order.tableId }, data: { status: 'AVAILABLE' } }).catch(() => {})
+      }
+    }
+
+    res.status(201).json({ success: true, data: debt })
+  } catch (error) { next(error) }
+})
 
 const PAYMENT_METHODS = ['CASH', 'MVOLA', 'ORANGE_MONEY', 'AIRTEL_MONEY', 'CARD',
   'BNI_MOBILE', 'BOA_MOBILE', 'VIREMENT', 'CHEQUE', 'VOUCHER', 'WALLET'] as const

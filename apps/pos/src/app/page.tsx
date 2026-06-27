@@ -545,7 +545,28 @@ function PaymentModal({
     }
   }
 
-  const methodLabel = (v: string) => allowedMethods.find(m => m.value === v)?.label ?? POS_PAYMENT_METHODS.find(m => m.value === v)?.label ?? v;
+  // Mettre l'addition sur le compte du client (crédit / ardoise). Chaque
+  // commande de la file devient une dette du montant restant.
+  async function handleCredit() {
+    if (!customer) { setError('Sélectionnez un client pour mettre à crédit'); return; }
+    if (orderQueue.length === 0) { setError('Aucune commande à mettre à crédit'); return; }
+    setBusy(true); setError('');
+    try {
+      for (const o of orderQueue) {
+        if (o.remaining <= 0.01) continue;
+        await apiPost(token, '/debts/from-order', { orderId: o.id, customerId: customer.id });
+      }
+      createdCartOrderId.current = null; // dette créée → ne pas annuler à la fermeture
+      setPayments(prev => [...prev, { method: 'CREDIT', amount: remaining }]);
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur mise à crédit');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const methodLabel = (v: string) => v === 'CREDIT' ? 'À crédit (compte client)' : allowedMethods.find(m => m.value === v)?.label ?? POS_PAYMENT_METHODS.find(m => m.value === v)?.label ?? v;
 
   // BUG 2 — annuler l'ordre créé depuis le panier si on ferme sans payer
   async function handleClose() {
@@ -561,9 +582,11 @@ function PaymentModal({
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
         <div className="absolute inset-0 bg-black/70" />
         <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-5 z-10 text-center">
-          <p className="text-4xl mb-2">✅</p>
-          <p className="text-lg font-bold mb-0.5">Addition soldée</p>
-          <p className="text-gray-400 text-sm mb-3">{formatCurrency(grandTotalWithTip)} encaissé{tip > 0 ? ` (dont ${formatCurrency(tip)} pourboire)` : ''}</p>
+          {(() => { const onCredit = payments.some(p => p.method === 'CREDIT'); return (<>
+          <p className="text-4xl mb-2">{onCredit ? '📒' : '✅'}</p>
+          <p className="text-lg font-bold mb-0.5">{onCredit ? 'Mis à crédit' : 'Addition soldée'}</p>
+          <p className="text-gray-400 text-sm mb-3">{onCredit ? `${formatCurrency(grandTotalWithTip)} sur le compte de ${customer?.firstName ?? 'client'} — à régler via la page Dettes` : `${formatCurrency(grandTotalWithTip)} encaissé${tip > 0 ? ` (dont ${formatCurrency(tip)} pourboire)` : ''}`}</p>
+          </>); })()}
           <div className="bg-gray-700/50 rounded-xl p-3 mb-4 text-left space-y-1">
             {payments.map((p, i) => (
               <div key={i} className="flex justify-between text-sm">
@@ -730,6 +753,14 @@ function PaymentModal({
                 className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white py-3.5 rounded-xl font-bold text-sm transition-colors">
                 {busy ? '⏳ Traitement…' : `➕ Encaisser ${amountStr ? formatCurrency(parseFloat(amountStr) || 0) : '…'} en ${methodLabel(method)}`}
               </button>
+
+              {/* Crédit / ardoise — solder sans encaisser, sur le compte du client */}
+              {payments.length === 0 && (
+                <button onClick={handleCredit} disabled={busy || remaining <= 0}
+                  className="w-full mt-2 border border-amber-500/60 text-amber-300 hover:bg-amber-500/10 disabled:opacity-50 py-2.5 rounded-xl font-semibold text-sm transition-colors">
+                  📒 Mettre à crédit{customer ? ` — ${customer.firstName}` : ' (sélectionnez un client)'}
+                </button>
+              )}
             </>
           )}
         </div>
