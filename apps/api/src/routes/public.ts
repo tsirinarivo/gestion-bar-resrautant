@@ -33,7 +33,7 @@ publicRouter.get('/:slug/menu', async (req, res, next) => {
       where: { restaurantId: restaurant.id, isActive: true },
       include: {
         products: {
-          where: { isActive: true, isAvailable: true },
+          where: { isActive: true, isAvailable: true, deletedAt: null },
           orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         },
       },
