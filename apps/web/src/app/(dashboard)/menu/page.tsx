@@ -1680,7 +1680,7 @@ function AutoCategorizeModal({ onClose, onDone }: { onClose: () => void; onDone:
             )}
 
             <div className="flex-1 overflow-y-auto border border-brand-border rounded-xl">
-              {preview.toMove === 0 ? (
+              {preview.summary.toMove === 0 ? (
                 <p className="text-center text-brand-muted py-8 text-sm">Tous les produits reconnus sont déjà dans la bonne catégorie 🎉</p>
               ) : (
                 <table className="w-full text-sm">
@@ -1706,14 +1706,14 @@ function AutoCategorizeModal({ onClose, onDone }: { onClose: () => void; onDone:
                 </table>
               )}
             </div>
-            {preview.toMove > (preview.sample?.length ?? 0) && (
-              <p className="text-[11px] text-brand-muted mt-2">Aperçu des {preview.sample?.length} premiers · {preview.toMove} au total seront reclassés.</p>
+            {preview.summary.toMove > (preview.sample?.length ?? 0) && (
+              <p className="text-[11px] text-brand-muted mt-2">Aperçu des {preview.sample?.length} premiers · {preview.summary.toMove} au total seront reclassés.</p>
             )}
 
             <div className="mt-4 flex gap-2">
               <button onClick={onClose} className="btn-secondary flex-1">Annuler</button>
-              <button onClick={apply} disabled={applying || preview.toMove === 0} className="btn-primary flex-1">
-                {applying ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Appliquer (${preview.toMove})`}
+              <button onClick={apply} disabled={applying || preview.summary.toMove === 0} className="btn-primary flex-1">
+                {applying ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Appliquer (${preview.summary.toMove})`}
               </button>
             </div>
           </>
