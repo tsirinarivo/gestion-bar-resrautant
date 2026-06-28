@@ -1608,6 +1608,121 @@ function VariantsModal({ product, onClose }: { product: Product; onClose: () => 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+type AutoCatResult = {
+  dryRun: boolean
+  summary: { total: number; toMove: number; unchanged: number; unmatched: number; categoriesToCreate: string[]; moved?: number }
+  sample?: { productId: string; name: string; from: string | null; toSlug: string; toName: string; willCreate: boolean }[]
+}
+
+function AutoCategorizeModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [preview, setPreview] = useState<AutoCatResult | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [applying, setApplying] = useState(false)
+  const [doneResult, setDoneResult] = useState<AutoCatResult | null>(null)
+
+  useEffect(() => {
+    api.post('/categories/auto-categorize', { dryRun: true })
+      .then(r => setPreview(r.data.data))
+      .catch((e: any) => toast.error(e?.response?.data?.error ?? 'Erreur analyse'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function apply() {
+    setApplying(true)
+    try {
+      const r = await api.post('/categories/auto-categorize', { dryRun: false })
+      setDoneResult(r.data.data)
+      onDone()
+      toast.success(`${r.data.data.summary.moved ?? 0} produit(s) reclassé(s)`)
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? 'Erreur application')
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-2xl p-6 max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2"><Sparkles className="w-5 h-5 text-brand-orange" /> Auto-catégorisation</h2>
+            <p className="text-sm text-brand-muted">Analyse le nom de chaque produit et le range dans la catégorie correspondante. Les catégories manquantes sont créées.</p>
+          </div>
+          <button onClick={onClose} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+
+        {loading ? (
+          <div className="py-12 text-center text-brand-muted"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Analyse des produits…</div>
+        ) : doneResult ? (
+          <div className="py-8 text-center">
+            <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
+            <p className="text-lg font-bold mb-1">Classement appliqué</p>
+            <p className="text-brand-muted text-sm mb-5">{doneResult.summary.moved ?? 0} produit(s) reclassé(s){doneResult.summary.categoriesToCreate.length > 0 ? `, ${doneResult.summary.categoriesToCreate.length} catégorie(s) créée(s)` : ''}.</p>
+            <button onClick={onClose} className="btn-primary">Fermer</button>
+          </div>
+        ) : preview ? (
+          <>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              <div className="bg-brand-bg rounded-xl p-3 text-center"><div className="text-xl font-bold">{preview.summary.total}</div><div className="text-[11px] text-brand-muted">Produits</div></div>
+              <div className="bg-brand-orange/10 rounded-xl p-3 text-center"><div className="text-xl font-bold text-brand-orange">{preview.summary.toMove}</div><div className="text-[11px] text-brand-muted">À reclasser</div></div>
+              <div className="bg-green-500/10 rounded-xl p-3 text-center"><div className="text-xl font-bold text-green-500">{preview.summary.unchanged}</div><div className="text-[11px] text-brand-muted">Déjà OK</div></div>
+              <div className="bg-yellow-500/10 rounded-xl p-3 text-center"><div className="text-xl font-bold text-yellow-500">{preview.summary.unmatched}</div><div className="text-[11px] text-brand-muted">Non reconnus</div></div>
+            </div>
+
+            {preview.summary.categoriesToCreate.length > 0 && (
+              <div className="mb-3 text-xs bg-blue-500/10 border border-blue-500/30 rounded-xl px-3 py-2">
+                <span className="font-medium text-blue-400">{preview.summary.categoriesToCreate.length} catégorie(s) seront créées : </span>
+                <span className="text-brand-muted">{preview.summary.categoriesToCreate.join(', ')}</span>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto border border-brand-border rounded-xl">
+              {preview.toMove === 0 ? (
+                <p className="text-center text-brand-muted py-8 text-sm">Tous les produits reconnus sont déjà dans la bonne catégorie 🎉</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-brand-card border-b border-brand-border">
+                    <tr className="text-left text-xs text-brand-muted">
+                      <th className="px-3 py-2">Produit</th>
+                      <th className="px-3 py-2">Actuelle</th>
+                      <th className="px-3 py-2">Proposée</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(preview.sample ?? []).map(m => (
+                      <tr key={m.productId} className="border-b border-brand-border/50">
+                        <td className="px-3 py-1.5 font-medium">{m.name}</td>
+                        <td className="px-3 py-1.5 text-brand-muted">{m.from ?? '—'}</td>
+                        <td className="px-3 py-1.5">
+                          <span className="text-brand-orange font-medium">{m.toName}</span>
+                          {m.willCreate && <span className="ml-1.5 text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded">nouvelle</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            {preview.toMove > (preview.sample?.length ?? 0) && (
+              <p className="text-[11px] text-brand-muted mt-2">Aperçu des {preview.sample?.length} premiers · {preview.toMove} au total seront reclassés.</p>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <button onClick={onClose} className="btn-secondary flex-1">Annuler</button>
+              <button onClick={apply} disabled={applying || preview.toMove === 0} className="btn-primary flex-1">
+                {applying ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Appliquer (${preview.toMove})`}
+              </button>
+            </div>
+          </>
+        ) : null}
+      </motion.div>
+    </div>
+  )
+}
+
 export default function MenuPage() {
   const [activeView, setActiveView] = useState<'products' | 'marge'>('products')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -1619,6 +1734,7 @@ export default function MenuPage() {
   const [showCategories, setShowCategories] = useState(false)
   const [presetsModal, setPresetsModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showAutoCat, setShowAutoCat] = useState(false)
   const qc = useQueryClient()
 
   const { data: categoriesData } = useQuery<Category[]>({
@@ -1730,6 +1846,11 @@ export default function MenuPage() {
             className="btn-secondary flex items-center gap-2 text-sm">
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">Importer CSV</span>
+          </button>
+          <button onClick={() => setShowAutoCat(true)}
+            className="btn-secondary flex items-center gap-2 text-sm">
+            <Sparkles className="w-4 h-4" />
+            <span className="hidden sm:inline">Auto-catégoriser</span>
           </button>
           <button onClick={() => setProductModal({ open: true, product: null })}
             className="btn-primary flex items-center gap-2 text-sm">
@@ -1962,6 +2083,12 @@ export default function MenuPage() {
         <ImportCsvModal
           onClose={() => setShowImport(false)}
           onDone={() => { setShowImport(false); qc.invalidateQueries({ queryKey: ['products'] }); qc.invalidateQueries({ queryKey: ['categories'] }) }}
+        />
+      )}
+      {showAutoCat && (
+        <AutoCategorizeModal
+          onClose={() => setShowAutoCat(false)}
+          onDone={() => { qc.invalidateQueries({ queryKey: ['products'] }); qc.invalidateQueries({ queryKey: ['categories'] }) }}
         />
       )}
       {productModal.open && (

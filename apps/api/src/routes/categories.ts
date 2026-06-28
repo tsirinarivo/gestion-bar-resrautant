@@ -5,6 +5,7 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { slugify } from '@restaurant/utils'
 import { CATEGORY_PRESETS } from '../lib/category-presets'
+import { matchCategorySlug, PRESET_BY_SLUG } from '../lib/category-matcher'
 
 export const categoryRouter = Router()
 categoryRouter.use(authenticate)
@@ -76,6 +77,90 @@ categoryRouter.post('/import-presets', authorize('manager', 'superadmin'), async
       }
     }
     res.json({ success: true, data: { created, skipped } })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/categories/auto-categorize — analyse le nom de chaque produit et le
+// range dans la catégorie correspondante. dryRun=true : aperçu sans rien écrire.
+// Crée automatiquement les catégories preset manquantes.
+categoryRouter.post('/auto-categorize', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { dryRun } = z.object({ dryRun: z.boolean().default(true) }).parse(req.body ?? {})
+    const restaurantId = req.user!.restaurantId
+
+    const [products, categories] = await Promise.all([
+      prisma.product.findMany({
+        where: { restaurantId, deletedAt: null },
+        select: { id: true, name: true, categoryId: true },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.category.findMany({
+        where: { restaurantId },
+        select: { id: true, name: true, slug: true },
+      }),
+    ])
+
+    const catById = new Map(categories.map(c => [c.id, c]))
+    const catBySlug = new Map(categories.map(c => [c.slug, c]))
+
+    const moves: { productId: string; name: string; from: string | null; toSlug: string; toName: string; willCreate: boolean }[] = []
+    let unchanged = 0
+    let unmatched = 0
+    const neededSlugs = new Set<string>()
+
+    for (const p of products) {
+      const slug = matchCategorySlug(p.name)
+      if (!slug) { unmatched++; continue }
+      const target = catBySlug.get(slug)
+      if (target && target.id === p.categoryId) { unchanged++; continue }
+      const preset = PRESET_BY_SLUG.get(slug)!
+      if (!target) neededSlugs.add(slug)
+      moves.push({
+        productId: p.id, name: p.name,
+        from: p.categoryId ? (catById.get(p.categoryId)?.name ?? null) : null,
+        toSlug: slug, toName: preset.name, willCreate: !target,
+      })
+    }
+
+    const summary = {
+      total: products.length,
+      toMove: moves.length,
+      unchanged,
+      unmatched,
+      categoriesToCreate: [...neededSlugs].map(s => PRESET_BY_SLUG.get(s)!.name),
+    }
+
+    if (dryRun) {
+      res.json({ success: true, data: { dryRun: true, summary, sample: moves.slice(0, 100) } })
+      return
+    }
+
+    // ── Application ──
+    let nextSort = (await prisma.category.aggregate({ where: { restaurantId }, _max: { sortOrder: true } }))._max.sortOrder ?? 0
+    for (const slug of neededSlugs) {
+      const preset = PRESET_BY_SLUG.get(slug)!
+      const cat = await prisma.category.create({
+        data: { name: preset.name, slug: preset.slug, icon: preset.icon, color: preset.color, sortOrder: ++nextSort, isActive: true, isAvailable: true, restaurantId },
+      })
+      catBySlug.set(slug, { id: cat.id, name: cat.name, slug: cat.slug })
+    }
+
+    const bySlug = new Map<string, string[]>()
+    for (const m of moves) {
+      const arr = bySlug.get(m.toSlug) ?? []
+      arr.push(m.productId)
+      bySlug.set(m.toSlug, arr)
+    }
+    let moved = 0
+    for (const [slug, ids] of bySlug) {
+      const cat = catBySlug.get(slug)!
+      const r = await prisma.product.updateMany({ where: { id: { in: ids }, restaurantId }, data: { categoryId: cat.id } })
+      moved += r.count
+    }
+
+    res.json({ success: true, data: { dryRun: false, summary: { ...summary, moved } } })
   } catch (error) {
     next(error)
   }
