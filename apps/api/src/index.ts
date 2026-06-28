@@ -86,7 +86,14 @@ app.use(express.urlencoded({ extended: true }))
 
 // Serve uploaded files — DOIT être enregistré de façon synchrone, AVANT les
 // routes et le handler 404 (sinon /uploads tombe sur le 404).
-app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')))
+// CORP cross-origin : sans ça, helmet pose `Cross-Origin-Resource-Policy:
+// same-origin` et le navigateur bloque l'image servie par api-<slug> quand elle
+// est intégrée depuis pos-/admin-/<slug>.sakafio.mg (sous-domaines distincts).
+app.use('/uploads', (_req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  next()
+}, express.static(path.join(process.cwd(), 'public', 'uploads')))
 
 app.use(cors({
   origin: allowedOrigins,
