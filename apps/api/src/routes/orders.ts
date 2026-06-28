@@ -950,7 +950,9 @@ orderRouter.post('/:id/items', async (req: AuthRequest, res, next) => {
   } catch (error) { next(error) }
 })
 
-// PATCH /api/orders/:id/items/:itemId — change quantity of item in PENDING order
+// PATCH /api/orders/:id/items/:itemId — changer la quantité d'un article.
+// Autorisé tant que la commande n'est pas clôturée (le stock n'est déduit qu'au
+// paiement → pas de restauration à gérer ici).
 orderRouter.patch('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
   try {
     const { quantity } = z.object({ quantity: z.number().int().min(1) }).parse(req.body)
@@ -959,7 +961,9 @@ orderRouter.patch('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
       include: { items: true },
     })
     if (!order) throw new AppError('Commande introuvable', 404)
-    if (order.status !== 'PENDING') throw new AppError('Seules les commandes en attente peuvent être modifiées', 400)
+    if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+      throw new AppError('Commande clôturée — modification impossible', 400)
+    }
 
     const item = order.items.find(i => i.id === req.params.itemId)
     if (!item) throw new AppError('Article introuvable', 404)
@@ -976,12 +980,14 @@ orderRouter.patch('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
 
     const io = req.app.get('io')
     io?.to(req.user!.restaurantId).emit('order:updated', { orderId: order.id })
+    io?.to(`kds-${req.user!.restaurantId}`).emit('order:updated', { orderId: order.id })
 
     res.json({ success: true, data: updatedItem })
   } catch (error) { next(error) }
 })
 
-// DELETE /api/orders/:id/items/:itemId — remove item from a PENDING order
+// DELETE /api/orders/:id/items/:itemId — retirer un article d'une commande non
+// clôturée (correction d'erreur de saisie après envoi en cuisine).
 orderRouter.delete('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
   try {
     const order = await prisma.order.findFirst({
@@ -989,7 +995,9 @@ orderRouter.delete('/:id/items/:itemId', async (req: AuthRequest, res, next) => 
       include: { items: true },
     })
     if (!order) throw new AppError('Commande introuvable', 404)
-    if (order.status !== 'PENDING') throw new AppError('Seules les commandes en attente peuvent être modifiées', 400)
+    if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+      throw new AppError('Commande clôturée — modification impossible', 400)
+    }
 
     const item = order.items.find(i => i.id === req.params.itemId)
     if (!item) throw new AppError('Article introuvable', 404)
@@ -1005,6 +1013,7 @@ orderRouter.delete('/:id/items/:itemId', async (req: AuthRequest, res, next) => 
 
     const io = req.app.get('io')
     io?.to(req.user!.restaurantId).emit('order:updated', { orderId: order.id })
+    io?.to(`kds-${req.user!.restaurantId}`).emit('order:updated', { orderId: order.id })
 
     res.json({ success: true, message: 'Article supprimé' })
   } catch (error) { next(error) }

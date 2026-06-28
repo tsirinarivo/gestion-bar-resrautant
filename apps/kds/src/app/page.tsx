@@ -205,6 +205,7 @@ function KDSPageInner() {
       void qc.invalidateQueries({ queryKey: ['kds-orders'] });
     });
     socket.on('order:status_changed', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
+    socket.on('order:updated', () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }));
     return () => { socket.disconnect(); };
   }, [qc, token, soundOn]);
 

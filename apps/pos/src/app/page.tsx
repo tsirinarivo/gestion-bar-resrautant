@@ -7,6 +7,7 @@ import {
   apiFetch,
   apiPost,
   apiPatch,
+  apiDelete,
   authFetch,
   login,
   setAccessToken,
@@ -780,6 +781,7 @@ function CartPanel({
   token, cart, orderNote, activeTable, orderType, openOrders,
   onAdd, onRemove, onNoteChange, onSendToKitchen, onShowPayment, onShowReceipt, onClearCart, onClose,
   sending, isMobile, selectedCustomer, onSelectCustomer,
+  onEditOrderItem, onRemoveOrderItem,
 }: {
   token: string; cart: CartItem[]; orderNote: string;
   activeTable: Table | null; orderType: 'DINE_IN' | 'TAKEAWAY';
@@ -789,7 +791,10 @@ function CartPanel({
   onSendToKitchen: () => void; onShowPayment: () => void; onShowReceipt: () => void; onClearCart: () => void;
   onClose?: () => void; sending: boolean; isMobile?: boolean;
   selectedCustomer: CustomerLite | null; onSelectCustomer: (c: CustomerLite | null) => void;
+  onEditOrderItem: (orderId: string, itemId: string, quantity: number) => void;
+  onRemoveOrderItem: (orderId: string, itemId: string) => void;
 }) {
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const existingTotal = openOrders.reduce((s, o) => s + orderRemaining(o), 0);
   const cartTotal     = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const grandTotal    = existingTotal + cartTotal;
@@ -824,13 +829,39 @@ function CartPanel({
         {openOrders.length > 0 && (
           <div>
             <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2">👨‍🍳 En cuisine</p>
-            {openOrders.map(order => (
+            {openOrders.map(order => {
+              const editing = editingOrderId === order.id;
+              const canEdit = !['COMPLETED', 'CANCELLED'].includes(order.status);
+              return (
               <div key={order.id} className="bg-gray-700/40 rounded-xl p-3 mb-2">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-xs text-gray-400">{order.orderNumber}</span>
-                  <span className="text-xs text-amber-400">{order.status}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-amber-400">{order.status}</span>
+                    {canEdit && (
+                      <button onClick={() => setEditingOrderId(editing ? null : order.id)}
+                        className={`text-[11px] px-2 py-0.5 rounded-lg font-semibold ${editing ? 'bg-orange-500 text-white' : 'bg-gray-600 text-gray-200 hover:bg-gray-500'}`}>
+                        {editing ? '✓ Terminer' : '✏️ Modifier'}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {order.items.map(item => (
+                {order.items.map(item => editing ? (
+                  <div key={item.id} className="flex items-center gap-2 py-1">
+                    <span className="flex-1 text-xs text-gray-200 truncate">{item.product?.name ?? item.productName ?? 'Article'}</span>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => item.quantity > 1
+                          ? onEditOrderItem(order.id, item.id, item.quantity - 1)
+                          : onRemoveOrderItem(order.id, item.id)}
+                        className="w-6 h-6 rounded-full bg-gray-600 hover:bg-red-700 flex items-center justify-center text-sm">−</button>
+                      <span className="w-5 text-center text-xs font-bold">{item.quantity}</span>
+                      <button onClick={() => onEditOrderItem(order.id, item.id, item.quantity + 1)}
+                        className="w-6 h-6 rounded-full bg-gray-600 hover:bg-green-700 flex items-center justify-center text-sm">+</button>
+                      <button onClick={() => onRemoveOrderItem(order.id, item.id)}
+                        className="w-6 h-6 rounded-full bg-gray-600 hover:bg-red-700 flex items-center justify-center text-xs ml-1">🗑</button>
+                    </div>
+                  </div>
+                ) : (
                   <div key={item.id} className="flex justify-between text-xs text-gray-400 py-0.5">
                     <span>{item.quantity}× {item.product?.name ?? item.productName ?? 'Article'}</span>
                     <span>{formatCurrency(item.totalPrice)}</span>
@@ -840,7 +871,7 @@ function CartPanel({
                   <span>Sous-total</span><span>{formatCurrency(order.totalAmount)}</span>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
 
@@ -1460,6 +1491,27 @@ export default function POSPage() {
     }
   }
 
+  // Corriger une commande déjà envoyée (erreur de saisie) : changer la quantité
+  // ou retirer un article. Le stock n'est déduit qu'au paiement → pas d'impact.
+  async function editOrderItem(orderId: string, itemId: string, quantity: number) {
+    try {
+      await apiPatch(token!, `/orders/${orderId}/items/${itemId}`, { quantity });
+      await refetchOrders();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Erreur modification', false);
+    }
+  }
+
+  async function removeOrderItem(orderId: string, itemId: string) {
+    try {
+      await apiDelete(token!, `/orders/${orderId}/items/${itemId}`);
+      showToast('Article retiré');
+      await refetchOrders();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Erreur suppression', false);
+    }
+  }
+
   function handlePaymentComplete() {
     const total = grandTotal;
     showToast(`${activeTable ? `Table ${activeTable.number}` : 'Emporté'} — ${formatCurrency(total)} encaissé`);
@@ -1591,6 +1643,7 @@ export default function POSPage() {
     onShowReceipt: () => setShowReceipt(true),
     onClearCart: () => setCart([]), sending,
     selectedCustomer, onSelectCustomer: setSelectedCustomer,
+    onEditOrderItem: editOrderItem, onRemoveOrderItem: removeOrderItem,
   };
 
   return (

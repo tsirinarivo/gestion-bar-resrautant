@@ -122,10 +122,18 @@ export async function apiPost<T>(_token: string | null | undefined, path: string
 }
 
 export async function apiPatch(_token: string | null | undefined, path: string, body: unknown): Promise<void> {
-  await authFetch(`/api${path}`, {
+  const res = await authFetch(`/api${path}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
   })
+  const data = await res.json().catch(() => ({ success: res.ok })) as { success?: boolean; error?: string }
+  if (data.success === false) throw new Error(data.error ?? 'Erreur API')
+}
+
+export async function apiDelete(_token: string | null | undefined, path: string): Promise<void> {
+  const res = await authFetch(`/api${path}`, { method: 'DELETE' })
+  const data = await res.json().catch(() => ({ success: res.ok })) as { success?: boolean; error?: string }
+  if (data.success === false) throw new Error(data.error ?? 'Erreur API')
 }
 
 // ─── Login (pose le cookie refreshToken) ───────────────────────────────────
