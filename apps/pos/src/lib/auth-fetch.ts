@@ -130,8 +130,11 @@ export async function apiPatch(_token: string | null | undefined, path: string, 
   if (data.success === false) throw new Error(data.error ?? 'Erreur API')
 }
 
-export async function apiDelete(_token: string | null | undefined, path: string): Promise<void> {
-  const res = await authFetch(`/api${path}`, { method: 'DELETE' })
+export async function apiDelete(_token: string | null | undefined, path: string, body?: unknown): Promise<void> {
+  const res = await authFetch(`/api${path}`, {
+    method: 'DELETE',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
   const data = await res.json().catch(() => ({ success: res.ok })) as { success?: boolean; error?: string }
   if (data.success === false) throw new Error(data.error ?? 'Erreur API')
 }

@@ -1,11 +1,23 @@
 import { Router } from 'express'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { generateOrderNumber, convertUnit } from '@restaurant/utils'
 import { autoPrintReceiptWithTable } from '../lib/printer'
 import { pickConsumeWarehouse, getLevelQty, applyStockDelta } from '../lib/stock-levels'
+
+// Vérifie le PIN de modification si le restaurant en a configuré un.
+async function assertModificationPin(restaurantId: string, pin?: string) {
+  const r = await prisma.restaurant.findUnique({
+    where: { id: restaurantId }, select: { modificationPin: true },
+  })
+  if (!r?.modificationPin) return
+  if (!pin || !(await bcrypt.compare(pin, r.modificationPin))) {
+    throw new AppError('Code PIN requis ou incorrect pour modifier la commande', 403)
+  }
+}
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Especes', MVOLA: 'MVola', ORANGE_MONEY: 'Orange Money',
@@ -955,7 +967,11 @@ orderRouter.post('/:id/items', async (req: AuthRequest, res, next) => {
 // paiement → pas de restauration à gérer ici).
 orderRouter.patch('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
   try {
-    const { quantity } = z.object({ quantity: z.number().int().min(1) }).parse(req.body)
+    const { quantity, pin } = z.object({
+      quantity: z.number().int().min(1),
+      pin: z.string().optional(),
+    }).parse(req.body)
+    await assertModificationPin(req.user!.restaurantId, pin)
     const order = await prisma.order.findFirst({
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },
       include: { items: true },
@@ -990,6 +1006,8 @@ orderRouter.patch('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
 // clôturée (correction d'erreur de saisie après envoi en cuisine).
 orderRouter.delete('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
   try {
+    const pin = typeof req.body?.pin === 'string' ? req.body.pin : undefined
+    await assertModificationPin(req.user!.restaurantId, pin)
     const order = await prisma.order.findFirst({
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },
       include: { items: true },

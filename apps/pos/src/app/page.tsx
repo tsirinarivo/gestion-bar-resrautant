@@ -781,7 +781,7 @@ function CartPanel({
   token, cart, orderNote, activeTable, orderType, openOrders,
   onAdd, onRemove, onNoteChange, onSendToKitchen, onShowPayment, onShowReceipt, onClearCart, onClose,
   sending, isMobile, selectedCustomer, onSelectCustomer,
-  onEditOrderItem, onRemoveOrderItem,
+  onEditOrderItem, onRemoveOrderItem, modificationPinSet, onVerifyPin,
 }: {
   token: string; cart: CartItem[]; orderNote: string;
   activeTable: Table | null; orderType: 'DINE_IN' | 'TAKEAWAY';
@@ -791,10 +791,20 @@ function CartPanel({
   onSendToKitchen: () => void; onShowPayment: () => void; onShowReceipt: () => void; onClearCart: () => void;
   onClose?: () => void; sending: boolean; isMobile?: boolean;
   selectedCustomer: CustomerLite | null; onSelectCustomer: (c: CustomerLite | null) => void;
-  onEditOrderItem: (orderId: string, itemId: string, quantity: number) => void;
-  onRemoveOrderItem: (orderId: string, itemId: string) => void;
+  onEditOrderItem: (orderId: string, itemId: string, quantity: number, pin?: string) => void;
+  onRemoveOrderItem: (orderId: string, itemId: string, pin?: string) => void;
+  modificationPinSet: boolean;
+  onVerifyPin: (pin: string) => Promise<boolean>;
 }) {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editPin, setEditPin] = useState<string>('');
+  const [pinModalOrderId, setPinModalOrderId] = useState<string | null>(null);
+
+  function startEditing(orderId: string) {
+    if (editingOrderId === orderId) { setEditingOrderId(null); setEditPin(''); return; }
+    if (modificationPinSet && !editPin) { setPinModalOrderId(orderId); return; }
+    setEditingOrderId(orderId);
+  }
   const existingTotal = openOrders.reduce((s, o) => s + orderRemaining(o), 0);
   const cartTotal     = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const grandTotal    = existingTotal + cartTotal;
@@ -839,9 +849,9 @@ function CartPanel({
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-amber-400">{order.status}</span>
                     {canEdit && (
-                      <button onClick={() => setEditingOrderId(editing ? null : order.id)}
+                      <button onClick={() => startEditing(order.id)}
                         className={`text-[11px] px-2 py-0.5 rounded-lg font-semibold ${editing ? 'bg-orange-500 text-white' : 'bg-gray-600 text-gray-200 hover:bg-gray-500'}`}>
-                        {editing ? '✓ Terminer' : '✏️ Modifier'}
+                        {editing ? '✓ Terminer' : modificationPinSet ? '🔒 Modifier' : '✏️ Modifier'}
                       </button>
                     )}
                   </div>
@@ -851,13 +861,13 @@ function CartPanel({
                     <span className="flex-1 text-xs text-gray-200 truncate">{item.product?.name ?? item.productName ?? 'Article'}</span>
                     <div className="flex items-center gap-1">
                       <button onClick={() => item.quantity > 1
-                          ? onEditOrderItem(order.id, item.id, item.quantity - 1)
-                          : onRemoveOrderItem(order.id, item.id)}
+                          ? onEditOrderItem(order.id, item.id, item.quantity - 1, editPin || undefined)
+                          : onRemoveOrderItem(order.id, item.id, editPin || undefined)}
                         className="w-6 h-6 rounded-full bg-gray-600 hover:bg-red-700 flex items-center justify-center text-sm">−</button>
                       <span className="w-5 text-center text-xs font-bold">{item.quantity}</span>
-                      <button onClick={() => onEditOrderItem(order.id, item.id, item.quantity + 1)}
+                      <button onClick={() => onEditOrderItem(order.id, item.id, item.quantity + 1, editPin || undefined)}
                         className="w-6 h-6 rounded-full bg-gray-600 hover:bg-green-700 flex items-center justify-center text-sm">+</button>
-                      <button onClick={() => onRemoveOrderItem(order.id, item.id)}
+                      <button onClick={() => onRemoveOrderItem(order.id, item.id, editPin || undefined)}
                         className="w-6 h-6 rounded-full bg-gray-600 hover:bg-red-700 flex items-center justify-center text-xs ml-1">🗑</button>
                     </div>
                   </div>
@@ -961,6 +971,63 @@ function CartPanel({
             )}
           </div>
         )}
+      </div>
+
+      {pinModalOrderId && (
+        <PinPrompt
+          onCancel={() => setPinModalOrderId(null)}
+          onSubmit={async (pin) => {
+            const ok = await onVerifyPin(pin);
+            if (ok) { setEditPin(pin); setEditingOrderId(pinModalOrderId); setPinModalOrderId(null); return true; }
+            return false;
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── PIN de modification (autorisation manager) ───────────────────────────────
+
+function PinPrompt({ onSubmit, onCancel }: {
+  onSubmit: (pin: string) => Promise<boolean>; onCancel: () => void;
+}) {
+  const [pin, setPin] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (pin.length < 4) { setErr('Entrez le code PIN'); return; }
+    setBusy(true); setErr('');
+    const ok = await onSubmit(pin);
+    setBusy(false);
+    if (!ok) { setErr('Code PIN incorrect'); setPin(''); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/70" onClick={busy ? undefined : onCancel} />
+      <div className="relative w-full max-w-xs bg-gray-800 rounded-2xl p-5 z-10 text-center">
+        <p className="text-3xl mb-2">🔒</p>
+        <p className="font-bold mb-1">Code PIN requis</p>
+        <p className="text-gray-400 text-xs mb-4">Autorisation manager pour modifier la commande</p>
+        <input
+          autoFocus type="password" inputMode="numeric" pattern="[0-9]*" maxLength={6}
+          value={pin}
+          onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          placeholder="••••"
+          className="w-full bg-gray-700 rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] font-bold outline-none focus:ring-2 focus:ring-orange-500 mb-2"
+        />
+        {err && <p className="text-red-400 text-xs mb-2">{err}</p>}
+        <div className="flex gap-2 mt-2">
+          <button onClick={onCancel} disabled={busy}
+            className="flex-1 bg-gray-700 hover:bg-gray-600 py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50">Annuler</button>
+          <button onClick={submit} disabled={busy}
+            className="flex-1 bg-orange-500 hover:bg-orange-400 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50">
+            {busy ? '⏳' : 'Valider'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1362,13 +1429,14 @@ export default function POSPage() {
     staleTime: 30_000,
   });
 
-  const { data: restaurantConfig } = useQuery<{ allowNegativeStock?: boolean }>({
+  const { data: restaurantConfig } = useQuery<{ allowNegativeStock?: boolean; modificationPinSet?: boolean }>({
     queryKey: ['pos-restaurant-config', token],
-    queryFn: () => apiFetch<{ allowNegativeStock?: boolean }>(token!, '/restaurants/me'),
+    queryFn: () => apiFetch<{ allowNegativeStock?: boolean; modificationPinSet?: boolean }>(token!, '/restaurants/me'),
     enabled: !!token,
     staleTime: 300_000,
   });
   const allowNegativeStock = restaurantConfig?.allowNegativeStock ?? false;
+  const modificationPinSet = restaurantConfig?.modificationPinSet ?? false;
 
   const { data: openOrders = [], refetch: refetchOrders } = useQuery<Order[]>({
     queryKey: ['pos-open-orders', token, activeTable?.id],
@@ -1493,23 +1561,30 @@ export default function POSPage() {
 
   // Corriger une commande déjà envoyée (erreur de saisie) : changer la quantité
   // ou retirer un article. Le stock n'est déduit qu'au paiement → pas d'impact.
-  async function editOrderItem(orderId: string, itemId: string, quantity: number) {
+  async function editOrderItem(orderId: string, itemId: string, quantity: number, pin?: string) {
     try {
-      await apiPatch(token!, `/orders/${orderId}/items/${itemId}`, { quantity });
+      await apiPatch(token!, `/orders/${orderId}/items/${itemId}`, { quantity, pin });
       await refetchOrders();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Erreur modification', false);
     }
   }
 
-  async function removeOrderItem(orderId: string, itemId: string) {
+  async function removeOrderItem(orderId: string, itemId: string, pin?: string) {
     try {
-      await apiDelete(token!, `/orders/${orderId}/items/${itemId}`);
+      await apiDelete(token!, `/orders/${orderId}/items/${itemId}`, pin ? { pin } : undefined);
       showToast('Article retiré');
       await refetchOrders();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Erreur suppression', false);
     }
+  }
+
+  async function verifyModificationPin(pin: string): Promise<boolean> {
+    try {
+      const r = await apiPost<{ ok: boolean }>(token!, '/restaurants/verify-pin', { pin });
+      return r.ok;
+    } catch { return false; }
   }
 
   function handlePaymentComplete() {
@@ -1644,6 +1719,7 @@ export default function POSPage() {
     onClearCart: () => setCart([]), sending,
     selectedCustomer, onSelectCustomer: setSelectedCustomer,
     onEditOrderItem: editOrderItem, onRemoveOrderItem: removeOrderItem,
+    modificationPinSet, onVerifyPin: verifyModificationPin,
   };
 
   return (

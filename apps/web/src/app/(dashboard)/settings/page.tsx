@@ -1,9 +1,9 @@
 'use client'
 
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
-import { Building2, Clock, Truck, Save, Globe, Image, Package } from 'lucide-react'
+import { Building2, Clock, Truck, Save, Globe, Image, Package, Lock } from 'lucide-react'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 
@@ -18,6 +18,7 @@ const DAYS = [
 ]
 
 export default function SettingsPage() {
+  const qc = useQueryClient()
   const { data: restaurant, isLoading } = useQuery({
     queryKey: ['restaurant'],
     queryFn: () => api.get('/restaurants/me').then(r => r.data.data),
@@ -40,7 +41,7 @@ export default function SettingsPage() {
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => api.put('/restaurants/me', data),
-    onSuccess: () => toast.success('Paramètres sauvegardés'),
+    onSuccess: () => { toast.success('Paramètres sauvegardés'); qc.invalidateQueries({ queryKey: ['restaurant'] }) },
     onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur lors de la sauvegarde'),
   })
 
@@ -51,7 +52,13 @@ export default function SettingsPage() {
         <p className="text-brand-muted text-sm">Configuration du restaurant</p>
       </div>
 
-      <form onSubmit={handleSubmit(data => updateMutation.mutate(data))} className="space-y-6">
+      <form onSubmit={handleSubmit(data => {
+        const payload = { ...data }
+        // Ne jamais écraser le PIN existant si le champ est laissé vide.
+        if (!payload.modificationPin) delete payload.modificationPin
+        delete payload.modificationPinSet
+        updateMutation.mutate(payload)
+      })} className="space-y-6">
         {/* Informations générales */}
         <div className="glass-card p-6">
           <div className="flex items-center gap-3 mb-5">
@@ -205,6 +212,40 @@ export default function SettingsPage() {
               </p>
             </div>
           </label>
+        </div>
+
+        {/* Sécurité — PIN de modification */}
+        <div className="glass-card p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-brand-orange/20 flex items-center justify-center">
+              <Lock className="w-4 h-4 text-brand-orange" />
+            </div>
+            <h2 className="font-semibold">Sécurité — modification des commandes</h2>
+          </div>
+          <p className="text-xs text-brand-muted mb-4">
+            Exige un code PIN au POS avant de modifier une commande déjà envoyée
+            (changer une quantité ou retirer un article). Laisse vide pour ne pas changer.
+          </p>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="block text-sm font-medium mb-2">
+                Code PIN (4 à 6 chiffres)
+                {restaurant?.modificationPinSet && (
+                  <span className="text-xs text-green-500 ml-2">● PIN actif</span>
+                )}
+              </label>
+              <input {...register('modificationPin')} type="password" inputMode="numeric"
+                maxLength={6} placeholder={restaurant?.modificationPinSet ? '•••• (inchangé)' : 'Ex : 1234'}
+                className="input-field" />
+            </div>
+            {restaurant?.modificationPinSet && (
+              <button type="button"
+                onClick={() => updateMutation.mutate({ modificationPin: '' })}
+                className="px-4 py-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 text-sm font-semibold whitespace-nowrap">
+                Retirer le PIN
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Site vitrine client */}

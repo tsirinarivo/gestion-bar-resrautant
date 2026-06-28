@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
@@ -13,10 +14,25 @@ restaurantRouter.get('/me', async (req: AuthRequest, res, next) => {
       where: { id: req.user!.restaurantId },
     })
     if (!restaurant) throw new AppError('Restaurant introuvable', 404)
-    res.json({ success: true, data: restaurant })
+    // Ne jamais exposer le hash du PIN — seulement un booléen "configuré ?".
+    const { modificationPin, ...safe } = restaurant
+    res.json({ success: true, data: { ...safe, modificationPinSet: !!modificationPin } })
   } catch (error) {
     next(error)
   }
+})
+
+// POST /restaurants/verify-pin — vérifie le PIN de modification. Renvoie ok:true
+// s'il n'y a aucun PIN configuré (pas de restriction).
+restaurantRouter.post('/verify-pin', async (req: AuthRequest, res, next) => {
+  try {
+    const { pin } = z.object({ pin: z.string() }).parse(req.body)
+    const r = await prisma.restaurant.findUnique({
+      where: { id: req.user!.restaurantId }, select: { modificationPin: true },
+    })
+    const ok = !r?.modificationPin || await bcrypt.compare(pin, r.modificationPin)
+    res.json({ success: true, data: { ok } })
+  } catch (error) { next(error) }
 })
 
 restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
@@ -56,6 +72,8 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       sitePrimaryColor: z.string().nullable().optional(),
       siteTagline: z.string().nullable().optional(),
       siteHeroImage: z.string().nullable().optional(),
+      // PIN de modification : 4 à 6 chiffres ; "" ou null pour le retirer.
+      modificationPin: z.string().regex(/^\d{4,6}$/).or(z.literal('')).nullable().optional(),
     }).parse(req.body)
 
     const data: Record<string, unknown> = {}
@@ -67,6 +85,13 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       'siteTemplate', 'sitePrimaryColor', 'siteTagline', 'siteHeroImage',
     ] as const) {
       if (parsed[key] !== undefined) data[key] = parsed[key]
+    }
+
+    // PIN : hashé si fourni, mis à null si vide (retrait de la protection).
+    if (parsed.modificationPin !== undefined) {
+      data.modificationPin = parsed.modificationPin
+        ? await bcrypt.hash(parsed.modificationPin, 10)
+        : null
     }
 
     const restaurant = await prisma.restaurant.update({

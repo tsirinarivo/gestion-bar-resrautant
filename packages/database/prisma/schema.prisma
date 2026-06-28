@@ -50,6 +50,10 @@ model Restaurant {
   invoiceHeader String?
   invoiceFooter String?
 
+  // Code PIN (hashé bcrypt) exigé pour modifier une commande déjà envoyée
+  // (correction d'erreur de saisie au POS). Null = aucune restriction.
+  modificationPin String?
+
   // ── Personnalisation du site vitrine client (<slug>.sakafio.mg) ──
   siteTemplate    String  @default("classic") // classic | modern | compact
   sitePrimaryColor String? // couleur d'accent hex (ex. #F97316)
