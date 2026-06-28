@@ -11,11 +11,22 @@ import { toast } from 'sonner'
 
 const QRCodeSVG = dynamic(() => import('qrcode.react').then(m => m.QRCodeSVG), { ssr: false })
 
-const CLIENT_URL = process.env.NEXT_PUBLIC_CLIENT_URL || 'https://client.sakafio.mg'
+// URL du site client public du tenant. L'admin tourne sur
+// admin-<slug>.sakafio.mg → le client est sur <slug>.sakafio.mg. On dérive donc
+// l'URL en retirant le préfixe "admin-" de l'hôte courant (robuste, sans var de
+// build inlinée par tenant). Repli sur l'env puis le domaine racine.
+function getClientUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    if (host.startsWith('admin-')) return `${window.location.protocol}//${host.slice(6)}`
+    if (host === 'localhost' || host.startsWith('127.')) return 'http://localhost:3003'
+  }
+  return process.env.NEXT_PUBLIC_CLIENT_URL || 'https://sakafio.mg'
+}
 
 function QRModal({ table, onClose }: { table: any; onClose: () => void }) {
   const svgRef = useRef<HTMLDivElement>(null)
-  const tableUrl = `${CLIENT_URL}/table/${table.id}`
+  const tableUrl = `${getClientUrl()}/table/${table.id}`
 
   function downloadQR() {
     const svg = svgRef.current?.querySelector('svg')
