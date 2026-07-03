@@ -1988,7 +1988,18 @@ export default function MenuPage() {
           ) : products.length === 0 ? (
             <div className="col-span-full text-center py-16 text-brand-muted">
               <p className="text-4xl mb-4">🍽️</p>
-              <p>Aucun produit trouvé</p>
+              <p className="mb-1">Aucun produit trouvé</p>
+              {!search && !selectedCategory && (
+                <>
+                  <p className="text-sm mb-6">Commence avec un jeu de données malgache (catégories, stock, recettes) — tu pourras tout modifier ensuite.</p>
+                  <button onClick={() => loadDemo(false)} disabled={demoLoading}
+                    className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
+                    {demoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
+                    Charger les données démo
+                  </button>
+                  <p className="text-xs mt-3">ou <button onClick={() => setProductModal({ open: true, product: null })} className="text-brand-orange underline">créer un produit manuellement</button></p>
+                </>
+              )}
             </div>
           ) : (
             products.map(product => (
