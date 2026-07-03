@@ -1,7 +1,9 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { seedDemoData } from './demo-seed'
 
 const prisma = new PrismaClient()
+const SEED_DEMO = process.env['SEED_DEMO'] === 'true'
 
 const RESTO_NAME = process.env['RESTO_NAME'] ?? ''
 const RESTO_SLUG = process.env['RESTO_SLUG'] ?? ''
@@ -83,6 +85,15 @@ async function main() {
     },
   })
   console.log(`✅ Admin créé : ${admin.email}`)
+
+  if (SEED_DEMO) {
+    try {
+      await seedDemoData(prisma, restaurant.id)
+      console.log('✅ Données démo chargées')
+    } catch (e) {
+      console.error('⚠️  Seed démo échoué (non-bloquant) :', e)
+    }
+  }
 
   console.log('')
   console.log('🎉 Fresh start terminé !')

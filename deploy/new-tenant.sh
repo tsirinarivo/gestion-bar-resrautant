@@ -186,6 +186,7 @@ if ! $DC_MASTER run --rm \
   -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
   -e ADMIN_FIRST_NAME="$ADMIN_FIRST_NAME" \
   -e ADMIN_LAST_NAME="$ADMIN_LAST_NAME" \
+  -e SEED_DEMO="${SEED_DEMO:-false}" \
   migrate sh -c "node dist/init-fresh.js"; then
   error "❌ Le seed de l'admin a échoué sur $TENANT_DB_NAME — provisioning interrompu"
 fi

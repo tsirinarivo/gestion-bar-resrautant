@@ -111,6 +111,7 @@ export async function runProvisioningScript(
     ADMIN_PASSWORD: adminPassword,
     ADMIN_FIRST_NAME: adminFirstName,
     ADMIN_LAST_NAME: adminLastName,
+    SEED_DEMO: String(!!tenant.seededWithDemo),
   }
 
   try {
@@ -164,6 +165,7 @@ export function runProvisioningScriptAsync(
     ADMIN_PASSWORD: adminPassword,
     ADMIN_FIRST_NAME: adminFirstName,
     ADMIN_LAST_NAME: adminLastName,
+    SEED_DEMO: String(!!tenant.seededWithDemo),
   }
 
   const child = spawn('bash', [SCRIPT_NEW], { env, cwd: ROOT_DIR })
