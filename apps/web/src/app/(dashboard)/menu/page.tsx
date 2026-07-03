@@ -1735,7 +1735,30 @@ export default function MenuPage() {
   const [presetsModal, setPresetsModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showAutoCat, setShowAutoCat] = useState(false)
+  const [demoLoading, setDemoLoading] = useState(false)
   const qc = useQueryClient()
+
+  async function loadDemo(force = false) {
+    setDemoLoading(true)
+    try {
+      const r = await api.post('/restaurants/seed-demo', { force })
+      const d = r.data.data
+      toast.success(`Données démo chargées : ${d.products} produits, ${d.categories} catégories, ${d.recipes} recette(s)`)
+      qc.invalidateQueries({ queryKey: ['products'] })
+      qc.invalidateQueries({ queryKey: ['categories'] })
+    } catch (e: any) {
+      if (e?.response?.status === 409) {
+        if (window.confirm(`${e.response.data.error}\n\nCharger quand même les données démo (complète sans supprimer l'existant) ?`)) {
+          setDemoLoading(false)
+          return loadDemo(true)
+        }
+      } else {
+        toast.error(e?.response?.data?.error ?? 'Erreur chargement démo')
+      }
+    } finally {
+      setDemoLoading(false)
+    }
+  }
 
   const { data: categoriesData } = useQuery<Category[]>({
     queryKey: ['categories'],
@@ -1851,6 +1874,11 @@ export default function MenuPage() {
             className="btn-secondary flex items-center gap-2 text-sm">
             <Sparkles className="w-4 h-4" />
             <span className="hidden sm:inline">Auto-catégoriser</span>
+          </button>
+          <button onClick={() => loadDemo(false)} disabled={demoLoading}
+            className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-50">
+            {demoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
+            <span className="hidden sm:inline">Données démo</span>
           </button>
           <button onClick={() => setProductModal({ open: true, product: null })}
             className="btn-primary flex items-center gap-2 text-sm">

@@ -4,9 +4,26 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
+import { seedDemoData } from '../lib/demo-seed'
 
 export const restaurantRouter = Router()
 restaurantRouter.use(authenticate)
+
+// POST /restaurants/seed-demo — charge un jeu de données démo (catégories,
+// stock, produits, recettes MG). Refuse si des produits existent déjà, sauf
+// force=true. Idempotent (upsert par slug).
+restaurantRouter.post('/seed-demo', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { force } = z.object({ force: z.boolean().default(false) }).parse(req.body ?? {})
+    const restaurantId = req.user!.restaurantId
+    const existing = await prisma.product.count({ where: { restaurantId, deletedAt: null } })
+    if (existing > 0 && !force) {
+      throw new AppError(`${existing} produit(s) existent déjà — cochez « remplacer/compléter » pour forcer le chargement`, 409)
+    }
+    const result = await seedDemoData(restaurantId)
+    res.json({ success: true, data: result })
+  } catch (error) { next(error) }
+})
 
 restaurantRouter.get('/me', async (req: AuthRequest, res, next) => {
   try {
