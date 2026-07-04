@@ -279,6 +279,79 @@ function PrintableTicket({ shop, tableLabel, items, total, tip, payments, onCred
 
 // ─── Refund modal ─────────────────────────────────────────────────────────────
 
+// ─── Historique des encaissements (du jour) ──────────────────────────────────
+
+function EncaissementsModal({ token, onClose }: { token: string; onClose: () => void }) {
+  const [data, setData] = useState<{ payments: any[]; summary: { total: number; count: number; byMethod: { method: string; total: number; count: number }[] } } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    apiFetch<any>(token, `/payments?from=${today}&to=${today}&limit=200`)
+      .then(setData).catch(() => setData({ payments: [], summary: { total: 0, count: 0, byMethod: [] } }))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const label = (v: string) => v === 'CREDIT' ? 'À crédit' : POS_PAYMENT_METHODS.find(m => m.value === v)?.label ?? v;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl z-10 max-h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+          <h3 className="font-bold text-base">📋 Encaissements du jour</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl w-8 h-8 flex items-center justify-center">&times;</button>
+        </div>
+
+        <div className="px-4 py-3 border-b border-gray-700 grid grid-cols-2 gap-2">
+          <div className="bg-gray-700/50 rounded-xl p-2 text-center">
+            <p className="text-[10px] text-gray-400">Total</p>
+            <p className="font-bold text-orange-400">{formatCurrency(data?.summary.total ?? 0)}</p>
+          </div>
+          <div className="bg-gray-700/50 rounded-xl p-2 text-center">
+            <p className="text-[10px] text-gray-400">Nb paiements</p>
+            <p className="font-bold">{data?.summary.count ?? 0}</p>
+          </div>
+        </div>
+
+        {(data?.summary.byMethod?.length ?? 0) > 0 && (
+          <div className="px-4 py-2 flex flex-wrap gap-1.5 border-b border-gray-700">
+            {data!.summary.byMethod.map(m => (
+              <span key={m.method} className="text-[11px] bg-gray-700/50 rounded-lg px-2 py-1">
+                {label(m.method)} : <b>{formatCurrency(m.total)}</b>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto px-4 py-2">
+          {loading ? (
+            <p className="text-center text-gray-500 py-8 text-sm">⏳ Chargement…</p>
+          ) : (data?.payments.length ?? 0) === 0 ? (
+            <p className="text-center text-gray-500 py-8 text-sm">Aucun encaissement aujourd'hui</p>
+          ) : (
+            data!.payments.map((p: any) => (
+              <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-700/50 text-sm">
+                <div>
+                  <p className="font-medium">{p.order?.orderNumber ?? '—'}</p>
+                  <p className="text-[11px] text-gray-400">
+                    {new Date(p.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} · {label(p.method)}
+                    {p.order?.table ? ` · Table ${p.order.table.number}` : p.order?.type === 'TAKEAWAY' ? ' · Emporté' : ''}
+                  </p>
+                </div>
+                <span className="font-bold text-green-400">{formatCurrency(p.amount)}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Refund modal ─────────────────────────────────────────────────────────────
+
 function RefundModal({ token, onClose }: { token: string; onClose: () => void }) {
   const [query, setQuery]       = useState('')
   const [foundOrder, setFound]  = useState<any>(null)
@@ -481,7 +554,7 @@ function OpenCaisseModal({ token, onOpened, onLogout }: { token: string; onOpene
 
 function PaymentModal({
   token, grandTotal, tableLabel, openOrders, cart, orderType, activeTable, orderNote,
-  allowedMethods, customer, onSelectCustomer, shop, onComplete, onClose,
+  allowedMethods, customer, onSelectCustomer, shop, cloudPrintEnabled, onComplete, onClose,
 }: {
   token: string; grandTotal: number; tableLabel: string;
   openOrders: Order[]; cart: CartItem[]; orderType: 'DINE_IN' | 'TAKEAWAY';
@@ -490,6 +563,7 @@ function PaymentModal({
   customer: CustomerLite | null;
   onSelectCustomer: (c: CustomerLite | null) => void;
   shop: { name: string; address: string | null; phone: string | null; header: string | null; footer: string | null };
+  cloudPrintEnabled: boolean;
   onComplete: () => void; onClose: () => void;
 }) {
   // Queue of orders to pay: {id, remaining}
@@ -507,14 +581,16 @@ function PaymentModal({
   const [tipInput, setTipInput]     = useState('');
 
   // Impression auto du ticket dès que le paiement est soldé (une seule fois).
+  // Uniquement si l'imprimante cloud n'est PAS active (sinon elle imprime déjà
+  // le ticket côté serveur → on éviterait un doublon + boîte de dialogue).
   const printedRef = useRef(false);
   useEffect(() => {
-    if (done && !printedRef.current) {
+    if (done && !printedRef.current && !cloudPrintEnabled) {
       printedRef.current = true;
       const t = setTimeout(() => { try { window.print(); } catch { /* ignore */ } }, 400);
       return () => clearTimeout(t);
     }
-  }, [done]);
+  }, [done, cloudPrintEnabled]);
 
   const grandTotalWithTip = grandTotal + tip;
   const totalPaid  = payments.reduce((s, p) => s + p.amount, 0);
@@ -1440,6 +1516,7 @@ export default function POSPage() {
   const [showPayModal,     setShowPayModal]      = useState(false);
   const [showReceipt,      setShowReceipt]       = useState(false);
   const [showRefund,       setShowRefund]        = useState(false);
+  const [showHistory,      setShowHistory]       = useState(false);
   const [cartOpen,         setCartOpen]          = useState(false);
   const [toast,            setToast]            = useState<{ msg: string; ok: boolean } | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null);
@@ -1484,6 +1561,16 @@ export default function POSPage() {
     enabled: !!token,
     refetchInterval: 60_000,
   });
+
+  // Imprimante cloud active ? Si oui, elle imprime le ticket côté serveur au
+  // paiement → on n'ouvre PAS la boîte d'impression navigateur (éviter le doublon).
+  const { data: printerCfg } = useQuery<{ enabled?: boolean }>({
+    queryKey: ['pos-printer-config', token],
+    queryFn: () => apiFetch<{ enabled?: boolean }>(token!, '/printer/config'),
+    enabled: !!token,
+    staleTime: 300_000,
+  });
+  const cloudPrintEnabled = printerCfg?.enabled ?? false;
 
   const { data: categories = [], error: categoriesError } = useQuery<Category[]>({
     queryKey: ['pos-categories', token],
@@ -1835,6 +1922,11 @@ export default function POSPage() {
         <RefundModal token={token!} onClose={() => setShowRefund(false)} />
       )}
 
+      {/* Historique des encaissements */}
+      {showHistory && (
+        <EncaissementsModal token={token!} onClose={() => setShowHistory(false)} />
+      )}
+
       {/* Receipt modal */}
       {showReceipt && (
         <ReceiptModal
@@ -1862,6 +1954,7 @@ export default function POSPage() {
           customer={selectedCustomer}
           onSelectCustomer={setSelectedCustomer}
           shop={shopInfo}
+          cloudPrintEnabled={cloudPrintEnabled}
           onComplete={handlePaymentComplete}
           onClose={() => setShowPayModal(false)}
         />
@@ -1896,6 +1989,10 @@ export default function POSPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setShowHistory(true)}
+            className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white border border-gray-600 px-3 py-1.5 rounded-lg transition-colors font-medium">
+            📋 Encaissements
+          </button>
           <button onClick={() => setShowRefund(true)}
             className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white border border-gray-600 px-3 py-1.5 rounded-lg transition-colors font-medium">
             ↩ Retour

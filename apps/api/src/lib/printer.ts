@@ -63,7 +63,11 @@ export async function autoPrintReceiptWithTable(
   sale: ReceiptData,
 ): Promise<void> {
   const cfg = await loadPrinterCfg(restaurantId)
-  if (!cfg?.autoOnSaleConfirm) return
+  // Ce reçu est imprimé à la FINALISATION (paiement/COMPLETED) → piloté par
+  // « À la finalisation (COMPLETED) » = autoOnPaymentConfirm. On accepte aussi
+  // autoOnSaleConfirm pour rétro-compatibilité (anciens réglages).
+  const c = cfg as any
+  if (!c?.autoOnPaymentConfirm && !c?.autoOnSaleConfirm) return
 
   // En-tête/pied de page : on privilégie les champs personnalisés du restaurant
   // (Paramètres → En-tête facture & ticket), avec repli sur ceux du printer config.

@@ -37,6 +37,7 @@ const navItems = [
   { href: '/promotions', label: 'Promotions',         icon: Megaphone,        roles: ['manager', 'superadmin'] },
   { href: '/invoices',  label: 'Factures',            icon: Receipt,          roles: ['manager', 'superadmin', 'caissier'] },
   { href: '/caisse',    label: 'Caisse',             icon: Landmark,         roles: ['manager', 'superadmin', 'caissier'] },
+  { href: '/encaissements', label: 'Encaissements',  icon: CreditCard,       roles: ['manager', 'superadmin', 'caissier'] },
   { href: '/terminaux', label: 'Terminaux POS',      icon: Monitor,          roles: ['manager', 'superadmin'] },
   { href: '/bank',      label: 'Banque',             icon: Building2,        roles: ['manager', 'superadmin'] },
   { href: '/finances',  label: 'Finances',           icon: TrendingUp,       roles: ['manager', 'superadmin'] },

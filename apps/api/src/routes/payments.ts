@@ -44,6 +44,43 @@ async function autoPostToCaisse(
 export const paymentRouter = Router()
 paymentRouter.use(authenticate)
 
+// GET /api/payments — historique des encaissements (avec filtres + résumé).
+paymentRouter.get('/', async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const { from, to, method, search, limit } = req.query as Record<string, string | undefined>
+
+    const where: any = { order: { restaurantId }, status: 'COMPLETED' }
+    if (method) where.method = method
+    if (from || to) {
+      where.createdAt = {}
+      if (from) where.createdAt.gte = new Date(from)
+      if (to) { const d = new Date(to); d.setHours(23, 59, 59, 999); where.createdAt.lte = d }
+    }
+    if (search) where.order = { restaurantId, orderNumber: { contains: search, mode: 'insensitive' } }
+
+    const take = Math.min(Number(limit) || 100, 500)
+
+    const [payments, grouped] = await Promise.all([
+      prisma.payment.findMany({
+        where,
+        include: {
+          order: { select: { orderNumber: true, type: true, table: { select: { number: true } } } },
+          refunds: { select: { amount: true, status: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+      }),
+      prisma.payment.groupBy({ by: ['method'], where, _sum: { amount: true }, _count: true }),
+    ])
+
+    const total = grouped.reduce((s, g) => s + (g._sum.amount ?? 0), 0)
+    const byMethod = grouped.map(g => ({ method: g.method, total: g._sum.amount ?? 0, count: g._count }))
+
+    res.json({ success: true, data: { payments, summary: { total, count: payments.length, byMethod } } })
+  } catch (error) { next(error) }
+})
+
 paymentRouter.post('/', async (req: AuthRequest, res, next) => {
   try {
     const data = z.object({
