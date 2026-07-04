@@ -231,6 +231,52 @@ function ReceiptModal({
   );
 }
 
+// ─── Ticket imprimable (thermique 80mm) ──────────────────────────────────────
+
+function PrintableTicket({ shop, tableLabel, items, total, tip, payments, onCredit, customerName }: {
+  shop: { name: string; address: string | null; phone: string | null; header: string | null; footer: string | null };
+  tableLabel: string;
+  items: { name: string; qty: number; total: number }[];
+  total: number; tip: number;
+  payments: { method: string; amount: number }[];
+  onCredit: boolean; customerName: string | null;
+}) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fr-FR');
+  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const label = (v: string) => v === 'CREDIT' ? 'À crédit' : POS_PAYMENT_METHODS.find(m => m.value === v)?.label ?? v;
+  const line = { borderTop: '1px dashed #000', margin: '6px 0' };
+  return (
+    <div className="text-black font-mono text-[12px] leading-tight" style={{ width: '72mm', margin: '0 auto', padding: '4mm' }}>
+      <div className="text-center">
+        <p className="font-bold text-[15px]">{shop.name}</p>
+        {shop.address && <p>{shop.address}</p>}
+        {shop.phone && <p>{shop.phone}</p>}
+        {shop.header && <p className="whitespace-pre-line mt-1">{shop.header}</p>}
+      </div>
+      <p className="text-center mt-1">{dateStr} {timeStr} · {tableLabel}</p>
+      {customerName && <p className="text-center">Client : {customerName}</p>}
+      <div style={line} />
+      {items.map((it, i) => (
+        <div key={i} className="flex justify-between"><span>{it.qty}× {it.name}</span><span>{formatCurrency(it.total)}</span></div>
+      ))}
+      <div style={line} />
+      {tip > 0 && <div className="flex justify-between"><span>Pourboire</span><span>{formatCurrency(tip)}</span></div>}
+      <div className="flex justify-between font-bold text-[14px]"><span>TOTAL</span><span>{formatCurrency(total)}</span></div>
+      <div style={line} />
+      {onCredit ? (
+        <p className="font-semibold">Réglé : À CRÉDIT (compte client)</p>
+      ) : (
+        payments.map((p, i) => (
+          <div key={i} className="flex justify-between"><span>{label(p.method)}</span><span>{formatCurrency(p.amount)}</span></div>
+        ))
+      )}
+      <div style={line} />
+      <p className="text-center whitespace-pre-line">{shop.footer || 'Merci de votre visite !'}</p>
+    </div>
+  );
+}
+
 // ─── Refund modal ─────────────────────────────────────────────────────────────
 
 function RefundModal({ token, onClose }: { token: string; onClose: () => void }) {
@@ -435,7 +481,7 @@ function OpenCaisseModal({ token, onOpened, onLogout }: { token: string; onOpene
 
 function PaymentModal({
   token, grandTotal, tableLabel, openOrders, cart, orderType, activeTable, orderNote,
-  allowedMethods, customer, onSelectCustomer, onComplete, onClose,
+  allowedMethods, customer, onSelectCustomer, shop, onComplete, onClose,
 }: {
   token: string; grandTotal: number; tableLabel: string;
   openOrders: Order[]; cart: CartItem[]; orderType: 'DINE_IN' | 'TAKEAWAY';
@@ -443,6 +489,7 @@ function PaymentModal({
   allowedMethods: typeof POS_PAYMENT_METHODS;
   customer: CustomerLite | null;
   onSelectCustomer: (c: CustomerLite | null) => void;
+  shop: { name: string; address: string | null; phone: string | null; header: string | null; footer: string | null };
   onComplete: () => void; onClose: () => void;
 }) {
   // Queue of orders to pay: {id, remaining}
@@ -458,6 +505,16 @@ function PaymentModal({
   const [error, setError]           = useState('');
   const [tip, setTip]               = useState(0);
   const [tipInput, setTipInput]     = useState('');
+
+  // Impression auto du ticket dès que le paiement est soldé (une seule fois).
+  const printedRef = useRef(false);
+  useEffect(() => {
+    if (done && !printedRef.current) {
+      printedRef.current = true;
+      const t = setTimeout(() => { try { window.print(); } catch { /* ignore */ } }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [done]);
 
   const grandTotalWithTip = grandTotal + tip;
   const totalPaid  = payments.reduce((s, p) => s + p.amount, 0);
@@ -580,15 +637,18 @@ function PaymentModal({
   }
 
   if (done) {
+    const onCredit = payments.some(p => p.method === 'CREDIT');
+    const ticketItems = [
+      ...openOrders.flatMap(o => o.items.map(i => ({ name: i.product?.name ?? i.productName ?? 'Article', qty: i.quantity, total: i.totalPrice }))),
+      ...cart.map(i => ({ name: i.product.name, qty: i.quantity, total: i.product.price * i.quantity })),
+    ];
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-        <div className="absolute inset-0 bg-black/70" />
-        <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-5 z-10 text-center">
-          {(() => { const onCredit = payments.some(p => p.method === 'CREDIT'); return (<>
+        <div className="absolute inset-0 bg-black/70 print:hidden" />
+        <div className="relative w-full sm:max-w-md bg-gray-800 rounded-t-2xl sm:rounded-2xl p-5 z-10 text-center print:hidden">
           <p className="text-4xl mb-2">{onCredit ? '📒' : '✅'}</p>
           <p className="text-lg font-bold mb-0.5">{onCredit ? 'Mis à crédit' : 'Addition soldée'}</p>
           <p className="text-gray-400 text-sm mb-3">{onCredit ? `${formatCurrency(grandTotalWithTip)} sur le compte de ${customer?.firstName ?? 'client'} — à régler via la page Dettes` : `${formatCurrency(grandTotalWithTip)} encaissé${tip > 0 ? ` (dont ${formatCurrency(tip)} pourboire)` : ''}`}</p>
-          </>); })()}
           <div className="bg-gray-700/50 rounded-xl p-3 mb-4 text-left space-y-1">
             {payments.map((p, i) => (
               <div key={i} className="flex justify-between text-sm">
@@ -597,9 +657,24 @@ function PaymentModal({
               </div>
             ))}
           </div>
-          <button onClick={onComplete} className="w-full bg-orange-500 hover:bg-orange-400 text-white py-3 rounded-xl font-bold">
-            Fermer
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => { try { window.print(); } catch { /* ignore */ } }}
+              className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-xl font-bold">
+              🖨️ Réimprimer
+            </button>
+            <button onClick={onComplete} className="flex-1 bg-orange-500 hover:bg-orange-400 text-white py-3 rounded-xl font-bold">
+              Fermer
+            </button>
+          </div>
+        </div>
+
+        {/* Ticket imprimable (visible uniquement à l'impression) */}
+        <div id="pos-print-area" className="hidden print:block">
+          <PrintableTicket
+            shop={shop} tableLabel={tableLabel} items={ticketItems}
+            total={grandTotalWithTip} tip={tip} payments={payments}
+            onCredit={onCredit} customerName={customer ? `${customer.firstName} ${customer.lastName}` : null}
+          />
         </div>
       </div>
     );
@@ -1429,14 +1504,21 @@ export default function POSPage() {
     staleTime: 30_000,
   });
 
-  const { data: restaurantConfig } = useQuery<{ allowNegativeStock?: boolean; modificationPinSet?: boolean }>({
+  const { data: restaurantConfig } = useQuery<{ allowNegativeStock?: boolean; modificationPinSet?: boolean; name?: string; address?: string; phone?: string; invoiceHeader?: string; invoiceFooter?: string }>({
     queryKey: ['pos-restaurant-config', token],
-    queryFn: () => apiFetch<{ allowNegativeStock?: boolean; modificationPinSet?: boolean }>(token!, '/restaurants/me'),
+    queryFn: () => apiFetch<any>(token!, '/restaurants/me'),
     enabled: !!token,
     staleTime: 300_000,
   });
   const allowNegativeStock = restaurantConfig?.allowNegativeStock ?? false;
   const modificationPinSet = restaurantConfig?.modificationPinSet ?? false;
+  const shopInfo = {
+    name: restaurantConfig?.name ?? 'Sakafio',
+    address: restaurantConfig?.address ?? null,
+    phone: restaurantConfig?.phone ?? null,
+    header: restaurantConfig?.invoiceHeader ?? null,
+    footer: restaurantConfig?.invoiceFooter ?? null,
+  };
 
   const { data: openOrders = [], refetch: refetchOrders } = useQuery<Order[]>({
     queryKey: ['pos-open-orders', token, activeTable?.id],
@@ -1779,6 +1861,7 @@ export default function POSPage() {
           allowedMethods={allowedMethods}
           customer={selectedCustomer}
           onSelectCustomer={setSelectedCustomer}
+          shop={shopInfo}
           onComplete={handlePaymentComplete}
           onClose={() => setShowPayModal(false)}
         />

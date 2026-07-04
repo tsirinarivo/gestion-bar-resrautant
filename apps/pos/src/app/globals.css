@@ -33,3 +33,17 @@ button, [role="button"] {
   @apply flex items-center justify-center text-xl font-bold rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 transition-all cursor-pointer;
   height: 70px;
 }
+
+/* Impression ticket : n'imprimer que la zone reçu, pas toute l'UI POS */
+@media print {
+  body * { visibility: hidden !important; }
+  #pos-print-area, #pos-print-area *,
+  #receipt-content, #receipt-content * { visibility: visible !important; }
+  #pos-print-area, #receipt-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  @page { margin: 0; }
+}
