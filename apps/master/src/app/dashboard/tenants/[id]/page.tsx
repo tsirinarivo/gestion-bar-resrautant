@@ -4,6 +4,7 @@ import { masterPrisma } from '@restaurant/master-database'
 import { readSession } from '@/lib/auth'
 import { DeleteTenantButton } from '@/components/DeleteTenantButton'
 import { SuspendResumeButton } from '@/components/SuspendResumeButton'
+import { SeedDemoButton } from '@/components/SeedDemoButton'
 import { TenantSubscriptionCard } from '@/components/TenantSubscriptionCard'
 import { PageHeader, StatusBadge } from '@/components/ui/PageHeader'
 
@@ -49,6 +50,7 @@ export default async function TenantDetailPage({ params }: { params: { id: strin
         }
         actions={
           <>
+            <SeedDemoButton tenantId={tenant.id} tenantSlug={tenant.slug} />
             <SuspendResumeButton
               tenantId={tenant.id}
               tenantSlug={tenant.slug}

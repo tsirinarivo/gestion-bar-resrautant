@@ -12,6 +12,7 @@ const PORTS_PER_TENANT = 10
 const ROOT_DIR = process.env.RESTAURANT_ROOT || '/opt/restaurant'
 const SCRIPT_NEW = path.join(ROOT_DIR, 'deploy', 'new-tenant.sh')
 const SCRIPT_DELETE = path.join(ROOT_DIR, 'deploy', 'delete-tenant.sh')
+const SCRIPT_SEED_DEMO = path.join(ROOT_DIR, 'deploy', 'seed-demo.sh')
 
 export type CreateTenantInput = {
   slug: string
@@ -129,6 +130,31 @@ export async function runProvisioningScript(
       stdout: e.stdout ?? '',
       stderr: (e.stderr ?? '') + '\n' + e.message,
     }
+  }
+}
+
+/**
+ * Charge les données démo dans un tenant existant (bouton console master).
+ */
+export async function runSeedDemoScript(
+  tenant: Pick<Tenant, 'slug' | 'dbName'>,
+): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    TENANT_SLUG: tenant.slug,
+    TENANT_DB_NAME: tenant.dbName,
+  }
+  try {
+    const { stdout, stderr } = await execFileP('bash', [SCRIPT_SEED_DEMO], {
+      env,
+      cwd: ROOT_DIR,
+      timeout: 5 * 60 * 1000,
+      maxBuffer: 10 * 1024 * 1024,
+    })
+    return { ok: true, stdout, stderr }
+  } catch (err) {
+    const e = err as { stdout?: string; stderr?: string; message: string }
+    return { ok: false, stdout: e.stdout ?? '', stderr: (e.stderr ?? '') + '\n' + e.message }
   }
 }
 

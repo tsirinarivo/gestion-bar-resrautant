@@ -4,6 +4,9 @@ import { seedDemoData } from './demo-seed'
 
 const prisma = new PrismaClient()
 const SEED_DEMO = process.env['SEED_DEMO'] === 'true'
+// SEED_ONLY : ne (re)crée pas l'admin — charge seulement les données démo dans
+// un tenant existant (déclenché depuis la console master sur un tenant déjà créé).
+const SEED_ONLY = process.env['SEED_ONLY'] === 'true'
 
 const RESTO_NAME = process.env['RESTO_NAME'] ?? ''
 const RESTO_SLUG = process.env['RESTO_SLUG'] ?? ''
@@ -13,6 +16,24 @@ const ADMIN_FIRST_NAME = process.env['ADMIN_FIRST_NAME'] ?? 'Admin'
 const ADMIN_LAST_NAME = process.env['ADMIN_LAST_NAME'] ?? 'Principal'
 
 async function main() {
+  // Mode seed-only : charge les données démo dans un tenant existant, sans
+  // toucher aux rôles/admin. Requiert seulement RESTO_SLUG.
+  if (SEED_ONLY) {
+    if (!RESTO_SLUG) {
+      console.error('❌ RESTO_SLUG requis en mode SEED_ONLY')
+      process.exit(1)
+    }
+    const restaurant = await prisma.restaurant.findUnique({ where: { slug: RESTO_SLUG } })
+      ?? await prisma.restaurant.findFirst()
+    if (!restaurant) {
+      console.error('❌ Aucun restaurant trouvé pour le seed démo')
+      process.exit(1)
+    }
+    await seedDemoData(prisma, restaurant.id)
+    console.log('✅ Données démo chargées')
+    return
+  }
+
   if (!RESTO_NAME || !RESTO_SLUG || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
     console.error('❌ Variables manquantes : RESTO_NAME, RESTO_SLUG, ADMIN_EMAIL, ADMIN_PASSWORD requises')
     process.exit(1)
