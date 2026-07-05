@@ -74,18 +74,21 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       phone: z.string().nullable().optional(),
       email: z.string().nullable().optional(),
       openingHours: openingHoursSchema.optional(),
-      defaultTaxRate: z.coerce.number().optional(),
-      deliveryEnabled: z.boolean().optional(),
-      pickupEnabled: z.boolean().optional(),
-      dineInEnabled: z.boolean().optional(),
-      minOrderAmount: z.coerce.number().optional(),
-      deliveryFee: z.coerce.number().optional(),
-      estimatedPrepTime: z.coerce.number().optional(),
+      // Champs numériques/booléens : .nullable() défensif — le formulaire renvoie
+      // tout l'objet restaurant, et une colonne peut arriver à null → ne JAMAIS
+      // faire échouer la sauvegarde là-dessus (les null sont ignorés plus bas).
+      defaultTaxRate: z.coerce.number().nullable().optional(),
+      deliveryEnabled: z.boolean().nullable().optional(),
+      pickupEnabled: z.boolean().nullable().optional(),
+      dineInEnabled: z.boolean().nullable().optional(),
+      minOrderAmount: z.coerce.number().nullable().optional(),
+      deliveryFee: z.coerce.number().nullable().optional(),
+      estimatedPrepTime: z.coerce.number().nullable().optional(),
       monthlyRevenueTarget: z.coerce.number().nullable().optional(),
-      allowNegativeStock: z.boolean().optional(),
+      allowNegativeStock: z.boolean().nullable().optional(),
       invoiceHeader: z.string().nullable().optional(),
       invoiceFooter: z.string().nullable().optional(),
-      siteTemplate: z.enum(['classic', 'modern', 'compact']).optional(),
+      siteTemplate: z.enum(['classic', 'modern', 'compact']).nullable().optional(),
       sitePrimaryColor: z.string().nullable().optional(),
       siteTagline: z.string().nullable().optional(),
       siteHeroImage: z.string().nullable().optional(),
@@ -94,6 +97,14 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
     }).parse(req.body)
 
     const data: Record<string, unknown> = {}
+    // Colonnes qui NE tolèrent PAS null en base → on saute la valeur si null
+    // (évite d'écraser une colonne non-null avec null → erreur Prisma).
+    const NON_NULLABLE = new Set([
+      'name', 'address', 'city', 'phone', 'email',
+      'defaultTaxRate', 'deliveryEnabled', 'pickupEnabled', 'dineInEnabled',
+      'minOrderAmount', 'deliveryFee', 'estimatedPrepTime', 'allowNegativeStock',
+      'siteTemplate',
+    ])
     for (const key of [
       'name', 'description', 'logo', 'address', 'city', 'phone', 'email',
       'openingHours', 'defaultTaxRate', 'deliveryEnabled', 'pickupEnabled',
@@ -101,7 +112,10 @@ restaurantRouter.put('/me', authorize('manager', 'superadmin'), async (req: Auth
       'monthlyRevenueTarget', 'allowNegativeStock', 'invoiceHeader', 'invoiceFooter',
       'siteTemplate', 'sitePrimaryColor', 'siteTagline', 'siteHeroImage',
     ] as const) {
-      if (parsed[key] !== undefined) data[key] = parsed[key]
+      const v = parsed[key]
+      if (v === undefined) continue
+      if (v === null && NON_NULLABLE.has(key)) continue
+      data[key] = v
     }
 
     // PIN : hashé si fourni, mis à null si vide (retrait de la protection).
