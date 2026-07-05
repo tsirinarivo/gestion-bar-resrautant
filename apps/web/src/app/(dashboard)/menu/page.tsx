@@ -8,6 +8,7 @@ import {
   BookOpen, Tag, DollarSign, TrendingUp, Package, Star, Flame,
   TrendingDown, AlertCircle, Target, ArrowUpDown, Calculator, BarChart3,
   ChevronUp, ChevronDown, Filter, Upload, FileUp, CheckCircle2, AlertTriangle, Sparkles, Loader2,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { formatCurrency, calculateMargin, convertUnit, ALLERGENS } from '@restaurant/utils'
@@ -1723,6 +1724,125 @@ function AutoCategorizeModal({ onClose, onDone }: { onClose: () => void; onDone:
   )
 }
 
+type ImgResult = { productId: string; name: string; currentImage: string | null; candidateUrl: string | null; source: string | null }
+
+function AutoImagesModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [phase, setPhase] = useState<'search' | 'review' | 'done'>('search')
+  const [progress, setProgress] = useState({ done: 0, total: 0 })
+  const [results, setResults] = useState<ImgResult[]>([])
+  const [accepted, setAccepted] = useState<Record<string, boolean>>({})
+  const [applying, setApplying] = useState(false)
+  const [savedCount, setSavedCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const all: { id: string }[] = await api.get('/products?limit=1000').then(r => r.data.data)
+      const ids = all.map(p => p.id)
+      setProgress({ done: 0, total: ids.length })
+      const acc: ImgResult[] = []
+      const chunk = 12
+      for (let i = 0; i < ids.length; i += chunk) {
+        if (cancelled) return
+        const batch = ids.slice(i, i + chunk)
+        try {
+          const r = await api.post('/products/search-images', { productIds: batch })
+          acc.push(...r.data.data)
+        } catch { /* skip batch */ }
+        setProgress({ done: Math.min(i + chunk, ids.length), total: ids.length })
+        setResults([...acc])
+      }
+      if (!cancelled) {
+        const withCandidate = acc.filter(r => r.candidateUrl)
+        setAccepted(Object.fromEntries(withCandidate.map(r => [r.productId, true])))
+        setPhase('review')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const found = results.filter(r => r.candidateUrl)
+
+  async function apply() {
+    const items = found.filter(r => accepted[r.productId] && r.candidateUrl).map(r => ({ productId: r.productId, imageUrl: r.candidateUrl! }))
+    if (items.length === 0) { toast.error('Aucune image sélectionnée'); return }
+    setApplying(true)
+    try {
+      let saved = 0
+      const chunk = 25
+      for (let i = 0; i < items.length; i += chunk) {
+        const r = await api.post('/products/apply-images', { items: items.slice(i, i + chunk) })
+        saved += r.data.data.saved
+      }
+      setSavedCount(saved)
+      setPhase('done')
+      onDone()
+      toast.success(`${saved} image(s) importée(s)`)
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? 'Erreur import')
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-brand-card border border-brand-border rounded-2xl w-full max-w-3xl p-6 max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2"><ImageIcon className="w-5 h-5 text-brand-orange" /> Images automatiques</h2>
+            <p className="text-sm text-brand-muted">Recherche une image sur internet pour chaque produit (OpenFoodFacts pour les code-barres, Wikimedia sinon). Vérifie puis importe.</p>
+          </div>
+          <button onClick={onClose} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+
+        {phase === 'search' ? (
+          <div className="py-10 text-center">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3 text-brand-orange" />
+            <p className="text-sm">Recherche en cours… {progress.done}/{progress.total}</p>
+            <div className="w-full bg-brand-bg rounded-full h-2 mt-3 overflow-hidden">
+              <div className="bg-brand-orange h-full transition-all" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
+            </div>
+            <p className="text-xs text-brand-muted mt-2">{found.length} image(s) trouvée(s) jusqu'ici</p>
+          </div>
+        ) : phase === 'done' ? (
+          <div className="py-10 text-center">
+            <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
+            <p className="text-lg font-bold mb-1">{savedCount} image(s) importée(s)</p>
+            <p className="text-brand-muted text-sm mb-5">Elles sont enregistrées sur ton serveur et visibles sur le menu.</p>
+            <button onClick={onClose} className="btn-primary">Fermer</button>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-brand-muted mb-3">{found.length} image(s) trouvée(s) sur {results.length} produits. Décoche celles qui ne correspondent pas.</p>
+            <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {found.map(r => (
+                <button key={r.productId} onClick={() => setAccepted(a => ({ ...a, [r.productId]: !a[r.productId] }))}
+                  className={`text-left border rounded-xl overflow-hidden transition-all ${accepted[r.productId] ? 'border-brand-orange ring-2 ring-brand-orange/40' : 'border-brand-border opacity-60'}`}>
+                  <div className="relative aspect-square bg-brand-bg">
+                    <img src={r.candidateUrl!} alt={r.name} className="w-full h-full object-cover" />
+                    {accepted[r.productId] && <span className="absolute top-1 right-1 bg-brand-orange text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">✓</span>}
+                    {r.currentImage && <span className="absolute top-1 left-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">remplace</span>}
+                  </div>
+                  <p className="text-xs p-2 truncate" title={r.name}>{r.name}</p>
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button onClick={onClose} className="btn-secondary flex-1">Annuler</button>
+              <button onClick={apply} disabled={applying || Object.values(accepted).filter(Boolean).length === 0} className="btn-primary flex-1">
+                {applying ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Importer (${Object.values(accepted).filter(Boolean).length})`}
+              </button>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </div>
+  )
+}
+
 export default function MenuPage() {
   const [activeView, setActiveView] = useState<'products' | 'marge'>('products')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -1735,6 +1855,7 @@ export default function MenuPage() {
   const [presetsModal, setPresetsModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [showAutoCat, setShowAutoCat] = useState(false)
+  const [showAutoImages, setShowAutoImages] = useState(false)
   const [demoLoading, setDemoLoading] = useState(false)
   const qc = useQueryClient()
 
@@ -1874,6 +1995,11 @@ export default function MenuPage() {
             className="btn-secondary flex items-center gap-2 text-sm">
             <Sparkles className="w-4 h-4" />
             <span className="hidden sm:inline">Auto-catégoriser</span>
+          </button>
+          <button onClick={() => setShowAutoImages(true)}
+            className="btn-secondary flex items-center gap-2 text-sm">
+            <ImageIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">Images auto</span>
           </button>
           <button onClick={() => loadDemo(false)} disabled={demoLoading}
             className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-50">
@@ -2128,6 +2254,12 @@ export default function MenuPage() {
         <AutoCategorizeModal
           onClose={() => setShowAutoCat(false)}
           onDone={() => { qc.invalidateQueries({ queryKey: ['products'] }); qc.invalidateQueries({ queryKey: ['categories'] }) }}
+        />
+      )}
+      {showAutoImages && (
+        <AutoImagesModal
+          onClose={() => setShowAutoImages(false)}
+          onDone={() => qc.invalidateQueries({ queryKey: ['products'] })}
         />
       )}
       {productModal.open && (

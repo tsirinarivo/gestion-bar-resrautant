@@ -7,6 +7,7 @@ import { slugify, convertUnit } from '@restaurant/utils'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import { searchProductImage } from '../lib/image-search'
 
 export const productRouter = Router()
 productRouter.use(authenticate)
@@ -55,6 +56,62 @@ productRouter.post('/upload-image', authorize('manager', 'superadmin'), upload.s
   const baseUrl = process.env.API_BASE_URL || (host ? `${proto}://${host}` : 'http://localhost:4000')
   const url = `${baseUrl}/uploads/products/${req.file.filename}`
   res.json({ success: true, data: { url } })
+})
+
+function reqBaseUrl(req: AuthRequest): string {
+  const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0] || req.protocol
+  const host = req.headers['x-forwarded-host'] as string || req.get('host')
+  return process.env.API_BASE_URL || (host ? `${proto}://${host}` : 'http://localhost:4000')
+}
+
+// POST /api/products/search-images — cherche une image candidate sur internet
+// pour un lot de produits (par lot pour éviter les timeouts). Ne télécharge rien.
+productRouter.post('/search-images', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { productIds } = z.object({ productIds: z.array(z.string()).min(1).max(25) }).parse(req.body)
+    const restaurantId = req.user!.restaurantId
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, restaurantId, deletedAt: null },
+      select: { id: true, name: true, image: true, barcode: true },
+    })
+    const results = await Promise.all(products.map(async p => {
+      const candidate = await searchProductImage(p.name, p.barcode).catch(() => null)
+      return { productId: p.id, name: p.name, currentImage: p.image, candidateUrl: candidate?.url ?? null, source: candidate?.source ?? null }
+    }))
+    res.json({ success: true, data: results })
+  } catch (error) { next(error) }
+})
+
+// POST /api/products/apply-images — télécharge les images validées et les
+// enregistre sur le serveur (persistées dans /uploads), puis set product.image.
+productRouter.post('/apply-images', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
+  try {
+    const { items } = z.object({
+      items: z.array(z.object({ productId: z.string(), imageUrl: z.string().url() })).min(1).max(50),
+    }).parse(req.body)
+    const restaurantId = req.user!.restaurantId
+    const baseUrl = reqBaseUrl(req)
+
+    let saved = 0
+    const failed: string[] = []
+    for (const it of items) {
+      try {
+        const owned = await prisma.product.findFirst({ where: { id: it.productId, restaurantId }, select: { id: true } })
+        if (!owned) { failed.push(it.productId); continue }
+        const r = await fetch(it.imageUrl, { headers: { 'User-Agent': 'SakafioBot/1.0' }, signal: AbortSignal.timeout(10000) })
+        if (!r.ok) { failed.push(it.productId); continue }
+        const ct = r.headers.get('content-type') || ''
+        const ext = ct.includes('png') ? '.png' : ct.includes('webp') ? '.webp' : ct.includes('gif') ? '.gif' : '.jpg'
+        const buf = Buffer.from(await r.arrayBuffer())
+        if (buf.length === 0 || buf.length > 6 * 1024 * 1024) { failed.push(it.productId); continue }
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`
+        fs.writeFileSync(path.join(uploadDir, filename), buf)
+        await prisma.product.update({ where: { id: it.productId }, data: { image: `${baseUrl}/uploads/products/${filename}` } })
+        saved++
+      } catch { failed.push(it.productId) }
+    }
+    res.json({ success: true, data: { saved, failed } })
+  } catch (error) { next(error) }
 })
 
 const productSchema = z.object({
