@@ -57,13 +57,16 @@ function suggestedQty(item: any): number {
 
 // ─── Reorder Modal ────────────────────────────────────────────────────────────
 
-function ReorderModal({ lines: initLines, suppliers, onClose, onCreated }: {
+function ReorderModal({ lines: initLines, suppliers, warehouses, onClose, onCreated }: {
   lines: ReorderLine[]
   suppliers: any[]
+  warehouses: any[]
   onClose: () => void
   onCreated: () => void
 }) {
   const router = useRouter()
+  const defaultWarehouseId = (warehouses.find((w: any) => w.isDefault) ?? warehouses[0])?.id ?? ''
+  const [warehouseId, setWarehouseId] = useState(defaultWarehouseId)
 
   // Auto-select the preferred supplier of the first line if available
   const preferredSupplierId = (() => {
@@ -142,6 +145,15 @@ function ReorderModal({ lines: initLines, suppliers, onClose, onCreated }: {
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium mb-1">Entrepôt de réception</label>
+            <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="input-field">
+              {warehouses.length === 0 && <option value="">— Aucun entrepôt —</option>}
+              {warehouses.map((w: any) => (
+                <option key={w.id} value={w.id}>{w.name}{w.isDefault ? ' (par défaut)' : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium mb-1">Livraison prévue</label>
             <input type="date" value={expectedAt} onChange={e => setExpectedAt(e.target.value)}
               className="input-field" />
@@ -215,6 +227,7 @@ function ReorderModal({ lines: initLines, suppliers, onClose, onCreated }: {
             <button
               onClick={() => createPO.mutate({
                 supplierId,
+                warehouseId: warehouseId || undefined,
                 notes: notes || undefined,
                 expectedAt: expectedAt || undefined,
                 items: lines.map(l => ({ stockItemId: l.stockItemId, quantity: l.quantity, unitCost: l.unitCost })),
@@ -503,7 +516,9 @@ export default function StockPage() {
       name: item.name,
       unit: item.unit,
       currentQty: item.currentQuantity,
-      quantity: suggestedQty(item),
+      // Pré-remplissage = quantité seuil de réappro (reorderQuantity) ; repli sur
+      // la quantité suggérée si aucun seuil n'est défini.
+      quantity: item.reorderQuantity > 0 ? item.reorderQuantity : suggestedQty(item),
       unitCost: item.costPerUnit || 0,
       supplierPrices: (item.supplierPrices || []).map((sp: any) => ({
         supplierId: sp.supplierId,
@@ -1118,6 +1133,7 @@ export default function StockPage() {
           <ReorderModal
             lines={reorderLines}
             suppliers={suppliers as any[]}
+            warehouses={warehouses as any[]}
             onClose={() => setReorderLines(null)}
             onCreated={() => {
               qc.invalidateQueries({ queryKey: ['stock'] })

@@ -652,6 +652,9 @@ model PurchaseOrder {
   supplierId String
   supplier   Supplier @relation(fields: [supplierId], references: [id])
 
+  // Entrepôt de destination à la réception (défaut = entrepôt par défaut).
+  warehouseId String?
+
   items PurchaseOrderItem[]
 
   createdAt DateTime @default(now())
