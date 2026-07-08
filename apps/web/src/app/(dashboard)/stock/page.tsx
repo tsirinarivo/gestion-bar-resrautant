@@ -57,6 +57,12 @@ function suggestedQty(item: any): number {
 
 // ─── Reorder Modal ────────────────────────────────────────────────────────────
 
+interface EditableLine extends ReorderLine {
+  supplierId: string
+  warehouseId: string
+  selected: boolean
+}
+
 function ReorderModal({ lines: initLines, suppliers, warehouses, onClose, onCreated }: {
   lines: ReorderLine[]
   suppliers: any[]
@@ -66,121 +72,132 @@ function ReorderModal({ lines: initLines, suppliers, warehouses, onClose, onCrea
 }) {
   const router = useRouter()
   const defaultWarehouseId = (warehouses.find((w: any) => w.isDefault) ?? warehouses[0])?.id ?? ''
-  const [warehouseId, setWarehouseId] = useState(defaultWarehouseId)
+  const [expectedAt, setExpectedAt] = useState('')
+  const [notes, setNotes]           = useState('')
+  const [creating, setCreating]     = useState(false)
 
-  // Auto-select the preferred supplier of the first line if available
-  const preferredSupplierId = (() => {
-    const first = initLines[0]
-    if (!first) return suppliers[0]?.id ?? ''
-    const preferred = first.supplierPrices.find(sp =>
-      suppliers.some(s => s.id === sp.supplierId)
-    )
-    return preferred?.supplierId ?? suppliers[0]?.id ?? ''
-  })()
-
-  const [supplierId, setSupplierId] = useState(preferredSupplierId)
-  const [expectedAt, setExpectedAt]  = useState('')
-  const [notes, setNotes]            = useState('')
-  const [lines, setLines]            = useState<ReorderLine[]>(() =>
+  const [lines, setLines] = useState<EditableLine[]>(() =>
     initLines.map(line => {
-      const match = line.supplierPrices.find(sp => sp.supplierId === preferredSupplierId)
-      return match ? { ...line, unitCost: match.unitCost } : line
+      const preferred = line.supplierPrices.find(sp => suppliers.some((s: any) => s.id === sp.supplierId))
+      const supplierId = preferred?.supplierId ?? suppliers[0]?.id ?? ''
+      const match = line.supplierPrices.find(sp => sp.supplierId === supplierId)
+      return {
+        ...line,
+        supplierId,
+        warehouseId: defaultWarehouseId,
+        selected: true,
+        unitCost: match ? match.unitCost : line.unitCost,
+      }
     })
   )
 
-  function handleSupplierChange(newSupplierId: string) {
-    setSupplierId(newSupplierId)
-    setLines(prev => prev.map(line => {
-      const match = line.supplierPrices.find(sp => sp.supplierId === newSupplierId)
-      return match ? { ...line, unitCost: match.unitCost } : line
+  function updateLine(idx: number, patch: Partial<EditableLine>) {
+    setLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l))
+  }
+  function setLineSupplier(idx: number, supplierId: string) {
+    setLines(prev => prev.map((l, i) => {
+      if (i !== idx) return l
+      const match = l.supplierPrices.find(sp => sp.supplierId === supplierId)
+      return { ...l, supplierId, unitCost: match ? match.unitCost : l.unitCost }
     }))
   }
+  function removeLine(idx: number) { setLines(prev => prev.filter((_, i) => i !== idx)) }
 
-  const createPO = useMutation({
-    mutationFn: (data: any) => api.post('/suppliers/purchase-orders', data),
-    onSuccess: (res) => {
-      const newPO = res.data.data
-      toast.success('Bon de commande créé')
+  const allSelected = lines.length > 0 && lines.every(l => l.selected)
+  function toggleAll() { setLines(prev => prev.map(l => ({ ...l, selected: !allSelected }))) }
+
+  const chosen = lines.filter(l => l.selected && l.quantity > 0 && l.supplierId)
+  const supplierCount = new Set(chosen.map(l => l.supplierId)).size
+  const total = chosen.reduce((s, l) => s + l.quantity * l.unitCost, 0)
+
+  async function submit() {
+    if (chosen.length === 0) { toast.error('Sélectionnez au moins une ligne avec un fournisseur'); return }
+    const skipped = lines.filter(l => l.selected && (!l.supplierId || l.quantity <= 0)).length
+    const groups = new Map<string, EditableLine[]>()
+    for (const l of chosen) {
+      const arr = groups.get(l.supplierId) ?? []
+      arr.push(l)
+      groups.set(l.supplierId, arr)
+    }
+    setCreating(true)
+    try {
+      let created = 0
+      for (const [supplierId, groupLines] of Array.from(groups.entries())) {
+        await api.post('/suppliers/purchase-orders', {
+          supplierId,
+          notes: notes || undefined,
+          expectedAt: expectedAt || undefined,
+          items: groupLines.map(l => ({ stockItemId: l.stockItemId, quantity: l.quantity, unitCost: l.unitCost, warehouseId: l.warehouseId || undefined })),
+        })
+        created++
+      }
+      toast.success(`${created} bon(s) de commande créé(s)${skipped ? ` · ${skipped} ligne(s) sans fournisseur ignorée(s)` : ''}`)
       onCreated()
       onClose()
-      router.push(`/suppliers?po=${newPO.id}`)
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Erreur création BDC'),
-  })
-
-  function updateLine(idx: number, field: keyof ReorderLine, value: any) {
-    setLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l))
+      router.push('/suppliers')
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error ?? 'Erreur création')
+    } finally {
+      setCreating(false)
+    }
   }
-
-  function removeLine(idx: number) {
-    setLines(prev => prev.filter((_, i) => i !== idx))
-  }
-
-  const total = lines.reduce((s, l) => s + l.quantity * l.unitCost, 0)
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={onClose}>
       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-        className="glass-card p-6 w-full max-w-2xl max-h-[90vh] flex flex-col"
+        className="glass-card p-6 w-full max-w-4xl max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}>
 
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-lg flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-brand-orange" />
-            Nouveau bon de commande
+            Réapprovisionnement
           </h2>
           <button onClick={onClose} className="text-brand-muted hover:text-white"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Fournisseur *</label>
-            <select value={supplierId} onChange={e => handleSupplierChange(e.target.value)} className="input-field">
-              <option value="">— Sélectionner —</option>
-              {suppliers.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Entrepôt de réception</label>
-            <select value={warehouseId} onChange={e => setWarehouseId(e.target.value)} className="input-field">
-              {warehouses.length === 0 && <option value="">— Aucun entrepôt —</option>}
-              {warehouses.map((w: any) => (
-                <option key={w.id} value={w.id}>{w.name}{w.isDefault ? ' (par défaut)' : ''}</option>
-              ))}
-            </select>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <div>
             <label className="block text-sm font-medium mb-1">Livraison prévue</label>
-            <input type="date" value={expectedAt} onChange={e => setExpectedAt(e.target.value)}
-              className="input-field" />
+            <input type="date" value={expectedAt} onChange={e => setExpectedAt(e.target.value)} className="input-field" />
           </div>
-          <div className="col-span-2">
-            <label className="block text-sm font-medium mb-1">Notes</label>
-            <input value={notes} onChange={e => setNotes(e.target.value)}
-              placeholder="Instructions particulières..." className="input-field" />
+          <div>
+            <label className="block text-sm font-medium mb-1">Notes (toutes les commandes)</label>
+            <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Instructions..." className="input-field" />
           </div>
         </div>
 
+        <button onClick={toggleAll} className="btn-secondary text-sm w-fit mb-2 flex items-center gap-2">
+          {allSelected ? <CheckSquare className="w-4 h-4 text-brand-orange" /> : <Square className="w-4 h-4" />}
+          {allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+        </button>
+
         {/* Lines table */}
-        <div className="overflow-y-auto flex-1 mb-4">
+        <div className="overflow-auto flex-1 mb-4">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-brand-border text-left text-xs text-brand-muted uppercase">
+                <th className="pb-2 pr-2 w-8"></th>
                 <th className="pb-2 pr-3">Article</th>
-                <th className="pb-2 pr-3 text-right">En stock</th>
-                <th className="pb-2 pr-3 w-28">Qté à commander</th>
-                <th className="pb-2 pr-3 w-32">Prix unit. (Ar)</th>
-                <th className="pb-2 text-right w-28">Sous-total</th>
+                <th className="pb-2 pr-3 text-right">Stock</th>
+                <th className="pb-2 pr-3 w-24">Qté</th>
+                <th className="pb-2 pr-3 w-40">Fournisseur</th>
+                <th className="pb-2 pr-3 w-36">Entrepôt</th>
+                <th className="pb-2 pr-3 w-28">Prix unit.</th>
+                <th className="pb-2 text-right w-24">Total</th>
                 <th className="pb-2 w-8" />
               </tr>
             </thead>
             <tbody>
               {lines.map((line, idx) => (
-                <tr key={line.stockItemId} className="border-b border-brand-border/30">
+                <tr key={line.stockItemId} className={`border-b border-brand-border/30 ${line.selected ? '' : 'opacity-45'}`}>
+                  <td className="py-2 pr-2">
+                    <input type="checkbox" checked={line.selected}
+                      onChange={e => updateLine(idx, { selected: e.target.checked })}
+                      className="w-4 h-4 accent-brand-orange" />
+                  </td>
                   <td className="py-2 pr-3">
                     <p className="font-medium">{line.name}</p>
                     <p className="text-xs text-brand-muted">{line.unit}</p>
@@ -189,27 +206,36 @@ function ReorderModal({ lines: initLines, suppliers, warehouses, onClose, onCrea
                     {formatQuantity(line.currentQty, line.unit)}
                   </td>
                   <td className="py-2 pr-3">
-                    <input type="number" min="0.01" step="0.01"
-                      value={line.quantity}
-                      onChange={e => updateLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                    <input type="number" min="0.01" step="0.01" value={line.quantity}
+                      onChange={e => updateLine(idx, { quantity: parseFloat(e.target.value) || 0 })}
                       className="input-field py-1.5 text-sm" />
                   </td>
                   <td className="py-2 pr-3">
-                    <input type="number" min="0" step="1"
-                      value={line.unitCost}
-                      onChange={e => updateLine(idx, 'unitCost', parseFloat(e.target.value) || 0)}
+                    <select value={line.supplierId} onChange={e => setLineSupplier(idx, e.target.value)}
+                      className={`input-field py-1.5 text-sm ${!line.supplierId ? 'border-red-500/50' : ''}`}>
+                      <option value="">— Choisir —</option>
+                      {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <select value={line.warehouseId} onChange={e => updateLine(idx, { warehouseId: e.target.value })}
+                      className="input-field py-1.5 text-sm">
+                      {warehouses.length === 0 && <option value="">—</option>}
+                      {warehouses.map((w: any) => <option key={w.id} value={w.id}>{w.name}{w.isDefault ? ' ★' : ''}</option>)}
+                    </select>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <input type="number" min="0" step="1" value={line.unitCost}
+                      onChange={e => updateLine(idx, { unitCost: parseFloat(e.target.value) || 0 })}
                       className="input-field py-1.5 text-sm" />
                   </td>
                   <td className="py-2 text-right font-medium text-brand-orange">
                     {formatCurrency(line.quantity * line.unitCost)}
                   </td>
                   <td className="py-2 pl-2">
-                    {lines.length > 1 && (
-                      <button onClick={() => removeLine(idx)}
-                        className="p-1 text-brand-muted hover:text-red-400 rounded">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button onClick={() => removeLine(idx)} className="p-1 text-brand-muted hover:text-red-400 rounded">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -219,23 +245,15 @@ function ReorderModal({ lines: initLines, suppliers, warehouses, onClose, onCrea
 
         <div className="flex items-center justify-between pt-3 border-t border-brand-border">
           <div>
-            <p className="text-xs text-brand-muted">{lines.length} article(s)</p>
+            <p className="text-xs text-brand-muted">{chosen.length} ligne(s) · {supplierCount} fournisseur(s) → {supplierCount} bon(s)</p>
             <p className="font-bold text-brand-orange">{formatCurrency(total)}</p>
           </div>
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-secondary">Annuler</button>
-            <button
-              onClick={() => createPO.mutate({
-                supplierId,
-                warehouseId: warehouseId || undefined,
-                notes: notes || undefined,
-                expectedAt: expectedAt || undefined,
-                items: lines.map(l => ({ stockItemId: l.stockItemId, quantity: l.quantity, unitCost: l.unitCost })),
-              })}
-              disabled={!supplierId || lines.length === 0 || createPO.isPending}
+            <button onClick={submit} disabled={chosen.length === 0 || creating}
               className="btn-primary flex items-center gap-2 disabled:opacity-50">
               <ShoppingCart className="w-4 h-4" />
-              {createPO.isPending ? 'Création...' : 'Créer le bon de commande'}
+              {creating ? 'Création...' : `Créer ${supplierCount} bon(s) de commande`}
             </button>
           </div>
         </div>

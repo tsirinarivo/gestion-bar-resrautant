@@ -669,6 +669,8 @@ model PurchaseOrderItem {
   unitCost        Float
   receivedQuantity Float  @default(0)
   notes           String?
+  // Entrepôt de réception de cette ligne (défaut = celui du bon de commande).
+  warehouseId     String?
 
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)

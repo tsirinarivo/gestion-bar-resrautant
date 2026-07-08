@@ -357,6 +357,7 @@ const poSchema = z.object({
     stockItemId: z.string(),
     quantity: z.number().positive(),
     unitCost: z.number().min(0),
+    warehouseId: z.string().optional(),
     notes: z.string().optional(),
   })).default([]),
 })
@@ -426,6 +427,7 @@ supplierRouter.post('/purchase-orders', authorize('manager', 'superadmin'), asyn
             stockItemId: i.stockItemId,
             quantity: i.quantity,
             unitCost: i.unitCost,
+            warehouseId: i.warehouseId,
             notes: i.notes,
           })),
         },
@@ -513,9 +515,9 @@ supplierRouter.patch('/purchase-orders/:id/status', authorize('manager', 'supera
       if (status === 'RECEIVED') {
         for (const item of order.items) {
           const qty = item.receivedQuantity > 0 ? item.receivedQuantity : item.quantity
-          // Entrepôt de destination : celui choisi sur le bon de commande, sinon
-          // celui de l'article, sinon l'entrepôt par défaut (resolveWarehouseId).
-          const warehouseId = await resolveWarehouseId(tx, req.user!.restaurantId, order.warehouseId ?? item.stockItem.warehouseId)
+          // Entrepôt de destination : celui de la ligne, sinon celui du bon de
+          // commande, sinon celui de l'article, sinon l'entrepôt par défaut.
+          const warehouseId = await resolveWarehouseId(tx, req.user!.restaurantId, item.warehouseId ?? order.warehouseId ?? item.stockItem.warehouseId)
           // Only update costPerUnit if supplier actually provided a price
           if (item.unitCost > 0) {
             await tx.stockItem.update({ where: { id: item.stockItemId }, data: { costPerUnit: item.unitCost } })
