@@ -585,11 +585,10 @@ function PaymentModal({
   // le ticket côté serveur → on éviterait un doublon + boîte de dialogue).
   const printedRef = useRef(false);
   useEffect(() => {
-    if (done && !printedRef.current && !cloudPrintEnabled) {
-      printedRef.current = true;
-      const t = setTimeout(() => { try { window.print(); } catch { /* ignore */ } }, 400);
-      return () => clearTimeout(t);
-    }
+    if (!done || printedRef.current || cloudPrintEnabled) return undefined;
+    printedRef.current = true;
+    const t = setTimeout(() => { try { window.print(); } catch { /* ignore */ } }, 400);
+    return () => clearTimeout(t);
   }, [done, cloudPrintEnabled]);
 
   const grandTotalWithTip = grandTotal + tip;
