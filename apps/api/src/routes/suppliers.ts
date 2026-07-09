@@ -510,7 +510,17 @@ supplierRouter.patch('/purchase-orders/:id/status', authorize('manager', 'supera
     const createdBy = req.user!.id
 
     await prisma.$transaction(async (tx) => {
-      await tx.purchaseOrder.update({ where: { id: order.id }, data: updateData })
+      if (status === 'RECEIVED') {
+        // Garde atomique : deux réceptions concurrentes ne peuvent pas appliquer
+        // l'entrée de stock deux fois (la 2e voit count=0 → rollback).
+        const guard = await tx.purchaseOrder.updateMany({
+          where: { id: order.id, status: { not: 'RECEIVED' } },
+          data: updateData,
+        })
+        if (guard.count === 0) throw new AppError('Bon de commande déjà réceptionné', 409)
+      } else {
+        await tx.purchaseOrder.update({ where: { id: order.id }, data: updateData })
+      }
 
       if (status === 'RECEIVED') {
         for (const item of order.items) {

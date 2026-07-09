@@ -141,6 +141,11 @@ function KDSPageInner() {
   const [hydrated, setHydrated] = useState(false);
   const qc = useQueryClient();
   const [now, setNow] = useState(new Date());
+  const [banner, setBanner] = useState<string | null>(null);
+  function showError(msg: string) {
+    setBanner(msg);
+    setTimeout(() => setBanner(null), 6000);
+  }
 
   useEffect(() => {
     setToken(localStorage.getItem('kds-token'));
@@ -212,13 +217,13 @@ function KDSPageInner() {
   const preparingMutation = useMutation({
     mutationFn: (orderId: string) => updateOrderStatus(token!, orderId, 'PREPARING'),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['kds-orders'] }),
-    onError: (err: unknown) => { console.error('[KDS prep]', err); alert(`❌ Erreur préparation : ${err instanceof Error ? err.message : 'réseau'}`) },
+    onError: (err: unknown) => { console.error('[KDS prep]', err); showError(`Erreur préparation : ${err instanceof Error ? err.message : 'réseau'}`) },
   });
 
   const onMutationError = (err: unknown) => {
     const msg = err instanceof Error ? err.message : 'Erreur réseau';
     console.error('[KDS mutation]', err);
-    alert(`❌ Action échouée : ${msg}\n\nLe statut de la commande n'a peut-être pas été enregistré. Vérifiez avant de servir.`);
+    showError(`Action échouée : ${msg} — vérifiez avant de servir.`);
   };
 
   const readyMutation = useMutation({
@@ -261,6 +266,12 @@ function KDSPageInner() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
+      {banner && (
+        <div className="bg-red-600 text-white text-sm font-semibold px-4 py-2 flex items-center justify-between gap-3">
+          <span>❌ {banner}</span>
+          <button onClick={() => setBanner(null)} className="text-white/80 hover:text-white text-lg leading-none">&times;</button>
+        </div>
+      )}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-900/80 border-b border-gray-800 flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse flex-shrink-0" />

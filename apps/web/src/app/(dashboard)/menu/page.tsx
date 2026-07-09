@@ -1566,7 +1566,7 @@ function VariantsModal({ product, onClose }: { product: Product; onClose: () => 
                     </div>
                     <div className="flex gap-1">
                       <button onClick={() => startEdit(v)} className="p-1.5 text-brand-muted hover:text-brand-orange rounded-lg transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => deleteVariant.mutate(v.id)} className="p-1.5 text-brand-muted hover:text-red-400 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => { if (window.confirm(`Supprimer la variante « ${v.name} » ?`)) deleteVariant.mutate(v.id) }} aria-label="Supprimer la variante" className="p-1.5 text-brand-muted hover:text-red-400 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                 )}

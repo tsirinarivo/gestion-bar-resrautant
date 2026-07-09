@@ -561,7 +561,7 @@ export default function InvoicesPage() {
                     key={invoice.id}
                     invoice={invoice}
                     onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
-                    onDelete={id => deleteInvoice.mutate(id)}
+                    onDelete={id => { if (window.confirm('Supprimer définitivement cette facture ?')) deleteInvoice.mutate(id) }}
                     onPrint={inv => printInvoice(inv, restaurant)}
                   />
                 ))

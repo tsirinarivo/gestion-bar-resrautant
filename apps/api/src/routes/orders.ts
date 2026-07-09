@@ -194,7 +194,7 @@ export async function deductStockForOrder(
             }).catch(() => {})
           }
         }
-      } catch { /* non-bloquant */ }
+      } catch (err) { console.error(`[order ${orderNumber}] déduction stock échouée (article ignoré):`, err) }
       continue
     }
 
@@ -266,7 +266,7 @@ export async function deductStockForOrder(
             }).catch(() => {})
           }
         }
-      } catch { /* non-bloquant */ }
+      } catch (err) { console.error(`[order ${orderNumber}] déduction stock échouée (article ignoré):`, err) }
     }
   }
 }
@@ -306,7 +306,7 @@ export async function restoreStockForOrder(orderNumber: string, createdBy: strin
           await tx.stockItem.update({ where: { id: d.stockItemId }, data: { currentQuantity: { increment: d.quantity } } })
         }
       })
-    } catch { /* non-bloquant */ }
+    } catch (err) { console.error(`[order ${orderNumber}] restauration stock échouée (article ignoré):`, err) }
   }
 }
 
