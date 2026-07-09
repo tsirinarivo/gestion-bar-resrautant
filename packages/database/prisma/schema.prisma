@@ -507,6 +507,7 @@ model StockMovement {
 
   @@index([stockItemId])
   @@index([createdAt])
+  @@index([stockItemId, createdAt])
   @@map("stock_movements")
 }
 
@@ -1353,6 +1354,7 @@ model Notification {
 
   @@index([restaurantId])
   @@index([isRead])
+  @@index([restaurantId, isRead, createdAt])
   @@map("notifications")
 }
 
@@ -1541,6 +1543,7 @@ model AuditLog {
   @@index([restaurantId])
   @@index([userId])
   @@index([createdAt])
+  @@index([restaurantId, createdAt])
   @@map("audit_logs")
 }
 

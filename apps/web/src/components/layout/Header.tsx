@@ -17,6 +17,7 @@ import { useAuthStore } from '@/store/auth'
 import { formatDate, formatRelative } from '@restaurant/utils'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useDebounce } from '@/lib/useDebounce'
 import { toast } from 'sonner'
 import { io as socketIO } from 'socket.io-client'
 
@@ -67,6 +68,7 @@ const RECENT_SEARCHES_KEY = 'global-search-recent'
 function GlobalSearch() {
   const router = useRouter()
   const [q, setQ] = useState('')
+  const dq = useDebounce(q, 300)
   const [open, setOpen] = useState(false)
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const ref = useRef<HTMLDivElement>(null)
@@ -93,15 +95,15 @@ function GlobalSearch() {
   }
 
   const { data: customers } = useQuery({
-    queryKey: ['global-search-customers', q],
-    queryFn: () => api.get(`/customers?search=${encodeURIComponent(q)}&limit=5`).then(r => r.data.data ?? []),
-    enabled: q.length >= 2,
+    queryKey: ['global-search-customers', dq],
+    queryFn: () => api.get(`/customers?search=${encodeURIComponent(dq)}&limit=5`).then(r => r.data.data ?? []),
+    enabled: dq.length >= 2,
     staleTime: 30_000,
   })
   const { data: products } = useQuery({
-    queryKey: ['global-search-products', q],
-    queryFn: () => api.get(`/products?search=${encodeURIComponent(q)}&limit=5`).then(r => r.data.data ?? []),
-    enabled: q.length >= 2,
+    queryKey: ['global-search-products', dq],
+    queryFn: () => api.get(`/products?search=${encodeURIComponent(dq)}&limit=5`).then(r => r.data.data ?? []),
+    enabled: dq.length >= 2,
     staleTime: 30_000,
   })
 

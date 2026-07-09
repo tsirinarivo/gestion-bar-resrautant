@@ -123,7 +123,7 @@ customerRouter.get('/:id', async (req: AuthRequest, res, next) => {
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },
       include: {
         loyaltyAccount: { include: { transactions: { orderBy: { createdAt: 'desc' }, take: 10 } } },
-        orders: { include: { items: { include: { product: true } } }, orderBy: { createdAt: 'desc' }, take: 10 },
+        orders: { include: { items: { include: { product: { select: { id: true, name: true, image: true } } } } }, orderBy: { createdAt: 'desc' }, take: 10 },
         reservations: { orderBy: { date: 'desc' }, take: 5 },
         addresses: true,
       },

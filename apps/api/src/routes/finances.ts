@@ -310,7 +310,7 @@ const expenseSchema = z.object({
 })
 
 // POST /api/finances/expenses
-financesRouter.post('/expenses', async (req: AuthRequest, res, next) => {
+financesRouter.post('/expenses', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const data = expenseSchema.parse(req.body)
     const expense = await prisma.expense.create({
@@ -327,7 +327,7 @@ financesRouter.post('/expenses', async (req: AuthRequest, res, next) => {
 })
 
 // PUT /api/finances/expenses/:id
-financesRouter.put('/expenses/:id', async (req: AuthRequest, res, next) => {
+financesRouter.put('/expenses/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const expense = await prisma.expense.findFirst({
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },
@@ -612,7 +612,7 @@ financesRouter.post('/rapport-journalier/print', async (req: AuthRequest, res, n
 })
 
 // DELETE /api/finances/expenses/:id
-financesRouter.delete('/expenses/:id', async (req: AuthRequest, res, next) => {
+financesRouter.delete('/expenses/:id', authorize('manager', 'superadmin'), async (req: AuthRequest, res, next) => {
   try {
     const expense = await prisma.expense.findFirst({
       where: { id: req.params.id, restaurantId: req.user!.restaurantId },

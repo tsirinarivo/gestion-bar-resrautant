@@ -11,7 +11,7 @@ debtRouter.use(authenticate)
 // POST /api/debts/from-order — solder une commande À CRÉDIT (sur le compte du
 // client). Crée la dette du montant restant et clôture la commande (stock,
 // table) sans encaissement. Le client paiera plus tard via la page Dettes.
-debtRouter.post('/from-order', async (req: AuthRequest, res, next) => {
+debtRouter.post('/from-order', authorize('manager', 'superadmin', 'caissier'), async (req: AuthRequest, res, next) => {
   try {
     const { orderId, customerId, dueDate, notes } = z.object({
       orderId: z.string(),
