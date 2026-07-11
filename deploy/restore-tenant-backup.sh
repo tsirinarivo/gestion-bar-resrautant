@@ -22,7 +22,7 @@ BOLD="\033[1m"; GREEN="\033[0;32m"; CYAN="\033[0;36m"; YELLOW="\033[1;33m"; RED=
 log()   { echo -e "${GREEN}✅ $1${RESET}"; }
 warn()  { echo -e "${YELLOW}⚠️  $1${RESET}"; }
 error() { echo -e "${RED}❌ $1${RESET}" >&2; exit 1; }
-head()  { echo -e "\n${BOLD}${CYAN}═══ $1 ═══${RESET}\n"; }
+section() { echo -e "\n${BOLD}${CYAN}═══ $1 ═══${RESET}\n"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -41,7 +41,7 @@ if [ -z "$BACKUP_FILE" ]; then
 fi
 [ -f "$BACKUP_FILE" ] || error "Fichier introuvable : $BACKUP_FILE"
 
-head "Restauration — tenant $TENANT_SLUG ($DB)"
+section "Restauration — tenant $TENANT_SLUG ($DB)"
 echo "  Backup : $BACKUP_FILE"
 echo "  Taille : $(du -h "$BACKUP_FILE" | cut -f1)"
 warn "La base actuelle de $DB sera ÉCRASÉE par ce backup."
@@ -54,7 +54,7 @@ if [ "$CONFIRM" != "$TENANT_SLUG" ]; then
 fi
 
 # ── Recréation de la base (coupe les connexions actives via WITH FORCE) ──────
-head "Recréation de la base"
+section "Recréation de la base"
 $DC exec -T postgres psql -U "$PG_USER" -d postgres -v ON_ERROR_STOP=1 -c \
   "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$DB' AND pid <> pg_backend_pid();" >/dev/null 2>&1 || true
 $DC exec -T postgres psql -U "$PG_USER" -d postgres -v ON_ERROR_STOP=1 -c \
@@ -65,7 +65,7 @@ $DC exec -T postgres psql -U "$PG_USER" -d postgres -v ON_ERROR_STOP=1 -c \
 log "Base recréée (vide)"
 
 # ── Injection du dump ────────────────────────────────────────────────────────
-head "Injection du dump"
+section "Injection du dump"
 gunzip -c "$BACKUP_FILE" | $DC exec -T postgres psql -U "$PG_USER" -d "$DB" -v ON_ERROR_STOP=1 >/dev/null \
   || error "La restauration a échoué"
 log "Dump restauré"
@@ -74,7 +74,7 @@ log "Dump restauré"
 docker restart "tenant_${TENANT_SLUG}_api" >/dev/null 2>&1 && log "API tenant redémarrée" \
   || warn "Conteneur tenant_${TENANT_SLUG}_api non redémarré (à faire manuellement si besoin)"
 
-head "Terminé"
+section "Terminé"
 log "Commandes   : $($DC exec -T postgres psql -U "$PG_USER" -d "$DB" -tAc 'SELECT COUNT(*) FROM orders' 2>/dev/null || echo '?')"
 log "Paiements   : $($DC exec -T postgres psql -U "$PG_USER" -d "$DB" -tAc 'SELECT COUNT(*) FROM payments' 2>/dev/null || echo '?')"
 log "Base $DB restaurée depuis $BACKUP_FILE"
