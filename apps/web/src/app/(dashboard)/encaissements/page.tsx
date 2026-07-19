@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { CreditCard, Search } from 'lucide-react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { CreditCard, Search, Printer } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { formatCurrency } from '@restaurant/utils'
 
@@ -40,6 +41,12 @@ export default function EncaissementsPage() {
       if (search) p.set('search', search)
       return api.get(`/payments?${p.toString()}`).then(r => r.data.data)
     },
+  })
+
+  const reprint = useMutation({
+    mutationFn: (id: string) => api.post(`/payments/${id}/reprint`),
+    onSuccess: () => toast.success('Réimpression envoyée à l\'imprimante'),
+    onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Échec de la réimpression'),
   })
 
   const payments = data?.payments ?? []
@@ -122,13 +129,14 @@ export default function EncaissementsPage() {
               <th className="px-4 py-3">Table</th>
               <th className="px-4 py-3">Méthode</th>
               <th className="px-4 py-3 text-right">Montant</th>
+              <th className="px-4 py-3 text-right">Ticket</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-brand-muted">Chargement…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-brand-muted">Chargement…</td></tr>
             ) : payments.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-brand-muted">Aucun encaissement sur cette période</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-brand-muted">Aucun encaissement sur cette période</td></tr>
             ) : payments.map(p => {
               const refunded = p.refunds.filter(r => r.status !== 'CANCELLED').reduce((s, r) => s + r.amount, 0)
               return (
@@ -140,6 +148,13 @@ export default function EncaissementsPage() {
                   <td className="px-4 py-3 text-right font-semibold">
                     {formatCurrency(p.amount)}
                     {refunded > 0 && <span className="block text-[11px] text-red-400">−{formatCurrency(refunded)} remb.</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => reprint.mutate(p.id)} disabled={reprint.isPending}
+                      title="Réimprimer le ticket"
+                      className="p-2 rounded-lg bg-brand-orange/15 text-brand-orange hover:bg-brand-orange/25 disabled:opacity-50">
+                      <Printer className="w-4 h-4" />
+                    </button>
                   </td>
                 </tr>
               )

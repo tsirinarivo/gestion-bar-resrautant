@@ -111,3 +111,48 @@ export async function autoPrintReceiptWithTable(
     relatedId: sale.id,
   })
 }
+
+/**
+ * Réimpression manuelle d'un reçu de vente. Identique à autoPrintReceiptWithTable
+ * mais SANS le garde d'auto-impression (l'utilisateur demande explicitement la
+ * réimpression depuis la page Encaissements).
+ */
+export async function reprintReceiptWithTable(
+  restaurantId: string,
+  sale: ReceiptData,
+): Promise<void> {
+  const cfg = await loadPrinterCfg(restaurantId)
+
+  const r = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { invoiceHeader: true, invoiceFooter: true },
+  }).catch(() => null)
+
+  let content = formatSaleReceipt({
+    shopName:     sale.shopName,
+    shopAddr:     sale.shopAddr ?? null,
+    shopPhone:    sale.shopPhone ?? null,
+    saleCode:     sale.code,
+    cashierName:  sale.cashierName ?? '',
+    date:         sale.date,
+    items:        sale.items,
+    subtotal:     sale.subtotal,
+    discount:     sale.discount ?? 0,
+    total:        sale.total,
+    paymentLabel: sale.paymentMethod ?? '',
+    currency:     sale.currency,
+    header:       r?.invoiceHeader || (cfg as any)?.header,
+    footer:       r?.invoiceFooter || (cfg as any)?.footer,
+  })
+
+  if (sale.table) {
+    const ticketLine = `<L>Ticket  : ${escapeXprint(sale.code)}</L>`
+    const tableLine  = `<L>Table   : ${escapeXprint(sale.table)}</L>`
+    content = content.replace(`${ticketLine}<BR>`, `${ticketLine}<BR>${tableLine}<BR>`)
+  }
+
+  await sendPrintAndLog(restaurantId, content, {
+    kind:      'sale_receipt',
+    relatedId: sale.id,
+  })
+}

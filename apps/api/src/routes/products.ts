@@ -367,15 +367,25 @@ productRouter.delete('/:id', authorize('manager', 'superadmin'), async (req: Aut
     })
     if (!product) throw new AppError('Produit introuvable', 404)
 
-    // Soft delete : FK OrderItem.productId est en Restrict (déconnexion
-    // impossible si le produit a déjà été vendu). On set deletedAt + isActive
-    // false → caché des listings (GET / filtre `deletedAt: null`) mais
-    // l'historique des commandes/factures reste consultable.
+    // Si le produit n'a jamais été vendu → suppression définitive (cascade sur
+    // variants / modificateurs / recette / promos). Sinon soft-delete : FK
+    // OrderItem.productId est en Restrict, on garde l'historique commandes/factures.
+    const soldCount = await prisma.orderItem.count({ where: { productId: product.id } })
+    if (soldCount === 0) {
+      try {
+        await prisma.product.delete({ where: { id: product.id } })
+        res.json({ success: true, message: 'Produit supprimé', hardDeleted: true })
+        return
+      } catch {
+        // Une FK inattendue bloque le hard-delete → on retombe sur le soft-delete
+      }
+    }
+
     await prisma.product.update({
       where: { id: product.id },
       data: { deletedAt: new Date(), isActive: false, isAvailable: false },
     })
-    res.json({ success: true, message: 'Produit archivé' })
+    res.json({ success: true, message: 'Produit archivé (présent dans des commandes)', hardDeleted: false })
   } catch (error) {
     next(error)
   }
