@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { autoPostPaymentToBank } from './bank'
-import { autoPrintReceiptWithTable } from '../lib/printer'
+import { autoPrintReceiptWithTable, reprintReceiptWithTable, sendPrintAndLog } from '../lib/printer'
 import { deductStockForOrder, earnLoyaltyPoints } from './orders'
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -307,6 +307,122 @@ paymentRouter.post('/:id/refund', authorize('manager', 'superadmin'), async (req
     ).catch(() => { /* non-bloquant */ })
 
     res.status(201).json({ success: true, data: refund })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// GET /api/payments — liste des encaissements (filtres + pagination)
+paymentRouter.get('/', authorize('manager', 'superadmin', 'caissier'), async (req: AuthRequest, res, next) => {
+  try {
+    const { page = '1', perPage = '20', method, status, from, to } = req.query as Record<string, string>
+    const p = Math.max(1, parseInt(page) || 1)
+    const pp = Math.min(100, Math.max(1, parseInt(perPage) || 20))
+
+    const where: any = { order: { restaurantId: req.user!.restaurantId } }
+    if (method) where.method = method
+    if (status) where.status = status
+    if (from || to) {
+      where.createdAt = {}
+      if (from) where.createdAt.gte = new Date(from)
+      if (to) { const d = new Date(to); d.setHours(23, 59, 59, 999); where.createdAt.lte = d }
+    }
+
+    const [total, data] = await Promise.all([
+      prisma.payment.count({ where }),
+      prisma.payment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (p - 1) * pp,
+        take: pp,
+        include: {
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              type: true,
+              table: { select: { number: true } },
+              customer: { select: { firstName: true, lastName: true } },
+              items: {
+                select: {
+                  quantity: true, unitPrice: true, totalPrice: true, discountAmount: true,
+                  productName: true, product: { select: { name: true } },
+                },
+              },
+            },
+          },
+          refunds: { select: { amount: true, status: true } },
+        },
+      }),
+    ])
+
+    res.json({ success: true, data, meta: { total, page: p, perPage: pp, totalPages: Math.ceil(total / pp) } })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// POST /api/payments/:id/reprint — réimprime le reçu d'un paiement
+paymentRouter.post('/:id/reprint', authorize('manager', 'superadmin', 'caissier'), async (req: AuthRequest, res, next) => {
+  try {
+    const restaurantId = req.user!.restaurantId
+    const payment = await prisma.payment.findFirst({
+      where: { id: req.params.id, order: { restaurantId } },
+      select: { id: true, orderId: true },
+    })
+    if (!payment) throw new AppError('Paiement introuvable', 404)
+
+    // 1. Réimprimer le PrintLog existant (ticket original exact) si disponible
+    const log = await prisma.printLog.findFirst({
+      where: { ownerId: restaurantId, relatedId: payment.orderId, kind: 'sale_receipt' },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (log) {
+      await sendPrintAndLog(restaurantId, log.content, {
+        kind: log.kind,
+        relatedId: log.relatedId ?? undefined,
+        orderId: log.orderId ?? undefined,
+        copies: log.copies,
+      } as any)
+      res.json({ success: true, message: 'Réimpression envoyée' })
+      return
+    }
+
+    // 2. Sinon régénérer le reçu depuis la commande
+    const order = await prisma.order.findFirst({
+      where: { id: payment.orderId, restaurantId },
+      include: { items: { include: { product: true } }, payments: true, table: true, restaurant: true },
+    })
+    if (!order) throw new AppError('Commande introuvable', 404)
+
+    const tableLabel = order.table
+      ? `Table ${order.table.number}`
+      : order.type === 'TAKEAWAY' ? 'Emporte' : null
+    const cashier = req.user ? `${req.user.firstName} ${req.user.lastName}`.trim() : null
+
+    await reprintReceiptWithTable(restaurantId, {
+      id: order.id,
+      code: order.orderNumber,
+      date: order.createdAt,
+      shopName: order.restaurant.name,
+      shopAddr: order.restaurant.address,
+      shopPhone: order.restaurant.phone,
+      cashierName: cashier,
+      table: tableLabel,
+      items: order.items.map((i: any) => ({
+        name: i.product?.name ?? i.productName ?? 'Article',
+        qty: i.quantity,
+        unitPrice: i.unitPrice,
+        total: i.totalPrice,
+      })),
+      subtotal: order.subtotal,
+      discount: order.discountAmount ?? 0,
+      total: order.totalAmount,
+      paymentMethod: formatPaymentLabel(order.payments),
+      currency: 'MGA',
+    })
+
+    res.json({ success: true, message: 'Réimpression envoyée' })
   } catch (error) {
     next(error)
   }

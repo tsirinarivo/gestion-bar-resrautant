@@ -807,6 +807,8 @@ model OrderItem {
   quantity     Int
   unitPrice    Float
   totalPrice   Float
+  // Remise appliquée sur la ligne (montant total en Ar déduit du sous-total ligne).
+  discountAmount Float @default(0)
   // Snapshot du nom du produit au moment de la commande. Évite que renommer
   // un produit modifie l'affichage des factures historiques (= falsification).
   // Nullable pour rétro-compatibilité ; backfill via script puis NOT NULL.

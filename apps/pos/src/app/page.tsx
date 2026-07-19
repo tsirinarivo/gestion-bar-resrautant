@@ -15,7 +15,7 @@ import {
 
 interface Category  { id: string; name: string; icon?: string }
 interface Product   { id: string; name: string; price: number; categoryId: string; image?: string | null; stockAvailable?: number | null; barcode?: string | null; sku?: string | null }
-interface CartItem  { product: Product; quantity: number }
+interface CartItem  { product: Product; quantity: number; discount?: number }
 interface Table     { id: string; number: number; status: string; capacity: number }
 interface OrderItem { id: string; quantity: number; totalPrice: number; product: { name: string } }
 interface OrderPayment { id: string; amount: number; status: string }
@@ -118,7 +118,7 @@ function ReceiptModal({
   const tableLabel = activeTable ? `Table ${activeTable.number}` : orderType === 'TAKEAWAY' ? 'Emporté' : 'Commande';
 
   const kitchenTotal = openOrders.reduce((s, o) => s + orderRemaining(o), 0);
-  const cartTotal    = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
+  const cartTotal    = cart.reduce((s, i) => s + Math.max(0, i.product.price * i.quantity - (i.discount || 0)), 0);
   const grandTotal   = kitchenTotal + cartTotal;
 
   const allItems = [
@@ -128,7 +128,7 @@ function ReceiptModal({
     }))),
     ...cart.map(i => ({
       name: i.product.name, qty: i.quantity,
-      unitPrice: i.product.price, total: i.product.price * i.quantity,
+      unitPrice: i.product.price, total: Math.max(0, i.product.price * i.quantity - (i.discount || 0)),
     })),
   ];
 
@@ -479,7 +479,7 @@ function PaymentModal({
             tableId: activeTable?.id,
             notes: orderNote || undefined,
             tipAmount: tip > 0 ? tip : undefined,
-            items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price })),
+            items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price, discount: i.discount || 0 })),
           });
           createdCartOrderId.current = newOrder.id;
           queue.push({ id: newOrder.id, remaining: newOrder.totalAmount + (tip > 0 ? tip : 0) });
@@ -740,20 +740,21 @@ function PaymentModal({
 
 function CartPanel({
   token, cart, orderNote, activeTable, orderType, openOrders,
-  onAdd, onRemove, onNoteChange, onSendToKitchen, onShowPayment, onShowReceipt, onClearCart, onClose,
+  onAdd, onRemove, onSetDiscount, onNoteChange, onSendToKitchen, onShowPayment, onShowReceipt, onClearCart, onClose,
   sending, isMobile, selectedCustomer, onSelectCustomer,
 }: {
   token: string; cart: CartItem[]; orderNote: string;
   activeTable: Table | null; orderType: 'DINE_IN' | 'TAKEAWAY';
   openOrders: Order[];
   onAdd: (p: Product) => void; onRemove: (id: string) => void;
+  onSetDiscount: (id: string, discount: number) => void;
   onNoteChange: (v: string) => void;
   onSendToKitchen: () => void; onShowPayment: () => void; onShowReceipt: () => void; onClearCart: () => void;
   onClose?: () => void; sending: boolean; isMobile?: boolean;
   selectedCustomer: CustomerLite | null; onSelectCustomer: (c: CustomerLite | null) => void;
 }) {
   const existingTotal = openOrders.reduce((s, o) => s + orderRemaining(o), 0);
-  const cartTotal     = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
+  const cartTotal     = cart.reduce((s, i) => s + Math.max(0, i.product.price * i.quantity - (i.discount || 0)), 0);
   const grandTotal    = existingTotal + cartTotal;
 
   const tableLabel = activeTable
@@ -810,24 +811,47 @@ function CartPanel({
         {cart.length > 0 && (
           <div>
             <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2">➕ Nouvelle commande</p>
-            {cart.map(item => (
-              <div key={item.product.id} className="flex items-center gap-2 bg-orange-500/5 border border-orange-500/20 rounded-xl p-2.5 mb-1">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{item.product.name}</p>
-                  <p className="text-xs text-orange-400">{formatCurrency(item.product.price)}</p>
+            {cart.map(item => {
+              const lineGross = item.product.price * item.quantity;
+              const lineDiscount = Math.min(item.discount || 0, lineGross);
+              const lineNet = lineGross - lineDiscount;
+              return (
+              <div key={item.product.id} className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-2.5 mb-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{item.product.name}</p>
+                    <p className="text-xs text-orange-400">{formatCurrency(item.product.price)}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => onRemove(item.product.id)}
+                      className="w-7 h-7 rounded-full bg-gray-600 hover:bg-red-700 flex items-center justify-center text-sm">−</button>
+                    <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
+                    <button onClick={() => onAdd(item.product)}
+                      className="w-7 h-7 rounded-full bg-gray-600 hover:bg-green-700 flex items-center justify-center text-sm">+</button>
+                  </div>
+                  <span className="text-orange-400 font-bold text-sm w-20 text-right">
+                    {lineDiscount > 0 ? (
+                      <>
+                        <span className="block text-[10px] text-gray-500 line-through">{formatCurrency(lineGross)}</span>
+                        {formatCurrency(lineNet)}
+                      </>
+                    ) : formatCurrency(lineGross)}
+                  </span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => onRemove(item.product.id)}
-                    className="w-7 h-7 rounded-full bg-gray-600 hover:bg-red-700 flex items-center justify-center text-sm">−</button>
-                  <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                  <button onClick={() => onAdd(item.product)}
-                    className="w-7 h-7 rounded-full bg-gray-600 hover:bg-green-700 flex items-center justify-center text-sm">+</button>
+                <div className="flex items-center justify-end gap-1 mt-1.5">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wide">Remise</span>
+                  <input
+                    type="number" min={0} max={lineGross}
+                    value={item.discount || ''}
+                    onChange={e => onSetDiscount(item.product.id, Math.max(0, Math.min(Number(e.target.value) || 0, lineGross)))}
+                    placeholder="0"
+                    className="w-24 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs text-right focus:border-orange-500 outline-none"
+                  />
+                  <span className="text-[10px] text-gray-400">Ar</span>
                 </div>
-                <span className="text-orange-400 font-bold text-sm w-20 text-right">
-                  {formatCurrency(item.product.price * item.quantity)}
-                </span>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -1294,6 +1318,14 @@ export default function POSPage() {
           .filter(i => i.quantity > 0));
   }, []);
 
+  const setLineDiscount = useCallback((productId: string, discount: number) => {
+    setCart(prev => prev.map(i => {
+      if (i.product.id !== productId) return i;
+      const max = i.product.price * i.quantity;
+      return { ...i, discount: Math.max(0, Math.min(discount, max)) };
+    }));
+  }, []);
+
   function selectTable(table: Table) {
     if (activeTable?.id === table.id) return;
     setActiveTable(table);
@@ -1312,7 +1344,7 @@ export default function POSPage() {
         status: 'CONFIRMED',
         tableId: activeTable?.id,
         notes: orderNote || undefined,
-        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price })),
+        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity, unitPrice: i.product.price, discount: i.discount || 0 })),
       });
       setCart([]);
       setOrderNote('');
@@ -1356,7 +1388,7 @@ export default function POSPage() {
   }, [apiError]);
 
   const existingTotal = openOrders.reduce((s, o) => s + orderRemaining(o), 0);
-  const cartTotal     = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
+  const cartTotal     = cart.reduce((s, i) => s + Math.max(0, i.product.price * i.quantity - (i.discount || 0)), 0);
   const grandTotal    = existingTotal + cartTotal;
   const cartCount     = cart.reduce((s, i) => s + i.quantity, 0);
   const tableLabel    = activeTable ? `Table ${activeTable.number}` : orderType === 'TAKEAWAY' ? 'Emporté' : '';
@@ -1452,7 +1484,7 @@ export default function POSPage() {
   const cartPanelProps = {
     token: token!, cart, orderNote, activeTable, orderType,
     openOrders: openOrders as Order[],
-    onAdd: addToCart, onRemove: removeFromCart, onNoteChange: setOrderNote,
+    onAdd: addToCart, onRemove: removeFromCart, onSetDiscount: setLineDiscount, onNoteChange: setOrderNote,
     onSendToKitchen: sendToKitchen, onShowPayment: () => setShowPayModal(true),
     onShowReceipt: () => setShowReceipt(true),
     onClearCart: () => setCart([]), sending,

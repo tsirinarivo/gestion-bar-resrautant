@@ -253,6 +253,7 @@ const orderItemSchema = z.object({
   productId: z.string(),
   quantity: z.number().int().positive(),
   unitPrice: z.number().positive(),
+  discount: z.number().nonnegative().optional(),
   notes: z.string().optional(),
   kdsStation: z.string().optional(),
   modifiers: z.array(z.object({
@@ -487,7 +488,8 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
 
     const subtotal = data.items.reduce((sum, item) => {
       const modifierTotal = (item.modifiers || []).reduce((s, m) => s + m.price, 0)
-      return sum + (item.unitPrice + modifierTotal) * item.quantity
+      const lineDiscount = Math.min(item.discount ?? 0, item.unitPrice * item.quantity)
+      return sum + (item.unitPrice + modifierTotal) * item.quantity - lineDiscount
     }, 0)
 
     const restaurant = await prisma.restaurant.findUnique({
@@ -588,24 +590,28 @@ orderRouter.post('/', async (req: AuthRequest, res, next) => {
           deliveryFee,
           totalAmount,
           items: {
-            create: data.items.map(item => ({
-              productId: item.productId,
-              productName: productNameMap.get(item.productId) ?? null,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              totalPrice: item.unitPrice * item.quantity,
-              notes: item.notes,
-              kdsStation: item.kdsStation ?? productKdsMap.get(item.productId) ?? null,
-              modifiers: item.modifiers ? {
-                create: item.modifiers.map(m => ({
-                  name: m.name,
-                  price: m.price,
-                  type: m.type,
-                  modifierId: m.modifierId,
-                  variantId: m.variantId,
-                })),
-              } : undefined,
-            })),
+            create: data.items.map(item => {
+              const lineDiscount = Math.min(item.discount ?? 0, item.unitPrice * item.quantity)
+              return {
+                productId: item.productId,
+                productName: productNameMap.get(item.productId) ?? null,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discountAmount: lineDiscount,
+                totalPrice: item.unitPrice * item.quantity - lineDiscount,
+                notes: item.notes,
+                kdsStation: item.kdsStation ?? productKdsMap.get(item.productId) ?? null,
+                modifiers: item.modifiers ? {
+                  create: item.modifiers.map(m => ({
+                    name: m.name,
+                    price: m.price,
+                    type: m.type,
+                    modifierId: m.modifierId,
+                    variantId: m.variantId,
+                  })),
+                } : undefined,
+              }
+            }),
           },
           statusHistory: {
             create: { status: initialStatus, changedBy: req.user!.id },
@@ -809,13 +815,15 @@ orderRouter.patch('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
     const item = order.items.find(i => i.id === req.params.itemId)
     if (!item) throw new AppError('Article introuvable', 404)
 
-    const newItemTotal = item.unitPrice * quantity
+    // Conserve la remise ligne existante, recalcule le total net.
+    const lineDiscount = Math.min(item.discountAmount ?? 0, item.unitPrice * quantity)
+    const newItemTotal = item.unitPrice * quantity - lineDiscount
     const totalDiff = newItemTotal - item.totalPrice
     const newSubtotal = order.subtotal + totalDiff
     const newTotal = order.totalAmount + totalDiff
 
     const [updatedItem] = await prisma.$transaction([
-      prisma.orderItem.update({ where: { id: item.id }, data: { quantity, totalPrice: newItemTotal } }),
+      prisma.orderItem.update({ where: { id: item.id }, data: { quantity, discountAmount: lineDiscount, totalPrice: newItemTotal } }),
       prisma.order.update({ where: { id: order.id }, data: { subtotal: newSubtotal, totalAmount: newTotal } }),
     ])
 

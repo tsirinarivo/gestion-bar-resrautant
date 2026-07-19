@@ -1635,7 +1635,7 @@ export default function MenuPage() {
 
   const deleteProduct = useMutation({
     mutationFn: (id: string) => api.delete(`/products/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['products'] }); qc.invalidateQueries({ queryKey: ['categories'] }); toast.success('Produit supprimé') },
+    onSuccess: (res: any) => { qc.invalidateQueries({ queryKey: ['products'] }); qc.invalidateQueries({ queryKey: ['categories'] }); toast.success(res?.data?.message ?? 'Produit supprimé') },
     onError: (err: any) => toast.error(err?.response?.data?.error ?? 'Erreur suppression'),
   })
 
