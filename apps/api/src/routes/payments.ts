@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { autoPostPaymentToBank } from './bank'
-import { autoPrintReceiptWithTable, reprintReceiptWithTable, sendPrintAndLog } from '../lib/printer'
+import { autoPrintReceiptWithTable, reprintReceiptWithTable } from '../lib/printer'
 import { deductStockForOrder, earnLoyaltyPoints } from './orders'
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -355,27 +355,15 @@ paymentRouter.post('/:id/reprint', authorize('manager', 'superadmin', 'caissier'
     const restaurantId = req.user!.restaurantId
     const payment = await prisma.payment.findFirst({
       where: { id: req.params.id, order: { restaurantId } },
-      select: { id: true, orderId: true },
+      select: { orderId: true },
     })
     if (!payment) throw new AppError('Paiement introuvable', 404)
 
-    // 1. Réimprimer le PrintLog existant (ticket original exact) si disponible
-    const log = await prisma.printLog.findFirst({
-      where: { ownerId: restaurantId, relatedId: payment.orderId, kind: 'sale_receipt' },
-      orderBy: { createdAt: 'desc' },
-    })
-    if (log) {
-      await sendPrintAndLog(restaurantId, log.content, {
-        kind: log.kind,
-        relatedId: log.relatedId ?? undefined,
-        orderId: log.orderId ?? undefined,
-        copies: log.copies,
-      } as any)
-      res.json({ success: true, message: 'Réimpression envoyée' })
-      return
-    }
-
-    // 2. Sinon régénérer le reçu depuis la commande
+    // On REGÉNÈRE toujours le reçu depuis la commande (même logique
+    // formatSaleReceipt que l'impression originale, qui est complète). On ne
+    // rejoue PAS le PrintLog.content stocké : le package imprimantcloud tronque
+    // le contenu qu'il journalise → une réimpression du log donnait un ticket
+    // incomplet, alors que la commande contient toujours toutes les lignes.
     const order = await prisma.order.findFirst({
       where: { id: payment.orderId, restaurantId },
       include: { items: { include: { product: true } }, payments: true, table: true, restaurant: true },
@@ -397,7 +385,7 @@ paymentRouter.post('/:id/reprint', authorize('manager', 'superadmin', 'caissier'
       cashierName: cashier,
       table: tableLabel,
       items: order.items.map((i: any) => ({
-        name: i.product?.name ?? i.productName ?? 'Article',
+        name: i.productName ?? i.product?.name ?? 'Article',
         qty: i.quantity,
         unitPrice: i.unitPrice,
         total: i.totalPrice,
